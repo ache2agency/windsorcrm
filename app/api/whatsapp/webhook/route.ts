@@ -2098,9 +2098,7 @@ export async function POST(request: Request) {
           return buildProviderResponse(provider, categoriaGenericaGPT, waNumber)
         }
 
-        const palabrasGPT = msgTrimGPT.split(/\s+/).length
         const pareceCarreraEspecificaGPT =
-          palabrasGPT >= 2 ||
           /m[eé]dic|enfermer|derecho|contadur|ingenier|arquitect|qu[ií]mic|biolog|nutric|odontolog|veterinar|farmac|f[ií]sica|matem|historia|filosof|geograf|econom|sociolog|antropolog|comunicaci[oó]n|periodis|artes?|diseño|música|danza|teatro|cine|fotograf/i.test(msgTrimGPT)
 
         if (pareceCarreraEspecificaGPT) {
