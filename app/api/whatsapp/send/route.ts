@@ -10,14 +10,19 @@ import {
 } from '@/lib/whatsapp/provider'
 
 export async function POST(request: Request) {
+  let to: string | undefined
+  let body: string | undefined
+  let leadId: string | undefined
+  let agentUserId: string | undefined
+  let fase: string | undefined
   try {
-    const { to, body, leadId, agentUserId, fase } = (await request.json()) as {
+    ;({ to, body, leadId, agentUserId, fase } = (await request.json()) as {
       to?: string
       body?: string
       leadId?: string
       agentUserId?: string
       fase?: string
-    }
+    })
 
     if (!to || !body) {
       return NextResponse.json(
