@@ -209,6 +209,7 @@ export async function POST(request: Request) {
           {
             error: 'No se pudo enviar el mensaje',
             detail: 'El número no está disponible en WhatsApp o la ventana de 24h venció. El lead debe escribirte primero para poder responderle.',
+            debug_meta_error: msg,
           },
           { status: 422 }
         )
