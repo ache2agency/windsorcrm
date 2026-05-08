@@ -205,11 +205,16 @@ export async function POST(request: Request) {
         )
       }
       if (msg.includes('133010') || msg.includes('131047') || msg.toLowerCase().includes('not registered') || msg.toLowerCase().includes('24 hours')) {
+        const { phoneNumberId, accessToken } = getMetaConfig()
         return NextResponse.json(
           {
             error: 'No se pudo enviar el mensaje',
             detail: 'El número no está disponible en WhatsApp o la ventana de 24h venció. El lead debe escribirte primero para poder responderle.',
             debug_meta_error: msg,
+            debug_to_raw: to,
+            debug_to_normalized: normalizePhoneNumber(to ?? ''),
+            debug_phone_number_id: phoneNumberId,
+            debug_has_token: !!accessToken,
           },
           { status: 422 }
         )
