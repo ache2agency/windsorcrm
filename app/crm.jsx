@@ -1157,7 +1157,7 @@ export default function CRM() {
       asignado_a: newLead.asignado_a || currentUser.id,
     };
     const { data, error } = await supabase.from("leads").insert([lead]).select();
-    if (error) return showToast("Error agregando lead", "error");
+    if (error) return showToast("Error: " + (error.message || error.code || JSON.stringify(error)), "error");
     setLeads(prev => [data[0], ...prev]);
     await logLeadActivity({
       leadId: data[0].id,
