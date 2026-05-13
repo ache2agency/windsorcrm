@@ -963,7 +963,12 @@ export default function CRM() {
       if (l.asignado_a !== currentProfile.id) return false;
     }
     const matchV = filterVendedor === "Todos" || l.asignado_a === filterVendedor;
-    const matchS = (l.nombre || l.whatsapp || '').toLowerCase().includes(search.toLowerCase()) || (l.email || '').toLowerCase().includes(search.toLowerCase());
+    const searchClean = search.replace(/\D/g, '');
+    const whatsappClean = (l.whatsapp || '').replace(/\D/g, '');
+    const matchS = (l.nombre || '').toLowerCase().includes(search.toLowerCase()) ||
+      (l.email || '').toLowerCase().includes(search.toLowerCase()) ||
+      (searchClean.length >= 4 && whatsappClean.includes(searchClean)) ||
+      (!searchClean && (l.whatsapp || '').toLowerCase().includes(search.toLowerCase()));
     return matchV && matchS;
   });
 
@@ -1146,6 +1151,9 @@ export default function CRM() {
     if (newLead.whatsapp) {
       const digits = newLead.whatsapp.replace(/\D/g, "");
       if (digits.length > 0 && digits.length < 10) return showToast("El número WhatsApp debe tener 10 dígitos (ej. 7471234567)", "error");
+      const normalized = normalizarWhatsapp(newLead.whatsapp);
+      const existente = leads.find(l => l.whatsapp && l.whatsapp.replace(/\D/g, '') === normalized.replace(/\D/g, ''));
+      if (existente) return showToast(`Este número ya existe: ${existente.nombre || existente.whatsapp}`, "error");
     }
     const lead = {
       ...newLead,
@@ -1157,7 +1165,7 @@ export default function CRM() {
       asignado_a: newLead.asignado_a || currentUser.id,
     };
     const { data, error } = await supabase.from("leads").insert([lead]).select();
-    if (error) return showToast("Error: " + (error.message || error.code || JSON.stringify(error)), "error");
+    if (error) return showToast("Error agregando lead", "error");
     setLeads(prev => [data[0], ...prev]);
     await logLeadActivity({
       leadId: data[0].id,
