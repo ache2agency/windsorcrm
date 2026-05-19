@@ -981,10 +981,12 @@ const CATALOGO_OFERTA = `¿Cuál de nuestras ofertas educativas te interesa?
 
 🔵CURSOS DE IDIOMAS
 
-•Inglés
+•Inglés para adultos
+•Inglés para niños
 •Francés
 •Italiano
-•Inglés para niños
+•Verano adultos
+•Verano niños
 
 🔴EN LINEA
 

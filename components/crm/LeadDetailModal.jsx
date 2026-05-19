@@ -2,7 +2,7 @@
 import { useState, useRef } from "react";
 
 const PROGRAMAS = [
-  { group: "Inglés", options: ["Inglés para adultos", "Inglés para niños", "Francés", "Italiano"] },
+  { group: "Inglés", options: ["Inglés para adultos", "Inglés para niños", "Francés", "Italiano", "Verano adultos", "Verano niños"] },
   { group: "Licenciaturas", options: ["Licenciatura en Inglés", "Licenciatura en Inglés online", "Relaciones públicas y mercadotecnia", "Relaciones públicas y mercadotecnia online", "Administración turística", "Administración turística online", "Psicología"] },
   { group: "Maestrías", options: ["Maestría en Innovación empresarial", "Maestría en Multiculturalidad y Plurilingüismo"] },
   { group: "Bachillerato", options: ["Bachillerato"] },
