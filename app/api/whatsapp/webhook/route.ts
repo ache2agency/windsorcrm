@@ -39,6 +39,69 @@ type IncomingWhatsAppMessage = {
   rawPayload: Record<string, unknown>
 }
 
+const ADMIN_WA_ALERTA = '527471028306'
+
+async function alertarAdminNuevoLead(
+  supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
+  leadId: string,
+  fase: string
+): Promise<void> {
+  // Solo disparar una vez por lead
+  const { data: yaEnviada } = await supabase
+    .from('lead_activities')
+    .select('id')
+    .eq('lead_id', leadId)
+    .eq('event_type', 'alerta_admin_enviada')
+    .maybeSingle()
+  if (yaEnviada) return
+
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('nombre, curso, whatsapp')
+    .eq('id', leadId)
+    .maybeSingle()
+  if (!lead) return
+
+  const faseTextos: Record<string, { estado: string; accion: string }> = {
+    accion:               { estado: 'Info enviada, revisando 👀',       accion: '👉 Puede responder pronto' },
+    dudas:                { estado: 'Tiene dudas activas 💬',            accion: '👉 Bot en conversación' },
+    inscripcion:          { estado: 'Solicitó inscripción 🔥',           accion: '👉 Listo para cerrar' },
+    clase_prueba:         { estado: 'Quiere clase de prueba 🔥',         accion: '👉 Agéndala hoy' },
+    asesor:               { estado: 'Pidió hablar con asesor 👋',        accion: '👉 Te está esperando, llámale' },
+    info_enviada:         { estado: 'Info enviada, sin respuesta 📵',    accion: '👉 Considera llamarle' },
+    seguimiento:          { estado: 'Bot en seguimiento',                accion: '👉 Esperando respuesta' },
+  }
+  const { estado, accion } = faseTextos[fase] ?? { estado: 'En conversación', accion: '' }
+  const nombre = lead.nombre?.trim() || 'Sin nombre'
+  const programa = lead.curso?.trim() || 'Programa pendiente'
+  const telefono = (lead.whatsapp || '').replace(/\D/g, '').replace(/^52/, '')
+
+  const lineas = [
+    '*🆕 Nuevo lead — Windsor*',
+    '',
+    `👤 ${nombre}`,
+    `📚 ${programa}`,
+    telefono ? `📱 ${telefono}` : null,
+    '',
+    `💬 *Estado:* ${estado}`,
+    accion || null,
+  ].filter((l): l is string => l !== null)
+
+  try {
+    await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: lineas.join('\n') })
+    await supabase.from('lead_activities').insert([{
+      lead_id: leadId,
+      actor_id: null,
+      event_type: 'alerta_admin_enviada',
+      title: 'Alerta admin enviada',
+      detail: `Estado: ${estado}`,
+      meta: { fase, enviado_a: ADMIN_WA_ALERTA },
+    }])
+  } catch (e) {
+    console.error('[alertarAdminNuevoLead]', e)
+  }
+}
+
 async function logBotMessageAndUpdateFase(
   supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
   conversacionId: string,
@@ -62,6 +125,11 @@ async function logBotMessageAndUpdateFase(
     .from('whatsapp_conversaciones')
     .update(update)
     .eq('id', conversacionId)
+
+  // Alerta al admin cuando el bot envía la info por primera vez a un lead nuevo
+  if (leadId && nextFase && ['accion', 'inscripcion', 'clase_prueba', 'asesor'].includes(nextFase)) {
+    alertarAdminNuevoLead(supabase, leadId, nextFase).catch(() => {})
+  }
 
   // Mover stage del lead automáticamente según la fase del bot
   if (leadId && nextFase) {
