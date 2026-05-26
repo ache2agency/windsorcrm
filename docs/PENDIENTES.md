@@ -21,6 +21,18 @@ Documento para anotar lo que queda por hacer y los errores a resolver. Actualiza
 - [ ] Validar en uso real la sincronía completa `lead.stage` ↔ `whatsapp_conversaciones.fase`
 - [ ] Integrar al CRM el envío de template inicial para leads `walkin`
 - [ ] Terminar activación de Meta Cloud API en producción
+  - **Sesión 2026-05-20 — avance:**
+  - ✅ Webhook verificado: `https://crm.windsor.edu.mx/api/whatsapp/webhook` responde correctamente
+  - ✅ `WHATSAPP_PROVIDER=meta` activado en Vercel y desplegado
+  - ✅ `META_WHATSAPP_VERIFY_TOKEN=windsor-waba-2026` configurado
+  - ✅ `META_PHONE_NUMBER_ID=1049147001613376` configurado
+  - ✅ `META_WHATSAPP_TOKEN` actualizado con token permanente (usuario del sistema)
+  - ✅ Webhook fields: `messages` suscrito en Meta Developer Portal
+  - ⏳ **ESPERANDO RESPUESTA DE META SUPPORT:** caso abierto en Direct Support (Dev: Phone Number & Registration) el 2026-05-20. Esperando que reseteen el contador de verificación.
+  - ⏳ **Siguiente paso:** esperar ~30 min y solicitar código por llamada de voz con:
+    `TOKEN=$(cat salescrm/tokenMeta.txt) && curl -X POST "https://graph.facebook.com/v20.0/1049147001613376/request_code" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"code_method": "VOICE", "language": "es"}'`
+  - ⏳ Luego registrar con: `curl -X POST "https://graph.facebook.com/v20.0/1049147001613376/register" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"messaging_product": "whatsapp", "pin": "CODIGO"}'`
+  - ✅ `tokenMeta.txt` protegido en `.gitignore` — se queda como respaldo local
 - [ ] Correr migración de `lead_activities` en Supabase y validar que el historial persista entre sesiones
 - [ ] Afinar el guardado de notas del lead para registrar un solo evento al guardar/blurear, no por cada tecla
 
