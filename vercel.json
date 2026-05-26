@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/whatsapp/alertas-nuevos-leads",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/whatsapp/reporte-diario",
       "schedule": "0 8 * * *"
     },
