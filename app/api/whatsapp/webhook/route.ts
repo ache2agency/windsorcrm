@@ -209,6 +209,8 @@ function hasLeadName(nombre: string | null | undefined, whatsapp: string | null 
   if (/\d/.test(value)) return false
   // Rechazar si contiene signos de puntuación o interrogación (es una frase)
   if (/[¿?¡!,;:.\/\\]/.test(value)) return false
+  // Rechazar si contiene emojis o caracteres no válidos en un nombre
+  if (!/^[\p{L}\s'\-]+$/u.test(value)) return false
   // Rechazar palabras que claramente no son nombres propios
   const noNombres = /^(hola|buenas?|buen|d[ií]a|tardes?|noches?|info|informaci[oó]n|costos?|precios?|quiero|quisiera|necesito|ayuda|gracias|ok|s[ií]|no|nada|nope|oye|hey|buenos|saludos|permiso|disculp)$/i
   if (noNombres.test(value.trim())) return false
@@ -1729,7 +1731,7 @@ export async function POST(request: Request) {
         const hasProgramKeyword = /ingl[eé]s|psicolog|turism|relaciones|bachillerato|maestr[ií]a|diplomado|administraci[oó]n|idiom|franc[eé]s|italian/i.test(originalText)
         const hasDigits = /\d/.test(originalText)
         const hasQuestion = /\?/.test(originalText) || /^\s*(qu[eé]|c[oó]mo|cu[aá]ndo|cu[aá]nto|d[oó]nde|cu[aá]l|qui[eé]n|tienen?|hay|info|informaci[oó]n|cuanto|cuando|cual|quien|como|que)\b/i.test(originalText.trim())
-        const looksLikeName = !isGreeting && !hasProgramKeyword && !hasDigits && !hasQuestion && !/@/.test(originalText) && words.length >= 1 && words.length <= 3
+        const looksLikeName = !isGreeting && !hasProgramKeyword && !hasDigits && !hasQuestion && !/@/.test(originalText) && words.length >= 1 && words.length <= 3 && hasLeadName(originalText.trim(), waNumber)
 
         if (looksLikeName) {
           const nombreCapturado = originalText.trim()
@@ -2107,7 +2109,7 @@ export async function POST(request: Request) {
       }
 
       // Persistir datos capturados por GPT
-      if (gpt.nombre && leadId && !hasLeadName(leadSnapshot?.nombre, waNumber)) {
+      if (gpt.nombre && leadId && !hasLeadName(leadSnapshot?.nombre, waNumber) && hasLeadName(gpt.nombre, waNumber)) {
         await supabase.from('leads').update({ nombre: gpt.nombre, stage: 'contactado' }).eq('id', leadId)
       }
       if (gpt.email && leadId) {
@@ -2125,7 +2127,7 @@ export async function POST(request: Request) {
 
       // Si GPT avanza a programa, interceptar
       if (gpt.siguienteFase === 'programa') {
-        if (gpt.nombre && leadId && !hasLeadName(leadSnapshot?.nombre, waNumber)) {
+        if (gpt.nombre && leadId && !hasLeadName(leadSnapshot?.nombre, waNumber) && hasLeadName(gpt.nombre, waNumber)) {
           await supabase.from('leads').update({ nombre: gpt.nombre, stage: 'contactado' }).eq('id', leadId)
         }
         // Si venimos de saludo sin nombre válido, volver a pedir nombre (no mostrar catálogo con teléfono)

@@ -21,6 +21,15 @@ import {
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
+function esNombreValido(nombre: string | null | undefined): boolean {
+  const n = (nombre || '').trim()
+  if (!n || n.length < 2 || n.length > 50) return false
+  if (n.split(/\s+/).length > 4) return false
+  if (/[¿?¡!,;]/.test(n)) return false
+  if (!/^[\p{L}\s'\-]+$/u.test(n)) return false
+  return true
+}
+
 const STAGES_PARA_BUSCAR = [
   'primer_contacto',
   'contactado',
@@ -131,19 +140,19 @@ async function reactivarConversacionesBot(
       continue
     }
 
-    // Verificar que no se haya enviado ya una reactivación en las últimas 24h
-    const { data: reactivacionPrevia } = await supabase
-      .from('whatsapp_mensajes')
-      .select('id')
-      .eq('conversacion_id', conv.id)
-      .eq('rol', 'reactivacion')
-      .gte('created_at', limiteMin)
-      .limit(1)
-      .maybeSingle()
-
-    if (reactivacionPrevia) {
-      resultados.push({ conversacion_id: conv.id, accion: 'omitido', detalle: 'reactivación ya enviada' })
-      continue
+    // Verificar que no se haya enviado ya una reactivación reciente (via reactivacion_intentos)
+    if (conv.lead_id) {
+      const { data: intentoReciente } = await supabase
+        .from('reactivacion_intentos')
+        .select('id')
+        .eq('lead_id', conv.lead_id)
+        .gte('enviado_at', limiteMin)
+        .limit(1)
+        .maybeSingle()
+      if (intentoReciente) {
+        resultados.push({ conversacion_id: conv.id, accion: 'omitido', detalle: 'reactivación ya registrada' })
+        continue
+      }
     }
 
     // Obtener nombre del lead
@@ -151,10 +160,11 @@ async function reactivarConversacionesBot(
     if (conv.lead_id) {
       const { data: lead } = await supabase
         .from('leads')
-        .select('nombre, curso')
+        .select('nombre, curso, stage')
         .eq('id', conv.lead_id)
         .maybeSingle()
-      if (lead?.nombre) nombre = lead.nombre.trim()
+      const rawNombre = lead?.nombre?.trim() || ''
+      if (esNombreValido(rawNombre)) nombre = rawNombre
       const trackA = esTrackA(lead?.curso)
       const mensaje = obtenerMensajeReactivacion20h(conv.fase || 'accion', trackA, nombre)
 
@@ -162,7 +172,7 @@ async function reactivarConversacionesBot(
       try {
         await enviarWhatsApp(conv.whatsapp, mensaje, provider, 'seguimiento_general', [nombre])
         await supabase.from('whatsapp_mensajes').insert([
-          { conversacion_id: conv.id, rol: 'reactivacion', contenido: mensaje },
+          { conversacion_id: conv.id, rol: 'bot', contenido: mensaje },
         ])
         await supabase
           .from('whatsapp_conversaciones')
@@ -170,12 +180,24 @@ async function reactivarConversacionesBot(
           .eq('id', conv.id)
 
         // Avanzar stage del lead a segundo_contacto si sigue en primer_contacto
-        if (conv.lead_id) {
-          await supabase
-            .from('leads')
-            .update({ stage: 'segundo_contacto' })
-            .eq('id', conv.lead_id)
-            .eq('stage', 'primer_contacto')
+        await supabase
+          .from('leads')
+          .update({ stage: 'segundo_contacto' })
+          .eq('id', conv.lead_id)
+          .eq('stage', 'primer_contacto')
+
+        // Registrar en reactivacion_intentos para evitar doble envío del pipeline principal
+        const stageFinal = (lead?.stage === 'primer_contacto' || lead?.stage === 'contactado')
+          ? 'segundo_contacto'
+          : (lead?.stage || 'segundo_contacto')
+        const etapaCanon20h = normalizarEtapaReactivacion(stageFinal)
+        if (etapaCanon20h) {
+          await supabase.from('reactivacion_intentos').insert([{
+            lead_id: conv.lead_id,
+            etapa: etapaCanon20h,
+            intento: 1,
+            enviado_at: new Date().toISOString(),
+          }]).catch(() => {})
         }
 
         resultados.push({ conversacion_id: conv.id, accion: 'enviado_20h' })
@@ -223,17 +245,16 @@ async function moverATercerContacto(
       continue
     }
 
-    // Verificar que el último mensaje de reactivación fue hace más de 24h
+    // Verificar que el último intento de reactivación fue hace más de 24h
     const { data: ultimaReactivacion } = await supabase
-      .from('whatsapp_mensajes')
-      .select('created_at')
-      .eq('conversacion_id', conv.id)
-      .eq('rol', 'reactivacion')
-      .order('created_at', { ascending: false })
+      .from('reactivacion_intentos')
+      .select('enviado_at')
+      .eq('lead_id', lead.id)
+      .order('enviado_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
-    if (!ultimaReactivacion || ultimaReactivacion.created_at > hace24h) {
+    if (!ultimaReactivacion || ultimaReactivacion.enviado_at > hace24h) {
       resultados.push({ lead_id: lead.id, accion: 'omitido', detalle: 'reactivación reciente o sin reactivación' })
       continue
     }
@@ -244,7 +265,7 @@ async function moverATercerContacto(
       .select('id')
       .eq('conversacion_id', conv.id)
       .eq('rol', 'usuario')
-      .gt('created_at', ultimaReactivacion.created_at)
+      .gt('created_at', ultimaReactivacion.enviado_at)
       .limit(1)
       .maybeSingle()
 
@@ -456,7 +477,8 @@ export async function POST(request: Request) {
       }
     }
 
-    const nombre = lead.nombre?.trim() || 'ahí'
+    const rawNombrePipeline = lead.nombre?.trim() || ''
+    const nombre = esNombreValido(rawNombrePipeline) ? rawNombrePipeline : 'ahí'
     const trackA = esTrackA(lead.curso)
     const mensaje = obtenerMensajeReactivacion(etapaCanon, siguienteIntento, trackA, nombre)
 
