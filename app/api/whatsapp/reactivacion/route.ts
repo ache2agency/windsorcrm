@@ -197,7 +197,7 @@ async function reactivarConversacionesBot(
             etapa: etapaCanon20h,
             intento: 1,
             enviado_at: new Date().toISOString(),
-          }]).catch(() => {})
+          }])
         }
 
         resultados.push({ conversacion_id: conv.id, accion: 'enviado_20h' })
