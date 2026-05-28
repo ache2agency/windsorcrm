@@ -1,5 +1,8 @@
 "use client";
 
+const esLeadBot = (lead) =>
+  lead.origen === "bot" || (!lead.origen && lead.notas?.includes("automáticamente desde WhatsApp"));
+
 export default function KanbanBoard({
   STAGES,
   byStage,
@@ -45,7 +48,7 @@ export default function KanbanBoard({
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "#111" }}>{lead.nombre || lead.whatsapp}</span>
-                  <span title={lead.origen === "bot" ? "Lead por WhatsApp bot" : "Lead manual"} style={{ fontSize: 11 }}>{lead.origen === "bot" ? "🤖" : "👤"}</span>
+                  <span title={esLeadBot(lead) ? "Lead por WhatsApp bot" : "Lead manual"} style={{ fontSize: 11 }}>{esLeadBot(lead) ? "🤖" : "👤"}</span>
                 </div>
                 <div style={{ fontSize: 10, color: "#555", marginBottom: 8 }}>{lead.curso}</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>

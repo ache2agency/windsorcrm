@@ -1,5 +1,8 @@
 "use client";
 
+const esLeadBot = (lead) =>
+  lead.origen === "bot" || (!lead.origen && lead.notas?.includes("automáticamente desde WhatsApp"));
+
 export default function LeadsTable({
   filteredLeads,
   STAGES,
@@ -35,8 +38,8 @@ export default function LeadsTable({
                   <div style={{ fontSize: 11, color: "#94a3b8" }}>{lead.email}</div>
                 </td>
                 <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                  <span title={lead.origen === "bot" ? "WhatsApp bot" : "Manual"} style={{ fontSize: 14 }}>
-                    {lead.origen === "bot" ? "🤖" : "👤"}
+                  <span title={esLeadBot(lead) ? "WhatsApp bot" : "Manual"} style={{ fontSize: 14 }}>
+                    {esLeadBot(lead) ? "🤖" : "👤"}
                   </span>
                 </td>
                 <td style={{ padding: "12px 16px", color: "#64748b", fontSize: 12 }}>{lead.curso}</td>
