@@ -1451,6 +1451,7 @@ export async function POST(request: Request) {
                   notas: `Lead creado automáticamente desde WhatsApp.${profileName ? ' Nombre WA: ' + profileName : ''}`,
                   stage: 'contactado',
                   fecha: today,
+                  origen: 'bot',
                   ...(defaultAssignee ? { asignado_a: defaultAssignee } : {}),
                 },
               ],

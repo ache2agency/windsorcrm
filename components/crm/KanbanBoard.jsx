@@ -43,7 +43,10 @@ export default function KanbanBoard({
                 onClick={() => setSelectedLead(lead)}
                 style={{ padding: 12, opacity: dragId === lead.id ? 0.7 : 1 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#111", marginBottom: 4 }}>{lead.nombre || lead.whatsapp}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#111" }}>{lead.nombre || lead.whatsapp}</span>
+                  <span title={lead.origen === "bot" ? "Lead por WhatsApp bot" : "Lead manual"} style={{ fontSize: 11 }}>{lead.origen === "bot" ? "🤖" : "👤"}</span>
+                </div>
                 <div style={{ fontSize: 10, color: "#555", marginBottom: 8 }}>{lead.curso}</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 12, color: stage.color, fontWeight: 600 }}>{formatPeso(lead.valor)}</span>

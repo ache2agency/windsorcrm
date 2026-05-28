@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 
   const { data: nuevosAyer } = await supabase
     .from('leads')
-    .select('nombre, curso, whatsapp')
+    .select('nombre, curso, whatsapp, origen')
     .gte('created_at', ayer.toISOString())
     .lt('created_at', hoy.toISOString())
 
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
     '',
     `🆕 *Nuevos ${fechaAyer}*`,
     ...(nuevosAyer?.length
-      ? nuevosAyer.map(l => `${l.whatsapp ? '📱' : '•'} ${(l.nombre || 'Sin nombre').substring(0, 20)} — ${normProg(l.curso)}`)
+      ? nuevosAyer.map(l => `${l.origen === 'bot' ? '🤖' : '👤'} ${(l.nombre || 'Sin nombre').substring(0, 20)} — ${normProg(l.curso)}`)
       : ['Sin leads nuevos']),
     '',
     '_Reporte automático — Windsor CRM_',

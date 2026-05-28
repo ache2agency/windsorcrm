@@ -1163,6 +1163,7 @@ export default function CRM() {
       valor: Number(newLead.valor) || 0,
       user_id: currentUser.id,
       asignado_a: newLead.asignado_a || currentUser.id,
+      origen: "manual",
     };
     const { data, error } = await supabase.from("leads").insert([lead]).select();
     if (error) return showToast("Error agregando lead", "error");
