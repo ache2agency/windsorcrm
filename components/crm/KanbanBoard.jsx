@@ -3,6 +3,18 @@
 const esLeadBot = (lead) =>
   lead.origen === "bot" || (!lead.origen && lead.notas?.includes("automáticamente desde WhatsApp"));
 
+const FbIcon = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="#1877F2" xmlns="http://www.w3.org/2000/svg" style={{ display: "inline", verticalAlign: "middle" }}>
+    <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.253h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+  </svg>
+);
+
+const origenIcon = (lead) => {
+  if (lead.origen === "meta_ads") return <FbIcon />;
+  if (esLeadBot(lead)) return "🤖";
+  return "👤";
+};
+
 export default function KanbanBoard({
   STAGES,
   byStage,
@@ -48,13 +60,18 @@ export default function KanbanBoard({
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "#111" }}>{lead.nombre || lead.whatsapp}</span>
-                  <span title={esLeadBot(lead) ? "Lead por WhatsApp bot" : "Lead manual"} style={{ fontSize: 11 }}>{esLeadBot(lead) ? "🤖" : "👤"}</span>
+                  <span title={lead.origen === "meta_ads" ? "Meta Ads" : esLeadBot(lead) ? "Lead por WhatsApp bot" : "Lead manual"} style={{ fontSize: 11 }}>{origenIcon(lead)}</span>
                 </div>
                 <div style={{ fontSize: 10, color: "#555", marginBottom: 8 }}>{lead.curso}</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 12, color: stage.color, fontWeight: 600 }}>{formatPeso(lead.valor)}</span>
                   <span style={{ fontSize: 10, color: "#555" }}>{getNombreVendedor(lead.asignado_a)}</span>
                 </div>
+                {lead.created_at && (
+                  <div style={{ marginTop: 5, fontSize: 10, color: "#999" }}>
+                    Entró: {new Date(lead.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Mexico_City" })}
+                  </div>
+                )}
                 {lead.notas && (
                   <div style={{ marginTop: 8, fontSize: 10, color: "#666", borderTop: "1px solid #222", paddingTop: 6, lineHeight: 1.4 }}>
                     {lead.notas.slice(0, 50)}{lead.notas.length > 50 ? "…" : ""}

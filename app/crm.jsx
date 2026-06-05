@@ -8,6 +8,7 @@ import LeadsTable from "@/components/crm/LeadsTable";
 import LeadDetailModal from "@/components/crm/LeadDetailModal";
 import NewAppointmentModal from "@/components/crm/NewAppointmentModal";
 import NewLeadModal from "@/components/crm/NewLeadModal";
+import SeguimientosPanel from "@/components/crm/SeguimientosPanel";
 const supabase = createClient();
 
 const STAGES = [
@@ -82,6 +83,7 @@ export default function CRM() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("kanban");
+  const [pendientesCount, setPendientesCount] = useState(0);
   const [selectedLead, setSelectedLead] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [showCitaForm, setShowCitaForm] = useState(false);
@@ -127,6 +129,7 @@ export default function CRM() {
   const [convSearch, setConvSearch] = useState("");
   const [convModeFilter, setConvModeFilter] = useState("todos");
   const [convPhaseFilter, setConvPhaseFilter] = useState("todas");
+  const [convVentanaFilter, setConvVentanaFilter] = useState(false);
   const [editTitulo, setEditTitulo] = useState("");
   const [flowRules, setFlowRules] = useState([]);
   const [flowLoading, setFlowLoading] = useState(false);
@@ -312,6 +315,10 @@ export default function CRM() {
 
   useEffect(() => {
     loadUser();
+    fetch("/api/seguimientos")
+      .then(r => r.json())
+      .then(d => setPendientesCount((d.seguimientos || []).length))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -990,7 +997,9 @@ export default function CRM() {
       (convModeFilter === "humano" ? !!conv.modo_humano : !conv.modo_humano);
     const matchesPhase =
       convPhaseFilter === "todas" || (conv.fase || "—") === convPhaseFilter;
-    return matchesSearch && matchesMode && matchesPhase;
+    const matchesVentana = !convVentanaFilter ||
+      (conv.ultimo_mensaje_at && (Date.now() - new Date(conv.ultimo_mensaje_at).getTime()) < 24 * 60 * 60 * 1000);
+    return matchesSearch && matchesMode && matchesPhase && matchesVentana;
   });
 
   const selectedConvLead = leads.find((lead) => lead.id === selectedConv?.lead_id) || null;
@@ -1166,7 +1175,10 @@ export default function CRM() {
       origen: "manual",
     };
     const { data, error } = await supabase.from("leads").insert([lead]).select();
-    if (error) return showToast("Error agregando lead", "error");
+    if (error) {
+      const detalle = error.message || error.code || "desconocido";
+      return showToast(`Error al guardar lead: ${detalle}`, "error");
+    }
     setLeads(prev => [data[0], ...prev]);
     await logLeadActivity({
       leadId: data[0].id,
@@ -1177,7 +1189,7 @@ export default function CRM() {
     });
     setShowForm(false);
     setNewLead({ nombre: "", email: "", whatsapp: "", curso: CURSOS[0], valor: "", notas: "", asignado_a: currentUser.id });
-    showToast("Lead agregado ✓");
+    showToast("Lead guardado ✓");
     if (data[0].whatsapp) {
       fetch("/api/whatsapp/bienvenida", {
         method: "POST",
@@ -1185,13 +1197,14 @@ export default function CRM() {
         body: JSON.stringify({ lead_id: data[0].id }),
       }).then(async (res) => {
         if (res.ok) {
-          showToast("Mensaje de bienvenida enviado por WhatsApp ✓");
+          showToast("WhatsApp de bienvenida enviado ✓");
           fetchWhatsConvs();
         } else {
           const err = await res.json().catch(() => ({}));
-          showToast((err.error || "Error") + (err.numero_intentado ? ` → ${err.numero_intentado}` : ""), "error");
+          const motivo = err.error || "Error Meta";
+          showToast(`Lead guardado ✓ — WhatsApp no enviado: ${motivo}`, "error");
         }
-      }).catch((e) => showToast("WhatsApp fetch error: " + e.message, "error"));
+      }).catch(() => {});
     }
   };
 
@@ -1573,6 +1586,18 @@ export default function CRM() {
               className={`nav-btn ${view === "convs" ? "active" : ""}`}
               onClick={() => confirmReturnToBotIfNeeded(() => { setView("convs"); fetchWhatsConvs(); setSelectedConv(null); setConvMessages([]); })}
             >CONVERSACIONES</button>
+            <button
+              className={`nav-btn ${view === "seguimientos" ? "active" : ""}`}
+              onClick={() => confirmReturnToBotIfNeeded(() => { setView("seguimientos"); setPendientesCount(0); })}
+              style={{ position: "relative" }}
+            >
+              SEGUIMIENTOS
+              {pendientesCount > 0 && (
+                <span style={{ position: "absolute", top: 2, right: 2, background: "#A8263C", color: "#fff", borderRadius: 99, fontSize: 10, padding: "1px 5px", fontWeight: 700, lineHeight: 1.4 }}>
+                  {pendientesCount}
+                </span>
+              )}
+            </button>
             {isAdmin && (
               <>
                 <button className={`nav-btn ${view === "base" ? "active" : ""}`} onClick={() => confirmReturnToBotIfNeeded(() => { setView("base"); loadDocumentos(); })}>BASE</button>
@@ -1610,6 +1635,7 @@ export default function CRM() {
               { label: "LISTA", v: "lista", action: () => setView("lista") },
               { label: "AGENDA", v: "agenda", action: () => setView("agenda") },
               { label: "CONVERSACIONES", v: "convs", action: () => { setView("convs"); fetchWhatsConvs(); setSelectedConv(null); setConvMessages([]); } },
+              { label: `SEGUIMIENTOS${pendientesCount > 0 ? ` (${pendientesCount})` : ""}`, v: "seguimientos", action: () => { setView("seguimientos"); setPendientesCount(0); } },
               ...(isAdmin ? [
                 { label: "BASE", v: "base", action: () => { setView("base"); loadDocumentos(); } },
                 { label: "BOT", v: "bot", action: () => { setView("bot"); loadBotConfig(); } },
@@ -2205,6 +2231,8 @@ export default function CRM() {
             convPhaseFilter={convPhaseFilter}
             setConvPhaseFilter={setConvPhaseFilter}
             conversationPhaseOptions={conversationPhaseOptions}
+            convVentanaFilter={convVentanaFilter}
+            setConvVentanaFilter={setConvVentanaFilter}
             getPhaseLabel={getPhaseLabel}
             selectedConv={selectedConv}
             setSelectedConv={setSelectedConv}
@@ -2228,6 +2256,27 @@ export default function CRM() {
             sendReactivacion={sendReactivacion}
             sendingReactivacion={sendingReactivacion}
             closeLead={closeLead}
+          />
+        )}
+
+        {/* SEGUIMIENTOS */}
+        {view === "seguimientos" && (
+          <SeguimientosPanel
+            goToKanban={(leadId) => {
+              const lead = leads.find(l => l.id === leadId);
+              setSelectedLead(lead || null);
+              confirmReturnToBotIfNeeded(() => setView("kanban"));
+            }}
+            goToConversation={(leadId, whatsapp) => {
+              const conv = whatsConvs.find(c => c.lead_id === leadId || c.whatsapp === whatsapp);
+              fetchWhatsConvs().then(() => {
+                setView("convs");
+                if (conv) {
+                  setSelectedConv(conv);
+                  fetchConvMessages(conv.id);
+                }
+              });
+            }}
           />
         )}
 
@@ -2323,6 +2372,14 @@ export default function CRM() {
             setNuevaCita={setNuevaCita}
             deleteLead={deleteLead}
             updateLeadField={updateLeadField}
+            goToConversation={(l) => {
+              const conv = whatsConvs.find(c => c.lead_id === l.id || c.whatsapp === l.whatsapp);
+              setSelectedLead(null);
+              fetchWhatsConvs().then(() => {
+                setView("convs");
+                if (conv) { setSelectedConv(conv); fetchConvMessages(conv.id); }
+              });
+            }}
           />
         );
       })()}

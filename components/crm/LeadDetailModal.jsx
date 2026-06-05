@@ -1,6 +1,47 @@
 "use client";
 import { useState, useRef } from "react";
 
+const META_TEMPLATES = (nombre) => {
+  const n = (nombre || "").trim() || "[nombre]";
+  return [
+    {
+      id: "seguimiento_general",
+      label: "Seguimiento general",
+      templateName: "seguimiento_general",
+      params: (n) => [n],
+      preview: `Hola ${n} 👋 ¿Pudiste revisar la información que te compartimos sobre Instituto Windsor? Si tienes alguna duda, con gusto te ayudamos. 😊\n\n› Sí, tengo dudas\n› No tengo dudas\n› No me interesa`,
+    },
+    {
+      id: "windsor_promocion",
+      label: "Promoción",
+      templateName: "windsor_promocion",
+      params: (n) => [n],
+      preview: `Hola ${n}, queremos que no te pierdas la promoción vigente en Instituto Windsor. ¿Te gustaría conocer los detalles y apartar tu lugar? 😊`,
+    },
+    {
+      id: "windsor_inscripcion_pendiente_",
+      label: "Inscripción pendiente",
+      templateName: "windsor_inscripcion_pendiente_",
+      params: (n) => [n],
+      preview: `Hola ${n}, tu lugar en Instituto Windsor está casi apartado. Solo falta completar el proceso de inscripción. ¿Necesitas ayuda con algún documento o los datos de pago? 😊`,
+    },
+    {
+      id: "verano_apartar",
+      label: "Verano — Apartar lugar",
+      templateName: null,
+      params: null,
+      preview: `Hola ${n} ☀️ ¿Pudiste revisar la info de My Best Summer?\n\nSi te interesa, puedes apartar tu lugar hoy con solo el 50% — el resto lo pagas al inicio del curso. Lo haces en línea, es rápido y fácil.\n\n¿Apartamos tu lugar? Solo di *SÍ* y te mando el proceso 😊`,
+    },
+    {
+      id: "libre",
+      label: "Mensaje libre",
+      templateName: null,
+      params: null,
+      preview: "",
+    },
+  ];
+};
+
 const PROGRAMAS = [
   { group: "Inglés", options: ["Inglés para adultos", "Inglés para niños", "Francés", "Italiano", "Verano adultos", "Verano niños"] },
   { group: "Licenciaturas", options: ["Licenciatura en Inglés", "Licenciatura en Inglés online", "Relaciones públicas y mercadotecnia", "Relaciones públicas y mercadotecnia online", "Administración turística", "Administración turística online", "Psicología"] },
@@ -35,6 +76,7 @@ export default function LeadDetailModal({
   updateNotas,
   updateLeadField,
   openWA,
+  goToConversation,
   activeConversation,
   getLeadNextStep,
   leadTimelineLoading,
@@ -47,6 +89,11 @@ export default function LeadDetailModal({
   const [localNotas, setLocalNotas] = useState(lead.notas || "");
   const [notasSaved, setNotasSaved] = useState(true);
   const notasSaveTimer = useRef(null);
+  const [showMsgPanel, setShowMsgPanel] = useState(false);
+  const [msgPlantilla, setMsgPlantilla] = useState("seguimiento_1");
+  const [msgTexto, setMsgTexto] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [msgStatus, setMsgStatus] = useState(null);
   const [draft, setDraft] = useState({
     nombre: lead.nombre || "",
     email: lead.email || "",
@@ -56,6 +103,52 @@ export default function LeadDetailModal({
   });
 
   const currentStageId = stage?.id || lead.stage;
+
+  const abrirMsgPanel = () => {
+    const templates = META_TEMPLATES(lead.nombre);
+    setMsgPlantilla("seguimiento_general");
+    setMsgTexto(templates[0].preview);
+    setMsgStatus(null);
+    setShowMsgPanel(true);
+  };
+
+  const handlePlantillaChange = (id) => {
+    setMsgPlantilla(id);
+    const t = META_TEMPLATES(lead.nombre).find((x) => x.id === id);
+    setMsgTexto(t?.preview || "");
+  };
+
+  const enviarMensaje = async () => {
+    if (!lead.whatsapp) return;
+    const templates = META_TEMPLATES(lead.nombre);
+    const tpl = templates.find((x) => x.id === msgPlantilla);
+    const esLibre = tpl?.templateName === null;
+    if (esLibre && !msgTexto.trim()) return;
+    setEnviando(true);
+    setMsgStatus(null);
+    const nombre = (lead.nombre || "").trim() || "ahí";
+    const payload = esLibre
+      ? { to: lead.whatsapp, body: msgTexto.trim(), leadId: lead.id }
+      : { to: lead.whatsapp, body: tpl.preview, templateName: tpl.templateName, templateParams: tpl.params(nombre), leadId: lead.id };
+    try {
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMsgStatus({ ok: false, error: data.detail || data.error || "Error al enviar" });
+      } else {
+        setMsgStatus({ ok: true });
+        setTimeout(() => { setShowMsgPanel(false); setMsgStatus(null); }, 1500);
+      }
+    } catch {
+      setMsgStatus({ ok: false, error: "Error de red al enviar" });
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   const saveInfo = async () => {
     const fields = ["nombre", "email", "whatsapp", "curso", "valor"];
@@ -311,9 +404,83 @@ export default function LeadDetailModal({
                     </div>
                   </>
                 )}
-                <button className="btn btn-wa" style={{ fontSize: 12, padding: "7px 14px" }} onClick={() => openWA(lead)}>
-                  📱 Abrir WhatsApp
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {activeConversation && goToConversation ? (
+                    <button className="btn btn-wa" style={{ fontSize: 12, padding: "7px 14px" }} onClick={() => goToConversation(lead)}>
+                      💬 Ver conversación
+                    </button>
+                  ) : (
+                    <button className="btn btn-wa" style={{ fontSize: 12, padding: "7px 14px" }} onClick={() => openWA(lead)}>
+                      📱 Abrir WhatsApp
+                    </button>
+                  )}
+                  <button
+                    className="btn"
+                    style={{ fontSize: 12, padding: "7px 14px", background: "#1a2744", color: "#60a5fa", border: "1px solid #1e3a5f" }}
+                    onClick={() => showMsgPanel ? setShowMsgPanel(false) : abrirMsgPanel()}
+                  >
+                    {showMsgPanel ? "✕ Cancelar" : "📨 Enviar mensaje"}
+                  </button>
+                </div>
+
+                {showMsgPanel && (() => {
+                  const templates = META_TEMPLATES(lead.nombre);
+                  const tplActivo = templates.find((t) => t.id === msgPlantilla);
+                  const esLibre = tplActivo?.templateName === null;
+                  return (
+                    <div style={{ marginTop: 12, background: "#0d1117", border: "1px solid #1e3a5f", borderRadius: 8, padding: 14 }}>
+                      <div style={{ fontSize: 10, color: "#60a5fa", letterSpacing: 1.5, marginBottom: 10, fontWeight: 600 }}>ENVIAR MENSAJE</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                        {templates.map((t) => (
+                          <button
+                            key={t.id}
+                            onClick={() => handlePlantillaChange(t.id)}
+                            style={{
+                              fontSize: 11, padding: "4px 10px", borderRadius: 20, cursor: "pointer",
+                              background: msgPlantilla === t.id ? "#1e3a5f" : "#111",
+                              color: msgPlantilla === t.id ? "#60a5fa" : "#555",
+                              border: `1px solid ${msgPlantilla === t.id ? "#60a5fa44" : "#222"}`,
+                            }}
+                          >
+                            {t.templateName ? "✅ " : "✏️ "}{t.label}
+                          </button>
+                        ))}
+                      </div>
+                      {esLibre ? (
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 11, color: "#d97706", background: "#1c1400", border: "1px solid #d9770633", borderRadius: 6, padding: "6px 10px", marginBottom: 8 }}>
+                            ⚠️ Solo funciona si el lead escribió en las últimas 24h
+                          </div>
+                          <textarea
+                            className="input"
+                            style={{ fontSize: 12, lineHeight: 1.5, minHeight: 80 }}
+                            value={msgTexto}
+                            onChange={(e) => setMsgTexto(e.target.value)}
+                            placeholder="Escribe tu mensaje..."
+                          />
+                        </div>
+                      ) : (
+                        <div style={{ marginBottom: 10, background: "#111", border: "1px solid #222", borderRadius: 6, padding: "10px 12px" }}>
+                          <div style={{ fontSize: 10, color: "#444", letterSpacing: 1, marginBottom: 6 }}>PREVIEW — funciona fuera de la ventana de 24h</div>
+                          <div style={{ fontSize: 12, color: "#aaa", lineHeight: 1.6 }}>{tplActivo?.preview}</div>
+                        </div>
+                      )}
+                      {msgStatus && (
+                        <div style={{ fontSize: 12, padding: "6px 10px", borderRadius: 6, marginBottom: 10, background: msgStatus.ok ? "#0d2d1a" : "#2d0d0d", color: msgStatus.ok ? "#27AE60" : "#E85D38" }}>
+                          {msgStatus.ok ? "✓ Mensaje enviado" : `✗ ${msgStatus.error}`}
+                        </div>
+                      )}
+                      <button
+                        className="btn btn-primary"
+                        style={{ width: "100%", fontSize: 12, opacity: enviando || (esLibre && !msgTexto.trim()) ? 0.5 : 1 }}
+                        onClick={enviarMensaje}
+                        disabled={enviando || (esLibre && !msgTexto.trim())}
+                      >
+                        {enviando ? "Enviando..." : "Enviar 📤"}
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })()}

@@ -7,6 +7,7 @@ import {
   getWhatsAppProvider,
   normalizePhoneNumber,
   sendMetaWhatsAppMessage,
+  sendMetaWhatsAppTemplate,
 } from '@/lib/whatsapp/provider'
 
 export async function POST(request: Request) {
@@ -15,18 +16,24 @@ export async function POST(request: Request) {
   let leadId: string | undefined
   let agentUserId: string | undefined
   let fase: string | undefined
+  let templateName: string | undefined
+  let templateParams: string[] | undefined
+  let modoHumano: boolean = true
   try {
-    ;({ to, body, leadId, agentUserId, fase } = (await request.json()) as {
+    ;({ to, body, leadId, agentUserId, fase, templateName, templateParams, modoHumano = true } = (await request.json()) as {
       to?: string
       body?: string
       leadId?: string
       agentUserId?: string
       fase?: string
+      templateName?: string
+      templateParams?: string[]
+      modoHumano?: boolean
     })
 
-    if (!to || !body) {
+    if (!to || (!body && !templateName)) {
       return NextResponse.json(
-        { error: 'Parámetros to y body son obligatorios' },
+        { error: 'Parámetros to y body (o templateName) son obligatorios' },
         { status: 400 }
       )
     }
@@ -36,7 +43,14 @@ export async function POST(request: Request) {
     const normalizedTo = normalizePhoneNumber(to)
 
     if (provider === 'meta') {
-      const message = await sendMetaWhatsAppMessage({ to, body })
+      let messageId: string | null = null
+      if (templateName) {
+        const result = await sendMetaWhatsAppTemplate({ to, templateName, parameters: templateParams || [] })
+        messageId = result.id
+      } else {
+        const result = await sendMetaWhatsAppMessage({ to, body: body! })
+        messageId = result.id
+      }
 
       if (leadId) {
         const supabase = await createServiceRoleClient()
@@ -61,7 +75,7 @@ export async function POST(request: Request) {
                 estado: 'abierta',
                 ultimo_mensaje_at: now,
                 fase: fase || 'seguimiento',
-                modo_humano: true,
+                modo_humano: modoHumano,
                 tomado_por: agentUserId || null,
               },
             ])
@@ -76,7 +90,7 @@ export async function POST(request: Request) {
               estado: 'abierta',
               ultimo_mensaje_at: now,
               fase: fase || 'seguimiento',
-              modo_humano: true,
+              modo_humano: modoHumano,
               tomado_por: agentUserId || null,
             })
             .eq('id', conversacionId)
@@ -87,7 +101,7 @@ export async function POST(request: Request) {
             {
               conversacion_id: conversacionId,
               rol: 'agente',
-              contenido: body,
+              contenido: body || `[Template: ${templateName}]`,
             },
           ])
         }
@@ -95,7 +109,7 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         provider,
-        id: message.id,
+        id: messageId,
         to: normalizedTo,
         status: 'accepted',
       })
@@ -151,7 +165,7 @@ export async function POST(request: Request) {
               estado: 'abierta',
               ultimo_mensaje_at: now,
               fase: fase || 'seguimiento',
-              modo_humano: true,
+              modo_humano: modoHumano,
               tomado_por: agentUserId || null,
             },
           ])

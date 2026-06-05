@@ -37,6 +37,7 @@ type IncomingWhatsAppMessage = {
   profileName: string
   messageSid?: string
   rawPayload: Record<string, unknown>
+  referral?: Record<string, unknown>
 }
 
 const ADMIN_WA_ALERTA = '527471028306'
@@ -221,6 +222,10 @@ function hasLeadEmail(email: string | null | undefined) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim())
 }
 
+function detectarPreguntaDireccion(msg: string): boolean {
+  return /d[oó]nde (est[aá]n?|queda|se encuentra[n]?|los encuentro|quedan?)|cu[aá]l es la direcci[oó]n|direcci[oó]n|c[oó]mo llego|c[oó]mo llegar|d[oó]nde (los|les|te) encuentr|ubicaci[oó]n.*(plantel|instala|escuela|curso)|plantel.*(ubicaci[oó]n|d[oó]nde|c[oó]mo llegar)|ir a.*(pagar|pago|inscrib|plantel|instala)|visitar.*(plantel|instala|escuela)/i.test(msg)
+}
+
 function hasLeadProgram(curso: string | null | undefined) {
   const value = String(curso || '').trim().toLowerCase()
   return !!value && value !== 'whatsapp - instituto windsor'
@@ -337,6 +342,10 @@ async function notifyAsesor(
       const metaConfig = getMetaConfig()
       if (metaConfig) {
         await sendMetaWhatsAppMessage({ to: asesorWhatsapp, body: msgAsesor })
+        // Copia al admin en eventos críticos
+        if (evento === 'inscripcion_confirmada' && asesorWhatsapp !== ADMIN_WA_ALERTA) {
+          await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: msgAsesor }).catch(() => {})
+        }
       }
     } else {
       // Twilio
@@ -489,8 +498,27 @@ async function parseIncomingWhatsAppMessage(
 
     const profileName = value?.contacts?.[0]?.profile?.name || ''
     const normalizedFrom = normalizePhoneNumber(message.from)
+    const rawPayloadObj = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+    const referral = (message as Record<string, unknown>).referral as Record<string, unknown> | undefined
 
     if (message.type !== 'text' || !message.text?.body) {
+      // Quick Reply button tap
+      if (message.type === 'button') {
+        const buttonText = (message as Record<string, unknown> & { button?: { text?: string; payload?: string } }).button?.text
+          || (message as Record<string, unknown> & { button?: { text?: string; payload?: string } }).button?.payload
+          || ''
+        if (buttonText) {
+          return {
+            provider: 'meta',
+            body: buttonText,
+            from: normalizedFrom,
+            waNumber: normalizedFrom,
+            profileName,
+            rawPayload: rawPayloadObj,
+            referral,
+          }
+        }
+      }
       // Mensajes multimedia (audio, imagen, video, sticker, etc.)
       const mediaTypes = ['audio', 'image', 'video', 'sticker', 'document', 'voice']
       if (mediaTypes.includes(message.type || '')) {
@@ -500,7 +528,8 @@ async function parseIncomingWhatsAppMessage(
           from: normalizedFrom,
           waNumber: normalizedFrom,
           profileName,
-          rawPayload: payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {},
+          rawPayload: rawPayloadObj,
+          referral,
         }
       }
       return null
@@ -512,10 +541,8 @@ async function parseIncomingWhatsAppMessage(
       from: normalizedFrom,
       waNumber: normalizedFrom,
       profileName,
-      rawPayload:
-        payload && typeof payload === 'object'
-          ? (payload as Record<string, unknown>)
-          : {},
+      rawPayload: rawPayloadObj,
+      referral,
     }
   }
 
@@ -559,60 +586,17 @@ async function buildProviderResponse(
 // para garantizar que siempre incluya promo y sea consistente.
 
 const INFO_MSGS: Record<string, string> = {
-  'Inglés para adultos': `¡Excelente elección! 😊 Te comparto la información de nuestro Curso de Inglés:
+  'Inglés para adultos': `😊 Los cursos regulares de inglés para adultos inician en *septiembre 2026*.
 
-*📚 Curso de Inglés para Adultos*
-Dirigido a personas de 13 años en adelante
+Sin embargo, si quieres empezar antes, tenemos nuestro programa *My Best Summer* que inicia el *13 de julio* ☀️ — cursos Extra Intensivos de inglés, francés e italiano ideales para avanzar tu nivel en pocas semanas.
 
-*🎓 Modalidad:* Presencial y Online
+¿Te gustaría conocer los detalles de My Best Summer o prefieres que te contactemos cuando abran inscripciones de septiembre?`,
 
-*🕐 Horarios presenciales:*
-• Matutino: 10:00 - 12:00 hrs
-• Vespertino: 17:00 - 19:00 hrs
-• Sabatino: 09:00 - 13:00 hrs
+  'Inglés para niños': `😊 Los cursos regulares de inglés para niños inician en *septiembre 2026*.
 
-*🛜 Horarios online:*
-• Vespertino: 17:00 - 19:00 hrs
-• Sabatino: 09:00 - 13:00 hrs
+Sin embargo, si quieres que tu hij@ empiece antes, tenemos *My Best Summer 2026* que inicia el *13 de julio* ☀️ — un verano lleno de actividades: idiomas, robótica, arte, kung fu, repostería y más, organizado por grupos de edad (4-6, 7-9 y 10-12 años).
 
-*⏳ Duración:* 5 meses (10 meses sabatino)
-
-*💰 Inversión:*
-• Inscripción: $750
-• Mensualidad desde $990
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$750~ → $375 (50% de descuento)
-• ¡Primer mes gratis!
-
-Al terminar obtienes un Diploma con validez oficial.`,
-
-  'Inglés para niños': `¡Qué gran decisión para el futuro de tu hij@! 😊 Te comparto la información de nuestro Curso de Inglés para Niños:
-
-*📚 Curso de Inglés para Niños*
-Dirigido a niños de 4 a 12 años
-
-*🎓 Modalidad:* Presencial y Online
-
-*🕐 Horarios presenciales:*
-• Martes a jueves: 13:00 - 14:00 hrs o 17:00 - 18:00 hrs
-• Sabatino: 09:00 - 13:00 hrs
-
-*🛜 Horarios online:*
-• Lunes a jueves: 17:00 - 18:00 hrs
-• Sabatino: 09:00 - 13:00 hrs
-
-*⏳ Duración:* 5 meses
-
-*💰 Inversión:*
-• Inscripción: $800
-• Mensualidad: $780
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$800~ → $400 (50% de descuento)
-• ¡Primer mes gratis!
-
-Al terminar obtiene un Diploma con validez oficial.`,
+¿Te gustaría conocer los detalles de My Best Summer o prefieres que te contactemos cuando abran inscripciones de septiembre?`,
 
   'Psicología': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Psicología:
 
@@ -761,6 +745,86 @@ Modalidad: Presencial | Duración: 2 años
 • Mensualidad: ~$1,800~ → $1,440 (20% de descuento)
 
 📄 Más información: https://drive.google.com/file/d/1txVAaLEpi-WPTybWtSKKMu3mn6fC5TkK/view`,
+
+  'Cursos de verano niños': `👋 ¡Hola! Gracias por tu interés en *My Best Summer 2026* de Instituto Windsor. ☀️
+
+📅 *Fechas:* Del 13 de julio al 07 de agosto.
+
+👧🧒 Contamos con grupos por edades:
+
+🔹 *Kids* (4 a 6 años)
+• Idiomas (Inglés y Francés)
+• Origami
+• Arte y pintura
+• Ritmo y movimiento musical
+• Repostería
+• Kung Fu
+
+🔹 *Juniors* (7 a 9 años)
+• Idiomas
+• Repostería
+• Robótica
+• Origami
+• Arte y pintura
+• Diseño de videojuegos
+• Ritmo y movimiento musical
+• Kung Fu
+
+🔹 *Seniors* (10 a 12 años)
+• Arte y pintura
+• Robótica
+• Idiomas
+• Kung Fu
+• Origami
+• Repostería
+• Diseño de videojuegos
+
+🕘 *Horario:* De 9:00 a.m. a 1:30 p.m.
+
+🍽️ *Cafetería:* Las instalaciones cuentan con servicio de cafetería, el cual opera de manera independiente. Los paquetes y costos los podrás consultar directamente con ellos — lo que sí podemos confirmar es que ofrecen opciones especiales para los cursos de verano.
+
+🚌 Los viernes realizamos salidas especiales al Zoológico, Museo La Avispa y Bomberos.
+
+📍 *Ubicación:* Calle Sofía Tena #1, Col. Viguri.
+
+📄 Programa completo: https://drive.google.com/file/d/1I7kD2vtkRsJ_XlYa1ZaLijuRfUUgkW6j/view?usp=sharing
+
+💰 *Inversión:* $2,100 MXN + $400 materiales.
+💳 *Pago:* Puedes apartar tu lugar con el 50% y cubrir el resto al inicio del curso.
+
+🚨 *Inscripciones abiertas | Cupo limitado*`,
+
+  'Cursos de verano adultos': `👋 ¡Hola! Gracias por tu interés en *My Best Summer* para Adolescentes y Adultos de Instituto Windsor. 🌟
+
+📅 *Fechas:* Del 13 de julio al 07 de agosto.
+
+Ofrecemos cursos Extra Intensivos de Idiomas para que avances tu nivel en pocas semanas.
+
+🇬🇧 *Inglés*
+
+🔹 Beginner X Intensivo
+🕘 9:00 a.m. a 12:00 p.m. o 1:00 p.m. a 4:00 p.m.
+
+🔹 Elementary X Intensivo
+🕐 1:00 p.m. a 4:00 p.m.
+
+🔹 Pre-Intermediate X Intensivo
+🕐 1:00 p.m. a 4:00 p.m.
+
+🇫🇷 *Francés Intensivo*
+🕐 1:00 p.m. a 3:00 p.m.
+
+🇮🇹 *Italiano Intensivo*
+🕐 1:00 p.m. a 3:00 p.m.
+
+💰 *Inversión:* $2,200 MXN por curso.
+📚 Manual para cursos de inglés: $150 MXN adicionales.
+
+📍 *Ubicación:* Calle Sofía Tena #1, Col. Viguri.
+
+📄 Programa completo: https://drive.google.com/file/d/17H3avjLp_BDilOsaqSbs6gXBIlH5BcAz/view?usp=sharing
+
+🚨 *Inscripciones abiertas | Cupo limitado*`,
 }
 
 const VALOR_POR_PROGRAMA: Record<string, number> = {
@@ -776,6 +840,8 @@ const VALOR_POR_PROGRAMA: Record<string, number> = {
   'Bachillerato': 1440,
   'Francés': 990,
   'Italiano': 990,
+  'Cursos de verano niños': 2100,
+  'Cursos de verano adultos': 2200,
 }
 
 function getValorPrograma(programa: string | null | undefined): number | null {
@@ -822,6 +888,8 @@ function detectarPrograma(msg: string): string | null {
   if (/innovaci[oó]n empresarial/i.test(msg)) return 'Maestría en Innovación empresarial'
   if (/multiculturalidad|pluriling/i.test(msg)) return 'Maestría en Multiculturalidad'
   if (/bachillerato/i.test(msg)) return 'Bachillerato'
+  if (/verano|summer|my best summer/i.test(msg) && /ni[ñn]o|kid|infan|peque/i.test(msg)) return 'Cursos de verano niños'
+  if (/verano|summer|my best summer/i.test(msg) && /adult|adolescen|joven|teen/i.test(msg)) return 'Cursos de verano adultos'
   return null
 }
 
@@ -834,7 +902,8 @@ function detectarEmail(msg: string): string | null {
 /** Detecta si el usuario no quiere dar correo */
 function noQuiereEmail(msg: string): boolean {
   const m = msg.toLowerCase()
-  if (/no ten|sin correo|no.*correo|no.*email|no.*mail|no quiero|no doy|no hay|no pos|nop/i.test(m)) return true
+  if (/no (lo )?ten(go)?|sin correo|no.*correo|no.*email|no.*mail|no quiero|no doy|no hay|no pos|nop/i.test(m)) return true
+  if (/por este medio|por aqu[ií]|as[ií] est[aá] bien|no uso|no manejo/i.test(m)) return true
   if (!m.includes('@') && /^(info|siguiente|dale|ok|omite|salta|después|despues|luego|no|nada|sin|omitir|skip)$/i.test(m.trim())) return true
   return false
 }
@@ -1011,7 +1080,7 @@ function detectarInstitucionConvenio(msg: string): string | null {
   if (/metro.*cdmx|metro.*ciudad|sindicato.*metro|metro cd/i.test(m)) return 'metro'
   if (/egresado|ya termin[eé]|ya estudi[eé]|gradu/i.test(m)) return 'egresados'
   if (/tecnol[oó]gico.*chilpancingo|itech|tec.*chilpancingo/i.test(m)) return 'itech'
-  if (/secundaria.*t[eé]cnica.*81|sec.*t[eé]cnica.*81|81/i.test(m)) return 'sec81'
+  if (/secundaria.*t[eé]cnica.*81|sec\.?\s*t[eé]c\.?\s*81|^\s*13\s*$/.test(m)) return 'sec81'
   // números del 1-13 que corresponden a la lista
   if (/^\s*1\s*$/.test(m.trim())) return 'proni'
   if (/^\s*2\s*$/.test(m.trim())) return 'suspeg'
@@ -1099,6 +1168,30 @@ const CATALOGO_OFERTA = `¿Cuál de nuestras ofertas educativas te interesa?
 •Enseñanza del idioma inglés
 •Enseñanza del idioma español`
 
+const INSCRIPCION_VERANO_MSG = `¡Perfecto! ☀️ El proceso de inscripción a *My Best Summer* es muy sencillo:
+
+*📄 Documentos necesarios:*
+• Acta de nacimiento
+• Comprobante de pago
+
+*💳 Pago:* Puedes apartar tu lugar con el 50% hoy y cubrir el resto al inicio del curso.
+🏦 Datos bancarios: https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
+
+*📋 Puedes inscribirte de dos formas:*
+
+*A) En línea* 💻
+Llena el formulario de inscripción y adjunta tus documentos:
+📝 https://forms.gle/fvxiekCtLb7KNz2U8
+Confírmanos aquí por WhatsApp cuando lo hayas completado.
+
+*B) Presencial* 🏫
+Visítanos con tus documentos y comprobante de pago:
+📍 Chilpancingo: Sofía Tena #1, Col. Viguri
+📍 Iguala: Ignacio Zaragoza 99, Col. Centro
+🕐 Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
+
+🚨 *¡Cupo limitado!* Asegura tu lugar pronto. 😊`
+
 const INSCRIPCION_LICS_MSG = `🎉 ¡Felicidades por tomar esta decisión!
 
 ¿Cómo prefieres hacer tu inscripción?
@@ -1176,6 +1269,7 @@ type GptBotResult = {
   telefono: string | null
   requestedHuman: boolean
   noInterest: boolean
+  necesitaRevision?: boolean
 }
 
 async function getBotPrompt(): Promise<string> {
@@ -1207,7 +1301,10 @@ async function askGPT(params: {
 
   const faseInstruccion: Record<string, string> = {
     saludo: `Si el prospecto ya mencionó su nombre en este mensaje, extráelo en el campo "nombre" y avanza (siguienteFase: programa).
-Si el prospecto hace una pregunta antes de dar su nombre (ej. "¿cuándo inician inscripciones?", "¿cuánto cuesta?"), respóndela brevemente con la información de la BASE y luego pide su nombre para continuar. No ignores la pregunta.
+Si el prospecto hace una pregunta antes de dar su nombre:
+- Si pregunta por precios, costos, mensualidades o descuentos: NO des precios específicos. Responde: "Tenemos buenas promociones vigentes — dame tu nombre y dime qué programa te interesa para darte los costos exactos 😊" y pide el nombre. Nunca inventes ni calcules precios en esta fase.
+- Para otras preguntas (fechas de inicio, modalidad, duración, actividades): respóndelas brevemente con la BASE y luego pide su nombre para continuar.
+No ignores la pregunta.
 Si pregunta por varias licenciaturas o varios programas en general, menciona brevemente los programas disponibles y que hay promociones vigentes, pero NO intentes resumir precios de múltiples programas (podrías equivocarte). Pide su nombre y que elija un programa para darle el detalle exacto.
 Si aún no ha dado su nombre ni hecho ninguna pregunta, saluda brevemente y pídelo.`,
 
@@ -1271,6 +1368,12 @@ Si la pregunta es ambigua o indirecta, interpreta la intención y busca en la BA
 - Si pregunta cuánto tiempo o cuándo termina → responde sobre duración
 Si quiere inscribirse → siguienteFase: inscripcion. Si quiere clase de prueba (solo inglés) → siguienteFase: clase_prueba.
 Si no hay una pregunta clara, recuérdale amablemente el siguiente paso según su programa.`,
+    inscripcion_pendiente: `El lead está completando su inscripción a My Best Summer. Si hace una pregunta, respóndela PRIMERO antes de recordar los pasos:
+- Diploma/certificado: "Sí, al concluir el nivel recibes un *Diploma avalado por la SEP* 🎓"
+- Examen de colocación: "El examen es en línea, solo necesitas tu dispositivo con internet 📱 Te compartimos el link al inscribirte"
+- Días del curso: lunes a viernes | Niños: 9:00–13:30 | Adultos: 9:00–12:00 o 13:00–16:00
+- Materiales/útiles: el costo de $400 MXN de materiales ya incluye todo lo necesario
+Si confirma que ya pagó o completó el formulario → siguienteFase: seguimiento.`,
     cerrado: 'La conversación está cerrada. Pregunta amablemente si puedes ayudarle en algo más. Si el prospecto pide hablar con alguien, quiere más información o retoma el interés, pon requestedHuman: true y siguienteFase: asesor.',
     perdido: 'El prospecto no estaba interesado. Si vuelve a escribir, responde con amabilidad.',
   }
@@ -1306,6 +1409,18 @@ REGLAS:
 - Si claramente no le interesa, pon noInterest: true.
 - "programa": nombre que usó el prospecto, o null.
 - "telefono": teléfono dado en este mensaje (en fase asesor), o null.
+- "necesitaRevision": pon true SOLO si el prospecto pregunta algo que no está en tus reglas ni en la BASE DE CONOCIMIENTO y no puedes responder con certeza. Ejemplos: políticas de reembolso, excepciones especiales, preguntas muy específicas sobre horarios o grupos que no conoces. Si tienes la información, respóndela tú — no uses necesitaRevision para preguntas que sí sabes responder.
+- CURSOS DE IDIOMAS (CRÍTICO): Los cursos regulares de idiomas (inglés para adultos, inglés para niños, francés, italiano) NO inician hasta septiembre 2026. Si alguien pregunta por cualquiera de estos cursos, debes informarle esto y redirigirlos al programa *My Best Summer* que inicia el 13 de julio. Ejemplo: "Los cursos regulares de [idioma] inician en septiembre 😊 Sin embargo, si quieres empezar antes, tenemos nuestro programa *My Best Summer* que inicia el 13 de julio — es una excelente opción para avanzar tu nivel en pocas semanas. ¿Te gustaría conocer los detalles?" Esto aplica a: inglés adultos, inglés niños, francés e italiano.
+- CAFETERÍA: Si preguntan por cafetería, desayuno o comida en el curso de verano, responde: "Las instalaciones cuentan con servicio de cafetería, el cual opera de manera independiente. Los paquetes y costos los podrás consultar directamente con ellos — lo que sí podemos confirmar es que ofrecen opciones especiales para los cursos de verano 😊"
+- PAGO VERANO: Si preguntan cómo pagar el curso de verano, si es de contado o si pueden apartar el lugar, responde que pueden pagar el 50% para apartar el espacio y el otro 50% al inicio del curso.
+- PRECIOS VERANO (usa estos exactos, nunca inventes otros): My Best Summer niños: $2,100 MXN + $400 materiales (apartar con $1,050 + $200). My Best Summer adultos: $2,200 MXN por curso + $150 manual inglés (apartar con $1,100). Si preguntan el costo, dalo directamente sin decir que no lo tienes.
+- ACTIVIDADES VERANO: Si preguntan si los cursos/actividades se dan juntos, separados, o si tienen que elegir, responde que el costo incluye TODAS las actividades del programa para su grupo de edad — no tienen que elegir, el paquete lo incluye todo. Si preguntan por robótica, arte, kung fu, repostería, origami, diseño de videojuegos, idiomas o cualquier actividad que aparece en el programa, confirma que sí está incluida en el paquete.
+- DIPLOMA VERANO: Si preguntan si reciben certificado, diploma o constancia al final de My Best Summer, responde que sí: al concluir el nivel reciben un *Diploma avalado por la SEP*.
+- INCORPORACIÓN TARDÍA VERANO: Si preguntan si pueden inscribirse después de que inicie el curso, responde: "Por el momento My Best Summer se ofrece como curso completo. Sin embargo, si al inicio del curso aún hay espacios disponibles, con gusto puedes incorporarte. ¿Te gustaría apartar tu lugar desde ahora para asegurarlo?"
+- DIRECCIÓN: Si preguntan dónde queda la escuela, dónde está ubicada o cuál es la dirección, responde con ambos planteles: "Estamos en *Chilpancingo*: Calle *Sofía Tena #1, Col. Viguri* 📍 También tenemos plantel en *Iguala*: Ignacio Zaragoza 99, Col. Centro 📍". Nunca respondas solo "México" o "Guerrero" como dirección.
+- TÍTULO/CERTIFICADO LICENCIATURAS: Si preguntan si reciben título, certificado, diploma, si el título vale o sirve, o si está avalado, responde directamente: "Sí, al concluir la licenciatura recibes un *Título de Licenciatura* con *RVOE SEG/00052/2002*, reconocido oficialmente por la SEP 🎓". No avances la fase a inscripción por esta pregunta — respóndela sin importar en qué fase esté.
+- RVOE: El RVOE de Instituto Windsor es *SEG/00052/2002*, avalado por la SEP. Cuando alguien pregunte por RVOE, reconocimiento oficial, o validez del título, da este número directamente.
+- CERTEZA: Si tienes la información, dala directa. NUNCA uses frases como "permíteme verificarlo", "déjame revisar", "lo confirmo en un momento" o similares en tu respuesta. Si genuinamente no sabes, usa necesitaRevision: true — no hedges.
 - PRECIOS: NUNCA calcules precios ni descuentos tú mismo. Copia los precios EXACTOS de la BASE DE CONOCIMIENTO tal como están escritos. Si la BASE no tiene el precio exacto, NO lo inventes — di que le darás el detalle cuando elija el programa específico.
 - Si el prospecto pregunta por varias licenciaturas o programas en general (sin elegir uno), da solo una vista general muy breve (mención de programas, duración, existencia de promociones) y pide que elija uno específico para darle el detalle completo y exacto. No intentes resumir precios de múltiples programas.
 - "siguienteFase": saludo, programa, correo, info_enviada, dudas, accion, asesor, inscripcion, clase_prueba, cerrado, perdido, seguimiento.
@@ -1319,7 +1434,8 @@ Responde ÚNICAMENTE con JSON válido:
   "programa": null,
   "telefono": null,
   "requestedHuman": false,
-  "noInterest": false
+  "noInterest": false,
+  "necesitaRevision": false
 }`
 
   console.log('[BOT PROMPT] fase:', params.fase)
@@ -1361,6 +1477,7 @@ Responde ÚNICAMENTE con JSON válido:
     telefono: typeof parsed.telefono === 'string' ? parsed.telefono : null,
     requestedHuman: Boolean(parsed.requestedHuman),
     noInterest: Boolean(parsed.noInterest),
+    necesitaRevision: Boolean(parsed.necesitaRevision),
   }
 }
 
@@ -1413,6 +1530,7 @@ export async function POST(request: Request) {
     const text = originalText.toLowerCase()
     const waNumber = incoming.waNumber || ''
     const profileName = incoming.profileName || ''
+    const referral = incoming.referral
 
     let leadSnapshot: LeadSnapshot | null = null
 
@@ -1438,6 +1556,7 @@ export async function POST(request: Request) {
           const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' })
           const defaultAssignee = await getDefaultAssigneeId(supabase)
 
+          const origenLead = referral ? 'meta_ads' : 'bot'
           const { data: insertedLead } = await supabase
             .from('leads')
             .upsert(
@@ -1451,7 +1570,7 @@ export async function POST(request: Request) {
                   notas: `Lead creado automáticamente desde WhatsApp.${profileName ? ' Nombre WA: ' + profileName : ''}`,
                   stage: 'contactado',
                   fecha: today,
-                  origen: 'bot',
+                  origen: origenLead,
                   ...(defaultAssignee ? { asignado_a: defaultAssignee } : {}),
                 },
               ],
@@ -1477,8 +1596,8 @@ export async function POST(request: Request) {
                 actor_id: null,
                 event_type: 'primer_contacto',
                 title: 'Primer contacto',
-                detail: 'Contacto entrante por WhatsApp.',
-                meta: { source: 'whatsapp', provider },
+                detail: referral ? 'Contacto entrante por WhatsApp desde anuncio de Meta Ads.' : 'Contacto entrante por WhatsApp.',
+                meta: { source: 'whatsapp', provider, ...(referral ? { referral } : {}) },
               },
             ])
             if (activityError) {
@@ -1569,6 +1688,15 @@ export async function POST(request: Request) {
             .update({ ultimo_mensaje_at: new Date().toISOString() })
             .eq('id', conversacionId)
 
+          // Cancelar seguimientos pendientes — el lead respondió, la secuencia se cierra
+          if (leadId) {
+            await supabase
+              .from('seguimientos')
+              .update({ estado: 'cancelado', fecha_completado: new Date().toISOString() })
+              .eq('lead_id', leadId)
+              .eq('estado', 'pendiente')
+          }
+
           // Anti-duplicados: esperar y verificar que no llegó un mensaje más reciente
           await new Promise(r => setTimeout(r, 800))
           const { data: latestUserMsg } = await supabase
@@ -1618,6 +1746,190 @@ export async function POST(request: Request) {
       return provider === 'meta'
         ? Response.json({ ok: true, humanMode: true })
         : new Response('', { status: 200 })
+    }
+
+    // ── Respuesta de Harold al bot (human-in-the-loop) ───────────────────────────
+    const HAROLD_NUMBER = ADMIN_WA_ALERTA
+    if (waNumber === HAROLD_NUMBER || waNumber === '+' + HAROLD_NUMBER) {
+      const supabaseHL = createServiceRoleClient()
+
+      // Patrón "A ok" → Harold aprueba un borrador
+      const matchAprobacion = originalText.trim().match(/^([a-c])\s*ok\b/i)
+      if (matchAprobacion) {
+        const codigo = matchAprobacion[1].toLowerCase()
+        const { data: convAprobacion } = await supabaseHL
+          .from('whatsapp_conversaciones')
+          .select('id, whatsapp, lead_id, revision_draft')
+          .eq('revision_codigo', codigo)
+          .limit(1)
+          .maybeSingle()
+
+        if ((convAprobacion as any)?.revision_draft) {
+          const draft = (convAprobacion as any).revision_draft as string
+          await sendMetaWhatsAppMessage({ to: (convAprobacion as any).whatsapp, body: draft })
+          await supabaseHL.from('whatsapp_mensajes').insert([{
+            conversacion_id: (convAprobacion as any).id,
+            rol: 'bot',
+            contenido: draft,
+          }])
+          await supabaseHL.from('whatsapp_conversaciones')
+            .update({ revision_codigo: null, revision_draft: null, ultimo_mensaje_at: new Date().toISOString() })
+            .eq('id', (convAprobacion as any).id)
+          await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: `✅ [${codigo.toUpperCase()}] Enviado.` })
+        } else {
+          await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: `⚠️ No encontré borrador para [${codigo.toUpperCase()}]. ¿Ya fue respondido?` })
+        }
+        return Response.json({ ok: true, haroldApproved: true })
+      }
+
+      // Patrón "A: explicación" → Harold explica, GPT redacta borrador
+      const matchInstruccion = originalText.trim().match(/^([a-c]):\s*([\s\S]+)/i)
+      if (matchInstruccion) {
+        const codigo = matchInstruccion[1].toLowerCase()
+        const instruccion = matchInstruccion[2].trim()
+
+        const { data: convInstruccion } = await supabaseHL
+          .from('whatsapp_conversaciones')
+          .select('id, whatsapp, lead_id')
+          .eq('revision_codigo', codigo)
+          .limit(1)
+          .maybeSingle()
+
+        if (convInstruccion) {
+          const { data: leadInfo } = await supabaseHL
+            .from('leads')
+            .select('nombre, curso')
+            .eq('id', (convInstruccion as any).lead_id)
+            .maybeSingle()
+
+          const { data: lastUserMsg } = await supabaseHL
+            .from('whatsapp_mensajes')
+            .select('contenido')
+            .eq('conversacion_id', (convInstruccion as any).id)
+            .eq('rol', 'usuario')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          try {
+            const draftPrompt = `Eres el bot de Instituto Windsor. El lead preguntó: "${(lastUserMsg as any)?.contenido || ''}". El asesor da esta información: "${instruccion}". Redacta un mensaje corto y amable para WhatsApp con esa información. Solo el mensaje, sin comillas, usa *negrita* para resaltar. Máximo 3 líneas.`
+            const draftRes = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+              body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: draftPrompt }], temperature: 0.4, max_tokens: 200 }),
+              signal: AbortSignal.timeout(8000),
+            })
+            const draftData = await draftRes.json()
+            const draft = draftData.choices?.[0]?.message?.content?.trim() || instruccion
+
+            await supabaseHL.from('whatsapp_conversaciones')
+              .update({ revision_draft: draft })
+              .eq('id', (convInstruccion as any).id)
+
+            const nombre = (leadInfo as any)?.nombre || 'el lead'
+            const preview = `✏️ *[${codigo.toUpperCase()}]* Borrador para ${nombre}:\n\n"${draft}"\n\n¿Envío? Responde *${codigo.toUpperCase()} ok* para confirmar.`
+            await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: preview })
+          } catch (e) {
+            console.error('[Harold instruccion GPT]', e)
+            await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: `⚠️ Error al generar borrador. Inténtalo de nuevo.` })
+          }
+        } else {
+          await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: `⚠️ No encontré conversación pendiente para [${codigo.toUpperCase()}].` })
+        }
+        return Response.json({ ok: true, haroldInstruction: true })
+      }
+
+      // Flujo legado: buscar conversación en fase 'revisando' (backward compatibility)
+      const { data: convRevisando } = await supabaseHL
+        .from('whatsapp_conversaciones')
+        .select('id, whatsapp, lead_id')
+        .eq('fase', 'revisando')
+        .order('ultimo_mensaje_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+
+      if (convRevisando) {
+        const respuestaHarold = originalText.trim()
+        await supabaseHL.from('whatsapp_mensajes').insert([{
+          conversacion_id: convRevisando.id,
+          rol: 'agente',
+          contenido: `[Revisado por Harold]: ${respuestaHarold}`,
+        }])
+        await sendMetaWhatsAppMessage({ to: convRevisando.whatsapp, body: respuestaHarold })
+        await supabaseHL.from('whatsapp_conversaciones')
+          .update({ fase: 'seguimiento', ultimo_mensaje_at: new Date().toISOString() })
+          .eq('id', convRevisando.id)
+        await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: `✅ Respuesta enviada al lead.` })
+        return Response.json({ ok: true, haroldReply: true })
+      }
+      // Sin conversación en revisando → Harold está pidiendo un reporte como asistente
+      const supabaseAd = createServiceRoleClient()
+
+      // Contar leads verano
+      const { data: leadsVerano } = await supabaseAd
+        .from('leads')
+        .select('stage, curso')
+        .ilike('curso', '%verano%')
+
+      const niños = (leadsVerano || []).filter(l => l.curso?.toLowerCase().includes('niño')).length
+      const adultos = (leadsVerano || []).filter(l => l.curso?.toLowerCase().includes('adulto')).length
+      const interesados = (leadsVerano || []).filter(l => ['interesado', 'inscripcion_pendiente'].includes(l.stage)).length
+      const inscritos = (leadsVerano || []).filter(l => l.stage === 'inscrito').length
+
+      // Leads nuevos de las últimas 24h
+      const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      const { data: nuevos24h } = await supabaseAd
+        .from('leads')
+        .select('nombre, curso, stage')
+        .ilike('curso', '%verano%')
+        .gte('created_at', ayer)
+
+      const reporte = `📊 *Reporte My Best Summer*\n\n` +
+        `👧 Niños: ${niños}/100 | 🧑 Adultos: ${adultos}/50\n` +
+        `🔥 Interesados: ${interesados} | ✅ Inscritos: ${inscritos}\n\n` +
+        `📥 *Nuevos (24h):* ${(nuevos24h || []).length}\n` +
+        (nuevos24h?.slice(0, 5).map(l => `• ${l.nombre || '(sin nombre)'} — ${l.stage}`).join('\n') || 'Ninguno') +
+        `\n\n¿Qué más necesitas? 😊`
+
+      await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: reporte })
+      return Response.json({ ok: true, adminReport: true })
+    }
+
+    // ── Quick Reply: lead toca "Sí, envíame la info" ────────────────────────────
+    if (/env[ií]ame\s*la\s*info/i.test(originalText) && conversacionIdOuter) {
+      const supabaseQR = createServiceRoleClient()
+      const curso = leadSnapshot?.curso
+      const infoMsg = curso ? INFO_MSGS[curso] : null
+      if (infoMsg) {
+        const msgFull = infoMsg + buildCTA(curso)
+        await logBotMessageAndUpdateFase(supabaseQR, conversacionIdOuter, msgFull, 'accion', leadId)
+        return buildProviderResponse(provider, msgFull, waNumber)
+      }
+      // Fallback RAG+GPT para programas sin INFO_MSG (maestrías, diplomados, etc.)
+      let ragQR = ''
+      try {
+        const ragUrlQR = new URL('/api/rag/query', new URL(request.url).origin)
+        const ragResQR = await fetch(ragUrlQR.toString(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: `${curso} en Instituto Windsor: costos, horarios, duración, modalidad`, match_count: 15 }),
+          signal: AbortSignal.timeout(8000),
+        })
+        if (ragResQR.ok) {
+          const rdQR = await ragResQR.json()
+          ragQR = typeof rdQR?.context === 'string' ? rdQR.context : rdQR?.answer || ''
+        }
+      } catch { /* sin RAG */ }
+      const gptQR = await askGPT({
+        fase: 'info_enviada',
+        leadData: { nombre: leadSnapshot?.nombre, email: leadSnapshot?.email, curso },
+        userMessage: 'Dame información del programa',
+        ragContext: ragQR,
+        history: [],
+      })
+      const msgGptQR = gptQR.respuesta + buildCTA(curso)
+      await logBotMessageAndUpdateFase(supabaseQR, conversacionIdOuter, msgGptQR, 'accion', leadId)
+      return buildProviderResponse(provider, msgGptQR, waNumber)
     }
 
     // Mensaje multimedia (audio, imagen, video, etc.) — no podemos procesarlo
@@ -1725,25 +2037,102 @@ export async function POST(request: Request) {
         }
       } catch { /* sin historial */ }
 
-      // ── Fase saludo: captura de nombre en código (sin GPT) ─────────────────
+      // ── Fase saludo: detectar programa del mensaje inicial y captura de nombre ─
       if (phase === 'saludo') {
+        // Guardar programa detectado desde primer mensaje (sin enviar info aún)
+        if (leadId && (!hasLeadProgram(leadSnapshot?.curso))) {
+          const progDetectado = detectarPrograma(originalText)
+            ?? (/verano|summer|my best summer/i.test(originalText) && /adultos?|adolescen/i.test(originalText) ? 'Cursos de verano adultos' : null)
+            ?? (/verano|summer|my best summer/i.test(originalText) && /ni[ñn]os?|kids?/i.test(originalText) ? 'Cursos de verano niños' : null)
+          if (progDetectado) {
+            await supabase.from('leads').update({ curso: progDetectado, ...(getValorPrograma(progDetectado) ? { valor: getValorPrograma(progDetectado) } : {}) }).eq('id', leadId)
+            leadSnapshot = { ...leadSnapshot, curso: progDetectado } as LeadSnapshot
+          }
+        }
+
         const words = originalText.trim().split(/\s+/)
         const isGreeting = /^\s*(hola|hey|ola|buenas|buenos|buen[oa])\b/i.test(originalText.trim())
-        const hasProgramKeyword = /ingl[eé]s|psicolog|turism|relaciones|bachillerato|maestr[ií]a|diplomado|administraci[oó]n|idiom|franc[eé]s|italian/i.test(originalText)
+        const hasProgramKeyword = /ingl[eé]s|psicolog|turism|relaciones|bachillerato|maestr[ií]a|diplomado|administraci[oó]n|idiom|franc[eé]s|italian|verano|summer/i.test(originalText)
         const hasDigits = /\d/.test(originalText)
         const hasQuestion = /\?/.test(originalText) || /^\s*(qu[eé]|c[oó]mo|cu[aá]ndo|cu[aá]nto|d[oó]nde|cu[aá]l|qui[eé]n|tienen?|hay|info|informaci[oó]n|cuanto|cuando|cual|quien|como|que)\b/i.test(originalText.trim())
         const looksLikeName = !isGreeting && !hasProgramKeyword && !hasDigits && !hasQuestion && !/@/.test(originalText) && words.length >= 1 && words.length <= 3 && hasLeadName(originalText.trim(), waNumber)
 
         if (looksLikeName) {
+          // Limpiar prefijos comunes: "Con X", "Soy X", "Me llamo X", "Es X"
           const nombreCapturado = originalText.trim()
+            .replace(/^\s*(con\s+|soy\s+|me\s+llamo\s+|es\s+)/i, '')
+            .trim()
           if (leadId) {
             await supabase.from('leads').update({ nombre: nombreCapturado }).eq('id', leadId)
             leadSnapshot = { ...leadSnapshot, nombre: nombreCapturado } as LeadSnapshot
+          }
+          // Si ya se detectó el programa desde el primer mensaje, saltar catálogo e ir a correo
+          if (hasLeadProgram(leadSnapshot?.curso)) {
+            const askCorreo = `¡Hola ${nombreCapturado}! 😊 ¿Me compartes tu correo electrónico para darte seguimiento personalizado? 📧`
+            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, askCorreo, 'correo')
+            return buildProviderResponse(provider, askCorreo, waNumber)
           }
           const greeting = `¡Hola ${nombreCapturado}! 😊 ¿Qué programa de Instituto Windsor te interesa?\n\n${CATALOGO_OFERTA}`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, greeting, 'programa')
           return buildProviderResponse(provider, greeting, waNumber)
         }
+
+        // ── Bloque verano en saludo: manejo completo sin fallthrough al GPT ──────
+        if (hasLeadProgram(leadSnapshot?.curso) && (leadSnapshot?.curso || '').includes('verano')) {
+          // Intentar extraer nombre limpiando prefijos y sufijos comunes
+          const textoSinPrefijo = originalText
+            .replace(/^\s*(hola|hey|ola|buenas?|buen)\s*(d[ií]as?|tardes?|noches?)?\s*[!.,;]*\s*/i, '')
+            .replace(/^\s*(excelente|buen)\s*(d[ií]a|tarde|noche)\s*[!.,;]*\s*/i, '')
+            .replace(/^\s*(con\s+|soy\s+|me\s+llamo\s+|mi\s+nombre\s+es\s+)/i, '')
+            .replace(/\s*(a\s+sus?\s+[oó]rdenes?|para\s+servirle?|mucho\s+gusto|es\s+un\s+gusto|con\s+gusto)\s*[!.,;]*\s*$/i, '')
+            .trim()
+
+          const nombreExtraido = hasLeadName(textoSinPrefijo, waNumber)
+            ? textoSinPrefijo
+            : (looksLikeName ? originalText.trim() : null)
+
+          if (nombreExtraido && leadId) {
+            await supabase.from('leads').update({ nombre: nombreExtraido }).eq('id', leadId)
+            leadSnapshot = { ...leadSnapshot, nombre: nombreExtraido } as LeadSnapshot
+            const askCorreo = `¡Hola ${nombreExtraido}! 😊 ¿Me compartes tu correo electrónico para darte seguimiento personalizado? 📧`
+            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, askCorreo, 'correo')
+            return buildProviderResponse(provider, askCorreo, waNumber)
+          }
+
+          // No se pudo extraer nombre — pedir una vez más (mensaje varía si ya se pidió antes)
+          const lastBotMsg = convHistory.filter(m => m.role === 'assistant').pop()?.content || ''
+          const yaPidioNombre = /con quién tengo el gusto/i.test(lastBotMsg)
+          const preguntaNombre = yaPidioNombre
+            ? `Disculpa, necesito tu nombre para poder ayudarte mejor. 😊 ¿Con quién tengo el gusto?`
+            : `¡Hola! 😊 Gracias por tu interés en *My Best Summer 2026* de Instituto Windsor ☀️\n\n¿Con quién tengo el gusto?`
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, preguntaNombre, 'saludo')
+          return buildProviderResponse(provider, preguntaNombre, waNumber)
+        }
+      }
+
+      // ── Interceptor de botones de template seguimiento_general ──────────────
+      // Maneja las 3 respuestas rápidas del template de reactivación
+      const msgTrimBtn = originalText.trim()
+      if (/^(sí,?\s*tengo\s*dudas|si,?\s*tengo\s*dudas)[\s\S]*$/i.test(msgTrimBtn)) {
+        const resp = `¡Claro que sí! 😊 Con gusto resuelvo tus dudas. ¿Qué quisiera saber sobre ${leadSnapshot?.curso || 'el programa'}?`
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'dudas', leadId)
+        return buildProviderResponse(provider, resp, waNumber)
+      }
+      if (/^no\s*tengo\s*dudas[\s\S]*$/i.test(msgTrimBtn)) {
+        const esVer = (leadSnapshot?.curso || '').toLowerCase().includes('verano')
+        const botMsg = esVer ? INSCRIPCION_VERANO_MSG : INSCRIPCION_LICS_MSG
+        const nextF = esVer ? 'inscripcion_pendiente' : 'inscripcion'
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
+        // Asegurar que el stage del lead llegue a inscripcion_pendiente en Kanban
+        if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
+        return buildProviderResponse(provider, botMsg, waNumber)
+      }
+      if (/^no\s*me\s*interesa[\s\S]*$/i.test(msgTrimBtn)) {
+        const nombre = leadSnapshot?.nombre ? ` ${leadSnapshot.nombre.split(' ')[0]}` : ''
+        const resp = `Entendido${nombre}, no hay problema. Si en algún momento cambias de opinión, aquí estaremos. ¡Que tengas un excelente día! 😊`
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'perdido', leadId)
+        if (leadId) await supabase.from('leads').update({ stage: 'perdido' }).eq('id', leadId)
+        return buildProviderResponse(provider, resp, waNumber)
       }
 
       // ── Interceptor global de convenios ─────────────────────────────────────
@@ -1767,6 +2156,24 @@ export async function POST(request: Request) {
         return buildProviderResponse(provider, CONVENIOS_LISTA_MSG, waNumber)
       }
 
+      // En cualquier fase: si menciona una institución específica → mostrar detalle directo
+      // Excluir mensajes que contengan @ (emails) para evitar falsos positivos por números en el email
+      if (phase !== 'convenios' && !originalText.includes('@')) {
+        const instKeyGlobal = detectarInstitucionConvenio(originalText)
+        if (instKeyGlobal && CONVENIOS_DETALLE[instKeyGlobal]) {
+          const detalleMsg = `${CONVENIOS_DETALLE[instKeyGlobal]}\n\n¿Te gustaría inscribirte o tienes alguna duda? 😊`
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, detalleMsg, 'dudas')
+          return buildProviderResponse(provider, detalleMsg, waNumber)
+        }
+      }
+
+      // En cualquier fase: si pregunta por dirección / ubicación → responder con ambos planteles
+      if (detectarPreguntaDireccion(originalText)) {
+        const dirMsg = `Nos encontramos en:\n\n📍 *Chilpancingo:* Calle Sofía Tena #1, Col. Viguri\n📍 *Iguala:* Ignacio Zaragoza 99, Col. Centro\n\n🕐 *Horarios:* Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00`
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, dirMsg)
+        return buildProviderResponse(provider, dirMsg, waNumber)
+      }
+
       // Detección global de "inglés" ambiguo — sin importar la fase, si no hay programa capturado aún
       if (!hasLeadProgram(leadSnapshot?.curso)) {
         const msgLower0 = originalText.toLowerCase()
@@ -1775,6 +2182,33 @@ export async function POST(request: Request) {
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, disambig, 'programa')
           return buildProviderResponse(provider, disambig, waNumber)
         }
+        if (/verano|summer|my best summer/i.test(msgLower0) && !/ni[ñn]o|kid|infan|adult|adolescen|joven|teen/i.test(msgLower0)) {
+          const disambigVerano = `¡Qué buena elección! ☀️ My Best Summer tiene dos modalidades, ¿cuál te interesa?\n\nA) Niños (4 a 12 años)\nB) Adolescentes y adultos`
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, disambigVerano, 'verano_disambig')
+          return buildProviderResponse(provider, disambigVerano, waNumber)
+        }
+      }
+
+      // Fase verano_disambig: A = niños, B = adultos
+      if (phase === 'verano_disambig') {
+        const msgLV = originalText.trim().toLowerCase()
+        let programaVerano: string | null = null
+        if (/^\s*a\s*$/.test(msgLV) || /ni[ñn]o|kid|infan/i.test(msgLV)) programaVerano = 'Cursos de verano niños'
+        else if (/^\s*b\s*$/.test(msgLV) || /adult|adolescen|joven/i.test(msgLV)) programaVerano = 'Cursos de verano adultos'
+
+        if (programaVerano) {
+          if (leadId) {
+            await supabase.from('leads').update({ curso: programaVerano, valor: getValorPrograma(programaVerano) ?? 0 }).eq('id', leadId)
+            leadSnapshot = { ...leadSnapshot, curso: programaVerano } as LeadSnapshot
+          }
+          const infoV = INFO_MSGS[programaVerano] + buildCTA(programaVerano)
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, infoV, 'accion', leadId)
+          return buildProviderResponse(provider, infoV, waNumber)
+        }
+        // Si no entiende la respuesta, repetir la pregunta
+        const reaskV = `Por favor elige una opción:\n\nA) Niños (4 a 12 años)\nB) Adolescentes y adultos`
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, reaskV, 'verano_disambig', leadId)
+        return buildProviderResponse(provider, reaskV, waNumber)
       }
 
       // Fase programa: si el usuario ya nombró un programa, saltar catálogo; si no, catálogo hardcodeado
@@ -1783,8 +2217,8 @@ export async function POST(request: Request) {
         const msgTrimProg = originalText.trim()
         const msgLProg = msgTrimProg.toLowerCase()
         let programaIngles: string | null = null
-        if (/^\s*a\s*$/.test(msgLProg) || /\badultos?\b/i.test(msgTrimProg)) programaIngles = 'Inglés para adultos'
-        else if (/^\s*b\s*$/.test(msgLProg) || /\bni[ñn]os?\b/i.test(msgTrimProg)) programaIngles = 'Inglés para niños'
+        if (/^\s*a\s*$/.test(msgLProg) || (/\badultos?\b/i.test(msgTrimProg) && !/verano|summer/i.test(msgLProg))) programaIngles = 'Inglés para adultos'
+        else if (/^\s*b\s*$/.test(msgLProg) || (/\bni[ñn]os?\b/i.test(msgTrimProg) && !/verano|summer/i.test(msgLProg))) programaIngles = 'Inglés para niños'
         else if (/^\s*c\s*$/.test(msgLProg)) programaIngles = 'Licenciatura en Inglés'
 
         if (programaIngles) {
@@ -1802,6 +2236,31 @@ export async function POST(request: Request) {
           const disambig = `Tenemos tres opciones de inglés, ¿cuál te interesa?\n\nA) Inglés para adultos\nB) Inglés para niños\nC) Licenciatura en Inglés`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, disambig, 'programa')
           return buildProviderResponse(provider, disambig, waNumber)
+        }
+
+        // Verano ambiguo — A: niños, B: adultos
+        if (/verano|summer|my best summer/i.test(originalText) && !/ni[ñn]o|kid|infan|adult|adolescen|joven|teen/i.test(originalText)) {
+          const disambigVerano = `¡Qué buena elección! ☀️ My Best Summer tiene dos modalidades, ¿cuál te interesa?\n\nA) Niños (4 a 12 años)\nB) Adolescentes y adultos`
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, disambigVerano, 'verano_disambig')
+          return buildProviderResponse(provider, disambigVerano, waNumber)
+        }
+
+        // Respuesta A/B a la disambiguación de verano
+        if (/^\s*a\s*$/.test(msgLProg) && /verano|summer/i.test(leadSnapshot?.curso || '')) {
+          const pV = 'Cursos de verano niños'
+          if (leadId) await supabase.from('leads').update({ curso: pV }).eq('id', leadId)
+          leadSnapshot = { ...leadSnapshot, curso: pV } as LeadSnapshot
+          const ackV = `¡Perfecto! ☀️ Para contarte todo sobre *My Best Summer* para niños, ¿me compartes tu correo para darte seguimiento? 📧`
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, ackV, 'correo')
+          return buildProviderResponse(provider, ackV, waNumber)
+        }
+        if (/^\s*b\s*$/.test(msgLProg) && /verano|summer/i.test(leadSnapshot?.curso || '')) {
+          const pV = 'Cursos de verano adultos'
+          if (leadId) await supabase.from('leads').update({ curso: pV, valor: 2200 }).eq('id', leadId)
+          leadSnapshot = { ...leadSnapshot, curso: pV } as LeadSnapshot
+          const ackV = `¡Perfecto! ☀️ Para contarte todo sobre *My Best Summer* para adolescentes y adultos, ¿me compartes tu correo para darte seguimiento? 📧`
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, ackV, 'correo')
+          return buildProviderResponse(provider, ackV, waNumber)
         }
 
         // Detección de programa en código (sin GPT) — igual que lab
@@ -1854,12 +2313,35 @@ export async function POST(request: Request) {
         return buildProviderResponse(provider, botMessage, waNumber)
       }
 
+      // ── Pregunta sobre cursos de verano (no en saludo/correo — esos fases capturan datos primero) ──
+      const leadEsVerano = (leadSnapshot?.curso || '').toLowerCase().includes('verano')
+      const mensionVerano = /verano|summer|my best summer/i.test(originalText)
+      const cambioVerano = leadEsVerano && /ni[ñn]os?|kids?|adultos?|adolescen/i.test(originalText)
+      if ((mensionVerano || cambioVerano) && phase !== 'saludo' && phase !== 'correo') {
+        const veranoProg = detectarPrograma(originalText)
+          ?? ((/ni[ñn]os?|kids?/i.test(originalText)) ? 'Cursos de verano niños'
+             : (/adultos?|adolescen/i.test(originalText)) ? 'Cursos de verano adultos'
+             : null)
+        if (veranoProg) {
+          const infoVerano = INFO_MSGS[veranoProg] + buildCTA(veranoProg)
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, infoVerano, currentFase || phase, leadId)
+          return buildProviderResponse(provider, infoVerano, waNumber)
+        } else {
+          const disambigV = `¡Qué buena elección! ☀️ My Best Summer tiene dos modalidades, ¿cuál te interesa?\n\nA) Niños (4 a 12 años)\nB) Adolescentes y adultos`
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, disambigV, 'verano_disambig', leadId)
+          return buildProviderResponse(provider, disambigV, waNumber)
+        }
+      }
+
       // ── Fase accion: elegir A (dudas) o B (inscripción/examen) ───────────────
       if (phase === 'accion') {
         if (eligeB(originalText)) {
           if (esInglesIdioma(leadSnapshot?.curso)) {
             await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, EXAMEN_UBICACION_MSG, 'examen', leadId)
             return buildProviderResponse(provider, EXAMEN_UBICACION_MSG, waNumber)
+          } else if ((leadSnapshot?.curso || '').toLowerCase().includes('verano')) {
+            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_VERANO_MSG, 'inscripcion_pendiente', leadId)
+            return buildProviderResponse(provider, INSCRIPCION_VERANO_MSG, waNumber)
           } else {
             await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_LICS_MSG, 'inscripcion', leadId)
             return buildProviderResponse(provider, INSCRIPCION_LICS_MSG, waNumber)
@@ -1870,7 +2352,9 @@ export async function POST(request: Request) {
         } else {
           // Si parece pregunta o mensaje largo → GPT con RAG (no repetir CTA ciegamente)
           const esRespuestaCorta = /^\s*[aAbBsSnNyY][iIoO]?\s*$/.test(originalText.trim())
-          const parecePregunta = originalText.trim().endsWith('?') || originalText.trim().length > 12
+          const parecePregunta = originalText.trim().endsWith('?')
+            || originalText.trim().length > 12
+            || /\b(costo|precio|hora|horario|d[ií]a|cu[aá]n|qu[eé]|ubicaci[oó]n|direcci[oó]n|diploma|certificado|descuento|duraci[oó]n|materia|document|requisito|uniforme|nivel|becas?|mensualidad|inscripci[oó]n)\b/i.test(originalText)
           if (!esRespuestaCorta && parecePregunta) {
             // Sigue al bloque principal de GPT+RAG
           } else {
@@ -1895,8 +2379,44 @@ export async function POST(request: Request) {
         // Fallback a RAG+GPT para maestrías, diplomados, francés, italiano
       }
 
+      // Confirmación de inscripción verano — fase inscripcion_pendiente
+      if (phase === 'inscripcion_pendiente') {
+        // Si elige presencial — solo indicar qué traer, sin pasos de pago en línea
+        if (/presencial|instalaci[oó]n|ir a|plantel|visitar|en persona|de manera presencial/i.test(originalText)
+          && !/examen|colocaci[oó]n|evaluaci[oó]n|ubicaci[oó]n/i.test(originalText)) {
+          const nombre = leadSnapshot?.nombre ? ` ${leadSnapshot.nombre.split(' ')[0]}` : ''
+          const msgP = `¡Perfecto${nombre}! 🏫 Para inscribirte presencialmente solo necesitas traer:\n\n📄 Acta de nacimiento\n💳 Tu pago (puedes pagar el 50% para apartar y el resto al inicio del curso)\n\nTe esperamos en:\n📍 *Chilpancingo:* Sofía Tena #1, Col. Viguri\n📍 *Iguala:* Ignacio Zaragoza 99, Col. Centro\n🕐 Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00\n\n¡Nos vemos pronto! ☀️😊`
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgP, 'seguimiento', leadId)
+          return buildProviderResponse(provider, msgP, waNumber)
+        }
+        if (/ya.*llen[eé]|ya.*hice|ya.*complet|listo|ya.*pagu[eé]|ya.*realic[eé]|ya.*env[ií]|ya.*subi|ya.*adjunt/i.test(originalText)) {
+          const nombreLead = leadSnapshot?.nombre || ''
+          const msg = `¡Perfecto${nombreLead ? ' ' + nombreLead : ''}! 🎉 Ya recibimos tu confirmación. Un asesor revisará tu formulario y te confirmará tu lugar en My Best Summer en breve. ¡Nos vemos en julio! ☀️`
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msg, 'seguimiento', leadId)
+          if (leadId) {
+            await notifyAsesor(supabase, leadId, 'inscripcion_confirmada',
+              leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
+          }
+          return buildProviderResponse(provider, msg, waNumber)
+        }
+        // Si parece una pregunta → dejar caer al GPT para que la responda
+        // Solo recordar pasos si es respuesta corta sin pregunta (sí, ok, entendido, etc.)
+        const esPregunta = /\?/.test(originalText) || originalText.trim().length > 20
+        if (!esPregunta) {
+          const recordatorio = `Recuerda los pasos para completar tu inscripción:\n\n1️⃣ Realiza tu pago: https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk\n2️⃣ Llena el formulario con tu comprobante: https://forms.gle/fvxiekCtLb7KNz2U8\n3️⃣ Confírmanos aquí cuando lo hayas completado. 😊`
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, recordatorio, 'inscripcion_pendiente', leadId)
+          return buildProviderResponse(provider, recordatorio, waNumber)
+        }
+        // Si es pregunta → cae al GPT
+      }
+
       // Elección A/B de inscripción — interceptar antes de GPT cuando fase es inscripcion
       if (phase === 'inscripcion') {
+        // Si es lead de verano, nunca debe estar en fase inscripcion — redirigir al proceso correcto
+        if ((leadSnapshot?.curso || '').toLowerCase().includes('verano')) {
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_VERANO_MSG, 'inscripcion_pendiente', leadId)
+          return buildProviderResponse(provider, INSCRIPCION_VERANO_MSG, waNumber)
+        }
         const msgI = originalText.toLowerCase()
         if (/\ba\b|en l[ií]nea|online|desde aqu[ií]|digital|virtual/i.test(msgI)) {
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_ONLINE_MSG, 'inscripcion')
@@ -2037,6 +2557,30 @@ export async function POST(request: Request) {
         }
       }
 
+      // ── Interceptor verano en seguimiento/accion: si el lead pide info, mandar INFO_MSG directo ──
+      if (['seguimiento', 'accion', 'dudas'].includes(phase)) {
+        const cursoActual = leadSnapshot?.curso || ''
+        const esVerano = cursoActual.includes('verano')
+        // "sí/si/ok" solos son ambiguos — solo re-enviar info si hay intención explícita
+        const pidioInfo = /\b(dale|info|informaci[oó]n|env[ií]a|manda|cu[eé]ntame|dime|quiero saber|qu[eé] incluye|qu[eé] ofrece|adelante|claro)\b/i.test(originalText)
+          || /^(s[ií]|ok)\s*,?\s*(dale|env[ií]a|manda|claro|por favor|quiero|cuéntame)/i.test(originalText.trim())
+        if (esVerano && pidioInfo && INFO_MSGS[cursoActual]) {
+          const cta = buildCTA(cursoActual)
+          const msgVerano = INFO_MSGS[cursoActual] + cta
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgVerano, 'accion', leadId)
+          return buildProviderResponse(provider, msgVerano, waNumber)
+        }
+      }
+
+      // ── Interceptor de despedida ─────────────────────────────────────────────
+      // Si el usuario se despide, responder con cortesía y no seguir el flujo de ventas
+      const isGoodbye = /^\s*(gracias|adio?s|hasta luego|hasta pronto|bye|chao|chau|nos vemos|que pase(s)? (un )?(buen|excelente)|buen(os)? d[ií]as?|buenas (noches?|tardes?)|hasta ma[ñn]ana|de nada|con gusto|est[aá] bien|ok gracias|okey gracias|muchas gracias|muy amable|listo gracias)\s*[!.]*\s*$/i.test(originalText.trim())
+      if (isGoodbye) {
+        const despedidaMsg = '¡Con gusto! 😊 Si en algún momento tienes más preguntas sobre Instituto Windsor, aquí estaré. ¡Que tengas un excelente día! 🌟'
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, despedidaMsg)
+        return buildProviderResponse(provider, despedidaMsg, waNumber)
+      }
+
       // Contexto RAG para otras fases
       let ragContext = ''
       try {
@@ -2107,6 +2651,62 @@ export async function POST(request: Request) {
             leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
         }
         return buildProviderResponse(provider, escalMsg, waNumber)
+      }
+
+      // ── Human-in-the-loop: detectar incertidumbre en respuesta del GPT ──────────
+      // Si GPT marcó necesitaRevision O si la respuesta contiene frases de incertidumbre
+      const FRASES_INCERTIDUMBRE = [
+        'no se menciona', 'no tengo información', 'no dispongo', 'no cuento con',
+        'no tengo ese dato', 'no está en mi información', 'te recomendaría preguntar',
+        'te recomendaría contactar', 'te recomendaría verificar', 'te recomendaría consultar',
+        'no tengo certeza', 'no estoy seguro', 'no puedo confirmar',
+        'información específica', 'parece que hay un error', 'no tengo los detalles',
+        'contactar directamente', 'consultar directamente', 'preguntar directamente',
+        'comunicarse directamente', 'llamar directamente', 'visita directamente',
+        'es necesario comunicarse', 'te recomendamos llamar', 'comunícate directamente',
+        'permíteme verificar', 'permíteme revisar', 'déjame verificar', 'déjame revisar',
+        'déjame confirmar', 'lo confirmo en', 'un momento para verificar',
+        'dame un momento', 'un momento para', 'espera un momento',
+      ]
+      const respuestaIncierta = gpt.necesitaRevision ||
+        FRASES_INCERTIDUMBRE.some(f => gpt.respuesta.toLowerCase().includes(f))
+
+      if (respuestaIncierta) {
+        // Asignar código a/b/c según cuántos pendientes hay
+        let codigo = 'a'
+        try {
+          const { data: pendientes } = await supabase
+            .from('whatsapp_conversaciones')
+            .select('revision_codigo')
+            .not('revision_codigo', 'is', null)
+          const usados = new Set((pendientes || []).map((c: any) => c.revision_codigo))
+          codigo = !usados.has('a') ? 'a' : !usados.has('b') ? 'b' : 'c'
+        } catch { /* usar 'a' por defecto */ }
+
+        // Mensaje al lead: reconocer sin bloquear la conversación
+        const msgEspera = `Déjame consultarlo con un asesor para darte la respuesta exacta 😊 En breve te respondemos.`
+        await supabase.from('whatsapp_mensajes').insert([{
+          conversacion_id: conversacionIdOuter,
+          rol: 'bot',
+          contenido: msgEspera,
+        }])
+        // Guardar código en la conversación (sin cambiar fase)
+        try {
+          await supabase.from('whatsapp_conversaciones')
+            .update({ revision_codigo: codigo, ultimo_mensaje_at: new Date().toISOString() })
+            .eq('id', conversacionIdOuter)
+        } catch { /* columna puede no existir aún — ver supabase/revision_pendiente.sql */ }
+
+        // Alerta a Harold con código
+        const nombreLead = leadSnapshot?.nombre || waNumber
+        const programa = leadSnapshot?.curso || 'programa desconocido'
+        const notif = `❓ *[${codigo.toUpperCase()}]* ${nombreLead} — ${programa}\n"${originalText}"\n\nResponde: ${codigo.toUpperCase()}: tu explicación aquí`
+        try {
+          await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: notif })
+        } catch (notifErr) {
+          console.error('[REVISION] Error notificando a Harold:', notifErr)
+        }
+        return buildProviderResponse(provider, msgEspera, waNumber)
       }
 
       // Persistir datos capturados por GPT
@@ -2199,8 +2799,13 @@ export async function POST(request: Request) {
         botMessage = buildClasePruebaMsg(leadSnapshot?.nombre, leadSnapshot?.email, leadSnapshot?.curso, leadSnapshot?.whatsapp)
         nextFase = 'clase_prueba'
       } else if (nextFase === 'inscripcion') {
-        // Track B: proceso de inscripción con opción online o presencial
-        botMessage = INSCRIPCION_LICS_MSG
+        // Track B: proceso de inscripción — verano va directo al proceso de verano
+        if ((leadSnapshot?.curso || '').toLowerCase().includes('verano')) {
+          botMessage = INSCRIPCION_VERANO_MSG
+          nextFase = 'inscripcion_pendiente'
+        } else {
+          botMessage = INSCRIPCION_LICS_MSG
+        }
       } else if (nextFase === 'inscripcion_online') {
         botMessage = INSCRIPCION_ONLINE_MSG
         nextFase = 'seguimiento'

@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 
   try {
     if (provider === 'meta') {
-      await sendMetaWhatsAppTemplate({ to: normalized, templateName: 'seguimiento_general', parameters: [nombre] })
+      await sendMetaWhatsAppTemplate({ to: normalized, templateName: 'windsor_bienvenida_lead_manual', parameters: [nombre] })
     } else {
       return Response.json({ error: 'Solo Meta soportado para primer contacto' }, { status: 400 })
     }
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     return Response.json({ error: msg, numero_intentado: normalized }, { status: 500 })
   }
 
-  const mensaje = `Hola ${nombre} 👋 ¿Pudiste revisar la información que te compartimos? Si tienes alguna duda con gusto te ayudamos. 😊`
+  const mensaje = `Hola ${nombre} 👋 Aquí te compartimos la información que nos solicitaste. Toca el botón para recibirla.`
   const now = new Date().toISOString()
 
   // Verificar si ya existe conversación para este número
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
         lead_id: lead.id,
         estado: 'abierta',
         modo_humano: false,
-        fase: 'accion',
+        fase: 'saludo',
         provider,
         ultimo_mensaje_at: now,
       }])

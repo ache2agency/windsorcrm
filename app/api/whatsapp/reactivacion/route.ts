@@ -97,7 +97,7 @@ async function enviarWhatsApp(
 }
 
 function getTemplatePorEtapa(etapa: string, intento: number): string {
-  if (etapa === 'inscripcion_pendiente') return 'windsor_inscripcion_pendiente'
+  if (etapa === 'inscripcion_pendiente') return 'windsor_inscripcion_pendiente_'
   if (intento === 2) return 'windsor_promocion'
   return 'seguimiento_general'
 }
@@ -155,8 +155,7 @@ async function reactivarConversacionesBot(
       }
     }
 
-    // Obtener nombre del lead
-    let nombre = 'ahí'
+    // Obtener nombre del lead y encolar (no enviar)
     if (conv.lead_id) {
       const { data: lead } = await supabase
         .from('leads')
@@ -164,45 +163,47 @@ async function reactivarConversacionesBot(
         .eq('id', conv.lead_id)
         .maybeSingle()
       const rawNombre = lead?.nombre?.trim() || ''
-      if (esNombreValido(rawNombre)) nombre = rawNombre
+      const nombre = esNombreValido(rawNombre) ? rawNombre : 'ahí'
       const trackA = esTrackA(lead?.curso)
       const mensaje = obtenerMensajeReactivacion20h(conv.fase || 'accion', trackA, nombre)
 
-      const provider = (conv.provider as WhatsAppProvider | null) || defaultProvider
-      try {
-        await enviarWhatsApp(conv.whatsapp, mensaje, provider, 'seguimiento_general', [nombre])
-        await supabase.from('whatsapp_mensajes').insert([
-          { conversacion_id: conv.id, rol: 'bot', contenido: mensaje },
-        ])
-        await supabase
-          .from('whatsapp_conversaciones')
-          .update({ ultimo_mensaje_at: new Date().toISOString() })
-          .eq('id', conv.id)
+      const stageFinal = (lead?.stage === 'primer_contacto' || lead?.stage === 'contactado')
+        ? 'segundo_contacto'
+        : (lead?.stage || 'segundo_contacto')
+      const etapaCanon20h = normalizarEtapaReactivacion(stageFinal)
 
-        // Avanzar stage del lead a segundo_contacto si sigue en primer_contacto
-        await supabase
-          .from('leads')
-          .update({ stage: 'segundo_contacto' })
-          .eq('id', conv.lead_id)
-          .eq('stage', 'primer_contacto')
+      // Verificar que no haya ya un mensaje pendiente para este lead
+      const { data: yaPendiente } = await supabase
+        .from('mensajes_pendientes')
+        .select('id')
+        .eq('lead_id', conv.lead_id)
+        .eq('estado', 'pendiente')
+        .limit(1)
+        .maybeSingle()
 
-        // Registrar en reactivacion_intentos para evitar doble envío del pipeline principal
-        const stageFinal = (lead?.stage === 'primer_contacto' || lead?.stage === 'contactado')
-          ? 'segundo_contacto'
-          : (lead?.stage || 'segundo_contacto')
-        const etapaCanon20h = normalizarEtapaReactivacion(stageFinal)
-        if (etapaCanon20h) {
-          await supabase.from('reactivacion_intentos').insert([{
-            lead_id: conv.lead_id,
-            etapa: etapaCanon20h,
-            intento: 1,
-            enviado_at: new Date().toISOString(),
-          }])
-        }
+      if (yaPendiente) {
+        resultados.push({ conversacion_id: conv.id, accion: 'omitido', detalle: 'ya tiene mensaje pendiente' })
+        continue
+      }
 
-        resultados.push({ conversacion_id: conv.id, accion: 'enviado_20h' })
-      } catch (e: unknown) {
-        resultados.push({ conversacion_id: conv.id, accion: 'error', detalle: e instanceof Error ? e.message : String(e) })
+      const { error: insertErr } = await supabase.from('mensajes_pendientes').insert([{
+        lead_id: conv.lead_id,
+        conversacion_id: conv.id,
+        whatsapp: conv.whatsapp,
+        nombre,
+        curso: lead?.curso || null,
+        stage: lead?.stage || null,
+        etapa: etapaCanon20h,
+        intento: 1,
+        template_name: 'seguimiento_general',
+        template_params: [nombre],
+        mensaje,
+      }])
+
+      if (insertErr) {
+        resultados.push({ conversacion_id: conv.id, accion: 'error', detalle: insertErr.message })
+      } else {
+        resultados.push({ conversacion_id: conv.id, accion: 'encolado_20h' })
       }
     } else {
       resultados.push({ conversacion_id: conv.id, accion: 'omitido', detalle: 'sin lead_id' })
@@ -359,7 +360,7 @@ export async function POST(request: Request) {
 
   const resultados: {
     lead_id: string
-    accion: 'omitido' | 'enviado_intento_1' | 'enviado_intento_2' | 'archivado' | 'error'
+    accion: 'omitido' | 'enviado_intento_1' | 'enviado_intento_2' | 'encolado_intento_1' | 'encolado_intento_2' | 'archivado' | 'error'
     detalle?: string
   }[] = []
 
@@ -437,6 +438,25 @@ export async function POST(request: Request) {
     const intentos = intentosRows || []
     const maxIntento = intentos.length ? Math.max(...intentos.map((i) => i.intento)) : 0
 
+    // Evitar doble envío si el pipeline 20h ya envió un intento reciente (guarda con etapa distinta)
+    if (intentos.length === 0) {
+      const { data: intentoRecienteAny } = await supabase
+        .from('reactivacion_intentos')
+        .select('enviado_at')
+        .eq('lead_id', lead.id)
+        .order('enviado_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (intentoRecienteAny?.enviado_at) {
+        const horasDesde = msDesde(new Date(intentoRecienteAny.enviado_at as string)) / (60 * 60 * 1000)
+        if (horasDesde < HORAS_MIN_ENTRE_INTENTOS) {
+          resultados.push({ lead_id: lead.id, accion: 'omitido', detalle: 'intento reciente (otra etapa)' })
+          continue
+        }
+      }
+    }
+
     if (intentos.length >= 2) {
       await supabase.from('leads').update({ stage: 'archivado' }).eq('id', lead.id)
       await supabase.from('lead_activities').insert([
@@ -481,44 +501,44 @@ export async function POST(request: Request) {
     const nombre = esNombreValido(rawNombrePipeline) ? rawNombrePipeline : 'ahí'
     const trackA = esTrackA(lead.curso)
     const mensaje = obtenerMensajeReactivacion(etapaCanon, siguienteIntento, trackA, nombre)
-
-    const provider = (conv.provider as WhatsAppProvider | null) || defaultProvider
-    const to = conv.whatsapp || lead.whatsapp
     const templateName = getTemplatePorEtapa(etapaCanon, siguienteIntento)
+    const to = conv.whatsapp || lead.whatsapp
 
-    try {
-      await enviarWhatsApp(to!, mensaje, provider, templateName, [nombre])
+    // Verificar que no haya ya un mensaje pendiente para este lead
+    const { data: yaPendiente } = await supabase
+      .from('mensajes_pendientes')
+      .select('id')
+      .eq('lead_id', lead.id)
+      .eq('estado', 'pendiente')
+      .limit(1)
+      .maybeSingle()
 
-      const now = new Date().toISOString()
-      await supabase.from('reactivacion_intentos').insert([
-        {
-          lead_id: lead.id,
-          etapa: etapaCanon,
-          intento: siguienteIntento,
-          enviado_at: now,
-        },
-      ])
+    if (yaPendiente) {
+      resultados.push({ lead_id: lead.id, accion: 'omitido', detalle: 'ya tiene mensaje pendiente' })
+      continue
+    }
 
-      await supabase.from('whatsapp_mensajes').insert([
-        {
-          conversacion_id: conversacionId,
-          rol: 'bot',
-          contenido: mensaje,
-        },
-      ])
+    const { error: insertErr } = await supabase.from('mensajes_pendientes').insert([{
+      lead_id: lead.id,
+      conversacion_id: conversacionId,
+      whatsapp: to!,
+      nombre,
+      curso: lead.curso || null,
+      stage: lead.stage || null,
+      etapa: etapaCanon,
+      intento: siguienteIntento,
+      template_name: templateName,
+      template_params: [nombre],
+      mensaje,
+    }])
 
-      await supabase
-        .from('whatsapp_conversaciones')
-        .update({ ultimo_mensaje_at: now })
-        .eq('id', conversacionId)
-
+    if (insertErr) {
+      resultados.push({ lead_id: lead.id, accion: 'error', detalle: insertErr.message })
+    } else {
       resultados.push({
         lead_id: lead.id,
-        accion: siguienteIntento === 1 ? 'enviado_intento_1' : 'enviado_intento_2',
+        accion: siguienteIntento === 1 ? 'encolado_intento_1' : 'encolado_intento_2',
       })
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      resultados.push({ lead_id: lead.id, accion: 'error', detalle: msg })
     }
   }
 

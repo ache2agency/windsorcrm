@@ -126,7 +126,8 @@ export async function POST(request: Request) {
     ...(nuevosAyer?.length
       ? nuevosAyer.map(l => {
           const esBot = l.origen === 'bot' || (!l.origen && l.notas?.includes('automáticamente desde WhatsApp'))
-          return `${esBot ? '🤖' : '👤'} ${(l.nombre || 'Sin nombre').substring(0, 20)} — ${normProg(l.curso)}`
+          const origenEmoji = l.origen === 'meta_ads' ? '📣' : esBot ? '🤖' : '👤'
+          return `${origenEmoji} ${(l.nombre || 'Sin nombre').substring(0, 20)} — ${normProg(l.curso)}`
         })
       : ['Sin leads nuevos']),
     '',

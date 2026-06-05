@@ -157,6 +157,94 @@ Modalidad: Presencial | Duración: 3 años
 *A)* Tengo dudas 🤔
 *B)* Quiero inscribirme ✍️` },
   ]},
+  { grupo: "Cursos de Verano", items: [
+    { label: "Verano niños", texto: `👋 ¡Hola! Gracias por tu interés en *My Best Summer 2026* de Instituto Windsor. ☀️
+
+📅 *Fechas:* Del 13 de julio al 07 de agosto.
+
+👧🧒 Contamos con grupos por edades:
+
+🔹 *Kids* (4 a 6 años)
+• Idiomas (Inglés y Francés)
+• Origami
+• Arte y pintura
+• Ritmo y movimiento musical
+• Repostería
+• Kung Fu
+
+🔹 *Juniors* (7 a 9 años)
+• Idiomas
+• Repostería
+• Robótica
+• Origami
+• Arte y pintura
+• Diseño de videojuegos
+• Ritmo y movimiento musical
+• Kung Fu
+
+🔹 *Seniors* (10 a 12 años)
+• Arte y pintura
+• Robótica
+• Idiomas
+• Kung Fu
+• Origami
+• Repostería
+• Diseño de videojuegos
+
+🕘 *Horario:* De 9:00 a.m. a 1:30 p.m.
+
+🍽️ *Cafetería:* Las instalaciones cuentan con servicio de cafetería, el cual opera de manera independiente. Los paquetes y costos los podrás consultar directamente con ellos — lo que sí podemos confirmar es que ofrecen opciones especiales para los cursos de verano.
+
+🚌 Los viernes realizamos salidas especiales al Zoológico, Museo La Avispa y Bomberos.
+
+📍 *Ubicación:* Calle Sofía Tena #1, Col. Viguri.
+
+📄 Programa completo: https://drive.google.com/file/d/1I7kD2vtkRsJ_XlYa1ZaLijuRfUUgkW6j/view?usp=sharing
+
+💰 *Inversión:* $2,100 MXN + $400 materiales.
+💳 *Pago:* Puedes apartar tu lugar con el 50% y cubrir el resto al inicio del curso.
+
+🚨 *Inscripciones abiertas | Cupo limitado*
+
+¿Cómo te gustaría continuar?
+*A)* Tengo dudas 🤔
+*B)* Quiero inscribir a mi hij@ ✍️` },
+    { label: "Verano adultos", texto: `👋 ¡Hola! Gracias por tu interés en *My Best Summer* para Adolescentes y Adultos de Instituto Windsor. 🌟
+
+📅 *Fechas:* Del 13 de julio al 07 de agosto.
+
+Ofrecemos cursos Extra Intensivos de Idiomas para que avances tu nivel en pocas semanas.
+
+🇬🇧 *Inglés*
+
+🔹 Beginner X Intensivo
+🕘 9:00 a.m. a 12:00 p.m. o 1:00 p.m. a 4:00 p.m.
+
+🔹 Elementary X Intensivo
+🕐 1:00 p.m. a 4:00 p.m.
+
+🔹 Pre-Intermediate X Intensivo
+🕐 1:00 p.m. a 4:00 p.m.
+
+🇫🇷 *Francés Intensivo*
+🕐 1:00 p.m. a 3:00 p.m.
+
+🇮🇹 *Italiano Intensivo*
+🕐 1:00 p.m. a 3:00 p.m.
+
+💰 *Inversión:* $2,200 MXN por curso.
+📚 Manual para cursos de inglés: $150 MXN adicionales.
+
+📍 *Ubicación:* Calle Sofía Tena #1, Col. Viguri.
+
+📄 Programa completo: https://drive.google.com/file/d/17H3avjLp_BDilOsaqSbs6gXBIlH5BcAz/view?usp=sharing
+
+🚨 *Inscripciones abiertas | Cupo limitado*
+
+¿Cómo te gustaría continuar?
+*A)* Tengo dudas 🤔
+*B)* Quiero inscribirme ✍️` },
+  ]},
   { grupo: "Bachillerato", items: [
     { label: "Bachillerato", texto: `¡Excelente elección! 😊 Te comparto la información de nuestra Prepa Windsor:
 
@@ -212,6 +300,8 @@ export default function ConversationsPanel({
   setConvPhaseFilter,
   conversationPhaseOptions,
   getPhaseLabel,
+  convVentanaFilter,
+  setConvVentanaFilter,
   selectedConv,
   setSelectedConv,
   confirmReturnToBotIfNeeded,
@@ -432,6 +522,21 @@ export default function ConversationsPanel({
               ))}
             </select>
           </div>
+          {setConvVentanaFilter && (
+            <div style={{ padding: "4px 12px 6px" }}>
+              <button
+                onClick={() => setConvVentanaFilter(!convVentanaFilter)}
+                style={{
+                  width: "100%", fontSize: 11, padding: "5px 0", borderRadius: 12, border: "none", cursor: "pointer", fontWeight: 600,
+                  background: convVentanaFilter ? "#25D366" : "#f0f2f5",
+                  color: convVentanaFilter ? "#fff" : "#54656f",
+                }}
+                title="Mostrar solo conversaciones con actividad en las últimas 24h"
+              >
+                ⚡ Ventana activa (24h)
+              </button>
+            </div>
+          )}
 
           <div className="wa-convs-count">{filteredWhatsConvs.length} conversaciones</div>
 
@@ -551,6 +656,11 @@ export default function ConversationsPanel({
                   <div style={{ color: "#667781", fontSize: 11, marginTop: 2 }}>{selectedConvLead?.email || "Sin email"}</div>
                   <div style={{ color: "#667781", fontSize: 11 }}>{selectedConvLead?.curso || "—"}</div>
                   <div style={{ color: "#667781", fontSize: 11 }}>Stage: {selectedConvLead?.stage || "—"}</div>
+                  {selectedConvLead?.created_at && (
+                    <div style={{ color: "#667781", fontSize: 11, marginTop: 2 }}>
+                      Entró: {new Date(selectedConvLead.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Mexico_City" })}
+                    </div>
+                  )}
                 </div>
                 <div className="wa-info-card">
                   <div className="wa-info-card-title">Responsable</div>
