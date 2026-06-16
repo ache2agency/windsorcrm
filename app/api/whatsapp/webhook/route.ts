@@ -2082,6 +2082,14 @@ export async function POST(request: Request) {
           return buildProviderResponse(provider, greeting, waNumber)
         }
 
+        // ── Mensaje fijo del botón de WhatsApp del sitio web: pedir nombre sin GPT ──
+        const esMensajeSitioWeb = /p[aá]gina\s+web/i.test(originalText) && /oferta\s+educativa/i.test(originalText)
+        if (esMensajeSitioWeb && !hasLeadProgram(leadSnapshot?.curso)) {
+          const saludoSitioWeb = `¡Hola! 😊 Gracias por tu interés en Instituto Windsor. ¿Con quién tengo el gusto?`
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, saludoSitioWeb, 'saludo')
+          return buildProviderResponse(provider, saludoSitioWeb, waNumber)
+        }
+
         // ── Bloque verano en saludo: manejo completo sin fallthrough al GPT ──────
         if (hasLeadProgram(leadSnapshot?.curso) && (leadSnapshot?.curso || '').includes('verano')) {
           // Intentar extraer nombre limpiando prefijos y sufijos comunes
