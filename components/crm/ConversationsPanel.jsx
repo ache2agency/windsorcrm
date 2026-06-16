@@ -22,12 +22,10 @@ Dirigido a personas de 13 años en adelante
 *⏳ Duración:* 5 meses (10 meses sabatino)
 
 *💰 Inversión:*
-• Inscripción: $750
-• Mensualidad desde $990
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$750~ → $375 (50% de descuento)
-• ¡Primer mes gratis!
+• Inscripción: $800
+• Mensualidad mat/vesp (Básico - Pre-Intermedio): $1,220
+• Mensualidad mat/vesp (Intermedio en adelante): $1,250
+• Mensualidad sabatino: $1,040
 
 Al terminar obtienes un Diploma con validez oficial.
 
@@ -74,7 +72,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,150 (incluye credencial)
+• Inscripción semestral: $2,150
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -96,7 +94,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,300 (incluye credencial)
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -118,7 +116,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,300 (incluye credencial)
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -134,6 +132,20 @@ Modalidad: Presencial | Duración: 3 años
 ¿Cómo te gustaría continuar?
 *A)* Tengo dudas 🤔
 *B)* Quiero inscribirme ✍️` },
+    { label: "Promo", texto: `🎉 *¡Promoción especial del mes!*
+
+• *70% de descuento* en inscripción semestral
+• *30% de descuento* en mensualidad
+
+*💰 Precios con promoción:*
+• Inscripción: ~$2,150~ → *$645*
+• Mensualidad: ~$2,750~ → *$1,925*
+
+¡Cupo limitado! 😊
+
+¿Cómo te gustaría continuar?
+*A)* Tengo dudas 🤔
+*B)* Quiero inscribirme ✍️` },
     { label: "Adm. Turística", texto: `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Administración Turística:
 
 *🎓 Licenciatura en Administración Turística*
@@ -142,7 +154,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,200 (incluye credencial)
+• Inscripción semestral: $2,200
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -254,7 +266,7 @@ Modalidad: Presencial | Duración: 2 años
 *🕐 Horarios:* Matutino y Vespertino
 
 *💰 Inversión:*
-• Inscripción cuatrimestral: $1,100 (incluye credencial)
+• Inscripción cuatrimestral: $1,100
 • Mensualidad: $1,800
 
 *🎉 Promoción del mes:*

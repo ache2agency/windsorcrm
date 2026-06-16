@@ -82,7 +82,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,300 (incluye credencial)
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -101,7 +101,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,150 (incluye credencial)
+• Inscripción semestral: $2,150
 • Mensualidad: $2,650
 
 *🎉 Promoción del mes:*
@@ -120,7 +120,7 @@ Modalidad: Online | Duración: 3 años
 *🕐 Horarios:* Online
 
 *💰 Inversión:*
-• Inscripción semestral: $2,150 (incluye credencial)
+• Inscripción semestral: $2,150
 • Mensualidad: $2,650
 
 *🎉 Promoción del mes:*
@@ -139,7 +139,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,200 (incluye credencial)
+• Inscripción semestral: $2,200
 • Mensualidad: $2,650
 
 *🎉 Promoción del mes:*
@@ -158,7 +158,7 @@ Modalidad: Online | Duración: 3 años
 *🕐 Horarios:* Online
 
 *💰 Inversión:*
-• Inscripción semestral: $2,200 (incluye credencial)
+• Inscripción semestral: $2,200
 • Mensualidad: $2,650
 
 *🎉 Promoción del mes:*
@@ -177,7 +177,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,300 (incluye credencial)
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -198,7 +198,7 @@ Modalidad: Online | Duración: 3 años
 *🕐 Horarios:* Online
 
 *💰 Inversión:*
-• Inscripción semestral: $2,300 (incluye credencial)
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -219,7 +219,7 @@ Modalidad: Presencial | Duración: 2 años
 *🕐 Horarios:* Matutino y Vespertino
 
 *💰 Inversión:*
-• Inscripción cuatrimestral: $1,100 (incluye credencial)
+• Inscripción cuatrimestral: $1,100
 • Mensualidad: $1,800
 
 *🎉 Promoción del mes:*

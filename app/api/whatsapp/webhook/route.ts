@@ -200,7 +200,9 @@ function buildAgendarLink(tipo: string, nombre?: string | null, email?: string |
 const BOT_SIGNATURE = 'Instituto Windsor'
 
 function hasLeadName(nombre: string | null | undefined, whatsapp: string | null | undefined) {
-  const value = String(nombre || '').trim()
+  let value = String(nombre || '').trim()
+  // Normalizar: abreviaciones con punto (Ma. → Ma, Dr. → Dr) y punto final
+  value = value.replace(/\b([A-ZÁÉÍÓÚ]{1,3})\.\s*/g, '$1 ').replace(/\.\s*$/, '').trim()
   if (!value || value.length < 2) return false
   if (value === String(whatsapp || '').trim()) return false
   if (/@/.test(value)) return false
@@ -213,7 +215,7 @@ function hasLeadName(nombre: string | null | undefined, whatsapp: string | null 
   // Rechazar si contiene emojis o caracteres no válidos en un nombre
   if (!/^[\p{L}\s'\-]+$/u.test(value)) return false
   // Rechazar palabras que claramente no son nombres propios
-  const noNombres = /^(hola|buenas?|buen|d[ií]a|tardes?|noches?|info|informaci[oó]n|costos?|precios?|quiero|quisiera|necesito|ayuda|gracias|ok|s[ií]|no|nada|nope|oye|hey|buenos|saludos|permiso|disculp)$/i
+  const noNombres = /^(hola|buenas?|buen|d[ií]a|tardes?|noches?|info|informaci[oó]n|costos?|precios?|horarios?|quiero|quisiera|necesito|ayuda|gracias|ok|s[ií]|no|nada|nope|oye|hey|buenos|saludos|permiso|disculp|por\s+favor|favor|buen[oa]s?\s+d[ií]as?|buen[oa]s?\s+tardes?|buen[oa]s?\s+noches?)$/i
   if (noNombres.test(value.trim())) return false
   return true
 }
@@ -606,7 +608,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,300 (incluye credencial)
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -625,7 +627,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,150 (incluye credencial)
+• Inscripción semestral: $2,150
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -642,7 +644,7 @@ Modalidad: Presencial | Duración: 3 años
 Modalidad: Online | Duración: 3 años
 
 *💰 Inversión:*
-• Inscripción semestral: $2,150 (incluye credencial)
+• Inscripción semestral: $2,150
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -661,7 +663,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,200 (incluye credencial)
+• Inscripción semestral: $2,200
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -678,7 +680,7 @@ Modalidad: Presencial | Duración: 3 años
 Modalidad: Online | Duración: 3 años
 
 *💰 Inversión:*
-• Inscripción semestral: $2,200 (incluye credencial)
+• Inscripción semestral: $2,200
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -697,7 +699,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,300 (incluye credencial)
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -716,7 +718,7 @@ Modalidad: Presencial | Duración: 3 años
 Modalidad: Online | Duración: 3 años
 
 *💰 Inversión:*
-• Inscripción semestral: $2,300 (incluye credencial)
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -737,7 +739,7 @@ Modalidad: Presencial | Duración: 2 años
 *🕐 Horarios:* Matutino y Vespertino
 
 *💰 Inversión:*
-• Inscripción cuatrimestral: $1,100 (incluye credencial)
+• Inscripción cuatrimestral: $1,100
 • Mensualidad: $1,800
 
 *🎉 Promoción del mes:*
@@ -1301,6 +1303,7 @@ async function askGPT(params: {
 
   const faseInstruccion: Record<string, string> = {
     saludo: `Si el prospecto ya mencionó su nombre en este mensaje, extráelo en el campo "nombre" y avanza (siguienteFase: programa).
+CRÍTICO — Nombres falsos: NUNCA extraigas como nombre palabras que no son nombres de persona. Las siguientes palabras NUNCA son nombres: Horarios, Info, Información, Costos, Precios, Hola, Buenas, Buenos, Gracias, Ok, Sí, No, Verano, Summer, Inglés, Licenciatura, Psicología, Bachillerato, Curso, Programa, Ayuda, Duda, Permiso, Saludos, Buenas noches, Buenos días. Si el prospecto manda solo una de estas palabras, NO la guardes como nombre — en su lugar, saluda y pide el nombre.
 Si el prospecto hace una pregunta antes de dar su nombre:
 - Si pregunta por precios, costos, mensualidades o descuentos: NO des precios específicos. Responde: "Tenemos buenas promociones vigentes — dame tu nombre y dime qué programa te interesa para darte los costos exactos 😊" y pide el nombre. Nunca inventes ni calcules precios en esta fase.
 - Para otras preguntas (fechas de inicio, modalidad, duración, actividades): respóndelas brevemente con la BASE y luego pide su nombre para continuar.
@@ -1411,6 +1414,7 @@ REGLAS:
 - "telefono": teléfono dado en este mensaje (en fase asesor), o null.
 - "necesitaRevision": pon true SOLO si el prospecto pregunta algo que no está en tus reglas ni en la BASE DE CONOCIMIENTO y no puedes responder con certeza. Ejemplos: políticas de reembolso, excepciones especiales, preguntas muy específicas sobre horarios o grupos que no conoces. Si tienes la información, respóndela tú — no uses necesitaRevision para preguntas que sí sabes responder.
 - CURSOS DE IDIOMAS (CRÍTICO): Los cursos regulares de idiomas (inglés para adultos, inglés para niños, francés, italiano) NO inician hasta septiembre 2026. Si alguien pregunta por cualquiera de estos cursos, debes informarle esto y redirigirlos al programa *My Best Summer* que inicia el 13 de julio. Ejemplo: "Los cursos regulares de [idioma] inician en septiembre 😊 Sin embargo, si quieres empezar antes, tenemos nuestro programa *My Best Summer* que inicia el 13 de julio — es una excelente opción para avanzar tu nivel en pocas semanas. ¿Te gustaría conocer los detalles?" Esto aplica a: inglés adultos, inglés niños, francés e italiano.
+- HORARIOS MY BEST SUMMER ADULTOS (usa estos exactos): Inglés Beginner X Intensivo: 9:00 a.m. a 12:00 p.m. o 1:00 p.m. a 4:00 p.m. | Inglés Elementary/Pre-Intermediate X Intensivo: 1:00 p.m. a 4:00 p.m. | Francés Intensivo: 1:00 p.m. a 3:00 p.m. | Italiano Intensivo: 1:00 p.m. a 3:00 p.m. Si alguien pregunta el horario del curso de italiano o francés en My Best Summer, da este dato directamente sin redirigir a un asesor.
 - CAFETERÍA: Si preguntan por cafetería, desayuno o comida en el curso de verano, responde: "Las instalaciones cuentan con servicio de cafetería, el cual opera de manera independiente. Los paquetes y costos los podrás consultar directamente con ellos — lo que sí podemos confirmar es que ofrecen opciones especiales para los cursos de verano 😊"
 - PAGO VERANO: Si preguntan cómo pagar el curso de verano, si es de contado o si pueden apartar el lugar, responde que pueden pagar el 50% para apartar el espacio y el otro 50% al inicio del curso.
 - PRECIOS VERANO (usa estos exactos, nunca inventes otros): My Best Summer niños: $2,100 MXN + $400 materiales (apartar con $1,050 + $200). My Best Summer adultos: $2,200 MXN por curso + $150 manual inglés (apartar con $1,100). Si preguntan el costo, dalo directamente sin decir que no lo tienes.
@@ -1698,7 +1702,7 @@ export async function POST(request: Request) {
           }
 
           // Anti-duplicados: esperar y verificar que no llegó un mensaje más reciente
-          await new Promise(r => setTimeout(r, 800))
+          await new Promise(r => setTimeout(r, 1500))
           const { data: latestUserMsg } = await supabase
             .from('whatsapp_mensajes')
             .select('id')
@@ -2061,6 +2065,7 @@ export async function POST(request: Request) {
           // Limpiar prefijos comunes: "Con X", "Soy X", "Me llamo X", "Es X"
           const nombreCapturado = originalText.trim()
             .replace(/^\s*(con\s+|soy\s+|me\s+llamo\s+|es\s+)/i, '')
+            .replace(/^\s*(la\s+se[ñn]or[ai]\s+|el\s+se[ñn]or\s+|don\s+|do[ñn]a\s+|la\s+se[ñn]orita\s+)/i, '')
             .trim()
           if (leadId) {
             await supabase.from('leads').update({ nombre: nombreCapturado }).eq('id', leadId)
@@ -2084,7 +2089,9 @@ export async function POST(request: Request) {
             .replace(/^\s*(hola|hey|ola|buenas?|buen)\s*(d[ií]as?|tardes?|noches?)?\s*[!.,;]*\s*/i, '')
             .replace(/^\s*(excelente|buen)\s*(d[ií]a|tarde|noche)\s*[!.,;]*\s*/i, '')
             .replace(/^\s*(con\s+|soy\s+|me\s+llamo\s+|mi\s+nombre\s+es\s+)/i, '')
+            .replace(/^\s*(la\s+se[ñn]or[ai]\s+|el\s+se[ñn]or\s+|don\s+|do[ñn]a\s+|la\s+se[ñn]orita\s+)/i, '')
             .replace(/\s*(a\s+sus?\s+[oó]rdenes?|para\s+servirle?|mucho\s+gusto|es\s+un\s+gusto|con\s+gusto)\s*[!.,;]*\s*$/i, '')
+            .replace(/[.,;!?]+$/, '')
             .trim()
 
           const nombreExtraido = hasLeadName(textoSinPrefijo, waNumber)
@@ -2381,6 +2388,13 @@ export async function POST(request: Request) {
 
       // Confirmación de inscripción verano — fase inscripcion_pendiente
       if (phase === 'inscripcion_pendiente') {
+        // Si el usuario se despide o agradece, responder con cortesía sin repetir los pasos
+        const esGoodbyeInscripcion = /^\s*(gracias|muchas gracias|ok gracias|muy amable|listo gracias|de nada|con gusto|est[aá] bien|okey gracias|excelente|muchas grac|genial|perfecto gracias|gracias!|gracias\.)\s*[!.]*\s*$/i.test(originalText.trim())
+        if (esGoodbyeInscripcion) {
+          const despMsg = '¡Con gusto! 😊 Si tienes alguna duda o necesitas ayuda con los pasos de inscripción, aquí estaré. ¡Mucho éxito! ☀️'
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, despMsg)
+          return buildProviderResponse(provider, despMsg, waNumber)
+        }
         // Si elige presencial — solo indicar qué traer, sin pasos de pago en línea
         if (/presencial|instalaci[oó]n|ir a|plantel|visitar|en persona|de manera presencial/i.test(originalText)
           && !/examen|colocaci[oó]n|evaluaci[oó]n|ubicaci[oó]n/i.test(originalText)) {
@@ -2413,7 +2427,8 @@ export async function POST(request: Request) {
       // Elección A/B de inscripción — interceptar antes de GPT cuando fase es inscripcion
       if (phase === 'inscripcion') {
         // Si es lead de verano, nunca debe estar en fase inscripcion — redirigir al proceso correcto
-        if ((leadSnapshot?.curso || '').toLowerCase().includes('verano')) {
+        const cursoLowerInsc = (leadSnapshot?.curso || '').toLowerCase()
+        if (cursoLowerInsc.includes('verano') || cursoLowerInsc.includes('my best summer')) {
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_VERANO_MSG, 'inscripcion_pendiente', leadId)
           return buildProviderResponse(provider, INSCRIPCION_VERANO_MSG, waNumber)
         }
@@ -2504,7 +2519,9 @@ export async function POST(request: Request) {
       // No dispara ante respuestas cortas de CTA (a, b, si, no).
       if (['info_enviada', 'dudas', 'accion', 'seguimiento', 'inscripcion', 'clase_prueba'].includes(phase)) {
         const esRespuestaCTA = /^\s*[aAbBsSnN][iIoO]?\s*$/.test(originalText)
-        if (!esRespuestaCTA) {
+        // No disparar si la mención del programa es contextual (pregunta sobre descuentos, convenios, o comparaciones)
+        const esMencionContextual = /\b(si soy|siendo|como alumno|como estudiante|alumno de|estudiante de|egresado de|si tengo|teniendo|me gradué|yo estudié|estudio en|trabajo en|mi carrera|mi programa|hay descuento para|descuento para alumnos|descuento.*estudiante|beneficio.*alumno)\b/i.test(originalText)
+        if (!esRespuestaCTA && !esMencionContextual) {
           // Usa detectarPrograma() como única fuente de verdad (sin duplicar lógica)
           const programaNuevoPC = detectarPrograma(originalText)
           const programaActualPC = (leadSnapshot?.curso || '').toLowerCase().trim()
@@ -2798,9 +2815,10 @@ export async function POST(request: Request) {
         // Track A idiomas: invitar a clase de prueba (después del examen)
         botMessage = buildClasePruebaMsg(leadSnapshot?.nombre, leadSnapshot?.email, leadSnapshot?.curso, leadSnapshot?.whatsapp)
         nextFase = 'clase_prueba'
-      } else if (nextFase === 'inscripcion') {
+      } else if (nextFase === 'inscripcion' && phase !== 'inscripcion') {
         // Track B: proceso de inscripción — verano va directo al proceso de verano
-        if ((leadSnapshot?.curso || '').toLowerCase().includes('verano')) {
+        const cursoLower = (leadSnapshot?.curso || '').toLowerCase()
+        if (cursoLower.includes('verano') || cursoLower.includes('my best summer')) {
           botMessage = INSCRIPCION_VERANO_MSG
           nextFase = 'inscripcion_pendiente'
         } else {
