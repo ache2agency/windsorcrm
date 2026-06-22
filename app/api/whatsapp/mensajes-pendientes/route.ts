@@ -129,11 +129,28 @@ export async function POST(request: Request) {
   const to = normalizePhoneNumber(msg.whatsapp)
 
   try {
-    if (msg.template_name && msg.template_params && !mensaje_editado) {
-      const params = Array.isArray(msg.template_params) ? msg.template_params : JSON.parse(msg.template_params)
+    let textoParaHistorial = textoFinal
+    if (msg.template_name && !mensaje_editado) {
+      // Obtener params — si no hay en BD, construir con nombre del lead
+      let params: string[]
+      if (msg.template_params) {
+        params = Array.isArray(msg.template_params) ? msg.template_params : JSON.parse(msg.template_params)
+      } else {
+        const primerNombre = (msg.lead_nombre || '').trim().split(/\s+/)[0] || 'amig@'
+        params = [primerNombre]
+      }
       await sendMetaWhatsAppTemplate({ to, templateName: msg.template_name, parameters: params })
+      // Guardar historial con nombre sustituido (no {{nombre}} literal)
+      textoParaHistorial = textoFinal
+        .replace('{{nombre}}', params[0] || '')
+        .replace('{{1}}', params[0] || '')
     } else {
-      await sendMetaWhatsAppMessage({ to, body: textoFinal })
+      // Si el texto crudo tiene {{nombre}} sin sustituir, reemplazarlo antes de enviar
+      const primerNombre = (msg.lead_nombre || '').trim().split(/\s+/)[0] || 'amig@'
+      textoParaHistorial = textoFinal
+        .replace('{{nombre}}', primerNombre)
+        .replace('{{1}}', primerNombre)
+      await sendMetaWhatsAppMessage({ to, body: textoParaHistorial })
     }
 
     // Guardar en historial de conversación
@@ -141,11 +158,20 @@ export async function POST(request: Request) {
       await supabase.from('whatsapp_mensajes').insert([{
         conversacion_id: msg.conversacion_id,
         rol: 'bot',
-        contenido: textoFinal,
+        contenido: textoParaHistorial,
       }])
+      // Si la conv estaba en una fase inicial, avanzarla a 'accion' para que no reaparezca como "sin info"
+      const FASES_INICIALES = ['saludo', 'programa', 'correo', 'verano_disambig']
+      const { data: convActual } = await supabase
+        .from('whatsapp_conversaciones')
+        .select('fase')
+        .eq('id', msg.conversacion_id)
+        .maybeSingle()
+      const faseActual = (convActual as { fase?: string } | null)?.fase || ''
+      const nuevaFase = FASES_INICIALES.includes(faseActual) ? 'accion' : faseActual
       await supabase
         .from('whatsapp_conversaciones')
-        .update({ ultimo_mensaje_at: new Date().toISOString() })
+        .update({ ultimo_mensaje_at: new Date().toISOString(), fase: nuevaFase })
         .eq('id', msg.conversacion_id)
     }
 

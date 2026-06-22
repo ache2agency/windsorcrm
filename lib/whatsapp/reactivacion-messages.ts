@@ -28,7 +28,7 @@ export const HORAS_MIN_ENTRE_INTENTOS = 96
 /** Heurística Track A (idiomas / examen / clase muestra). */
 export function esTrackA(curso: string | null | undefined): boolean {
   const c = String(curso || '').toLowerCase()
-  if (!c || c.includes('whatsapp - instituto')) return true
+  if (!c || c.includes('whatsapp - instituto')) return false
   return (
     /idioma|ingl[eé]s|inglés|franc[eé]s|italiano|niño|adulto|examen|clase de prueba|clase muestra|ubicaci[oó]n/.test(
       c

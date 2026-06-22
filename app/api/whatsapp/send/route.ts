@@ -42,6 +42,9 @@ export async function POST(request: Request) {
 
     const normalizedTo = normalizePhoneNumber(to)
 
+    // Fases iniciales que deben avanzar a 'accion' cuando se envía info manualmente
+    const FASES_INICIALES = ['saludo', 'programa', 'correo', 'verano_disambig']
+
     if (provider === 'meta') {
       let messageId: string | null = null
       if (templateName) {
@@ -52,20 +55,25 @@ export async function POST(request: Request) {
         messageId = result.id
       }
 
-      if (leadId) {
-        const supabase = await createServiceRoleClient()
-        const now = new Date().toISOString()
-        const { data: existingConv } = await supabase
-          .from('whatsapp_conversaciones')
-          .select('id')
-          .eq('whatsapp', normalizedTo)
-          .order('ultimo_mensaje_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
+      // Siempre actualizar la conversación (con o sin leadId)
+      const supabase = await createServiceRoleClient()
+      const now = new Date().toISOString()
+      const { data: existingConv } = await supabase
+        .from('whatsapp_conversaciones')
+        .select('id, fase')
+        .eq('whatsapp', normalizedTo)
+        .order('ultimo_mensaje_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
-        let conversacionId = existingConv?.id || null
+      // Si la fase actual es inicial y no se pasó fase explícita, avanzar a 'accion'
+      const faseActual = (existingConv as { fase?: string } | null)?.fase || 'saludo'
+      const nuevaFase = fase || (FASES_INICIALES.includes(faseActual) ? 'accion' : faseActual)
 
-        if (!conversacionId) {
+      let conversacionId = (existingConv as { id?: string } | null)?.id || null
+
+      if (!conversacionId) {
+        if (leadId) {
           const { data: createdConv } = await supabase
             .from('whatsapp_conversaciones')
             .insert([
@@ -74,37 +82,38 @@ export async function POST(request: Request) {
                 lead_id: leadId,
                 estado: 'abierta',
                 ultimo_mensaje_at: now,
-                fase: fase || 'seguimiento',
+                fase: nuevaFase,
                 modo_humano: modoHumano,
                 tomado_por: agentUserId || null,
               },
             ])
             .select('id')
             .single()
-          conversacionId = createdConv?.id || null
-        } else {
-          await supabase
-            .from('whatsapp_conversaciones')
-            .update({
-              lead_id: leadId,
-              estado: 'abierta',
-              ultimo_mensaje_at: now,
-              fase: fase || 'seguimiento',
-              modo_humano: modoHumano,
-              tomado_por: agentUserId || null,
-            })
-            .eq('id', conversacionId)
+          conversacionId = (createdConv as { id?: string } | null)?.id || null
         }
+      } else {
+        const updateData: Record<string, unknown> = {
+          estado: 'abierta',
+          ultimo_mensaje_at: now,
+          fase: nuevaFase,
+          modo_humano: modoHumano,
+          tomado_por: agentUserId || null,
+        }
+        if (leadId) updateData.lead_id = leadId
+        await supabase
+          .from('whatsapp_conversaciones')
+          .update(updateData)
+          .eq('id', conversacionId)
+      }
 
-        if (conversacionId) {
-          await supabase.from('whatsapp_mensajes').insert([
-            {
-              conversacion_id: conversacionId,
-              rol: 'agente',
-              contenido: body || `[Template: ${templateName}]`,
-            },
-          ])
-        }
+      if (conversacionId) {
+        await supabase.from('whatsapp_mensajes').insert([
+          {
+            conversacion_id: conversacionId,
+            rol: 'agente',
+            contenido: body || `[Template: ${templateName}]`,
+          },
+        ])
       }
 
       return NextResponse.json({

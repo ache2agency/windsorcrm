@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
   if (!conv) return Response.json({ error: 'Conversación no encontrada' }, { status: 404 })
 
-  let nombre = 'ahí'
+  let nombre = 'amig@'
   if (conv.lead_id) {
     const { data: lead } = await supabase
       .from('leads')
