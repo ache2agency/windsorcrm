@@ -363,7 +363,8 @@ export default function ConversationsPanel({
 
   const getDisplayName = (c) => {
     const lead = leads.find((l) => l.id === c.lead_id);
-    return lead?.nombre || c.whatsapp;
+    if (lead?.nombre) return lead.nombre;
+    return c.provider === "messenger" ? "Lead de Messenger" : c.whatsapp;
   };
 
   const getModeColor = (c) => c.modo_humano ? "#A8263C" : WA_TEAL;
@@ -577,7 +578,7 @@ export default function ConversationsPanel({
                         <span className="wa-item-time">{time}</span>
                       </div>
                       <div className="wa-item-row2">
-                        <span className="wa-item-preview">{getModeIcon(c)} {c.whatsapp}</span>
+                        <span className="wa-item-preview">{c.provider === "messenger" ? `💬 Messenger` : `${getModeIcon(c)} ${c.whatsapp}`}</span>
                         <span className="wa-badge" style={{ background: getModeColor(c) + "22", color: getModeColor(c) }}>
                           {getPhaseLabel(c.fase)}
                         </span>

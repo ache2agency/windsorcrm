@@ -128,6 +128,18 @@ export async function POST(request: Request) {
   const provider = getWhatsAppProvider()
   const to = normalizePhoneNumber(msg.whatsapp)
 
+  // Guard defensivo: Messenger no tiene templates pre-aprobados, este endpoint solo sabe mandar vía Meta/Twilio
+  if (msg.conversacion_id) {
+    const { data: convCheck } = await supabase
+      .from('whatsapp_conversaciones')
+      .select('provider')
+      .eq('id', msg.conversacion_id)
+      .maybeSingle()
+    if ((convCheck as { provider?: string } | null)?.provider === 'messenger') {
+      return Response.json({ error: 'Mensaje pendiente de canal Messenger — no se puede enviar como template de WhatsApp' }, { status: 400 })
+    }
+  }
+
   try {
     let textoParaHistorial = textoFinal
     if (msg.template_name && !mensaje_editado) {

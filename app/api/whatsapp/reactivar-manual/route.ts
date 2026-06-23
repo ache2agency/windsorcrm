@@ -14,11 +14,18 @@ export async function POST(request: Request) {
 
   const { data: conv } = await supabase
     .from('whatsapp_conversaciones')
-    .select('id, whatsapp, lead_id')
+    .select('id, whatsapp, lead_id, provider')
     .eq('id', conversacion_id)
     .maybeSingle()
 
   if (!conv) return Response.json({ error: 'Conversación no encontrada' }, { status: 404 })
+
+  if (conv.provider === 'messenger') {
+    return Response.json(
+      { error: 'Messenger no tiene templates pre-aprobados — escríbele directo desde la conversación' },
+      { status: 400 }
+    )
+  }
 
   let nombre = 'amig@'
   if (conv.lead_id) {

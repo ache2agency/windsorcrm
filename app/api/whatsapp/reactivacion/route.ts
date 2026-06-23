@@ -126,6 +126,12 @@ async function reactivarConversacionesBot(
     .not('fase', 'in', '("cerrado","perdido","seguimiento","inscrito")')
 
   for (const conv of conversaciones || []) {
+    // Messenger no tiene templates pre-aprobados como WhatsApp — no encolar reactivación automática
+    if (conv.provider === 'messenger') {
+      resultados.push({ conversacion_id: conv.id, accion: 'omitido', detalle: 'canal messenger sin reactivación automática' })
+      continue
+    }
+
     // Verificar que el último mensaje fue del bot (usuario dejó de responder)
     const { data: ultimoMsg } = await supabase
       .from('whatsapp_mensajes')

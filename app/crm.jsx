@@ -882,13 +882,13 @@ export default function CRM() {
   };
 
   const sendLeadInformation = async (lead) => {
-    if (!lead?.id || !lead?.whatsapp) {
-      showToast("Este lead no tiene un WhatsApp registrado", "error");
+    if (!lead?.id || (!lead?.whatsapp && !lead?.messenger_psid)) {
+      showToast("Este lead no tiene WhatsApp ni Messenger registrado", "error");
       return;
     }
 
     const existingConversation = whatsConvs.find(
-      (conv) => conv.lead_id === lead.id || conv.whatsapp === lead.whatsapp
+      (conv) => conv.lead_id === lead.id || conv.whatsapp === (lead.whatsapp || lead.messenger_psid)
     );
 
     if (!existingConversation) {
@@ -908,7 +908,7 @@ export default function CRM() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          to: lead.whatsapp,
+          to: lead.whatsapp || lead.messenger_psid,
           body: message,
           leadId: lead.id,
           agentUserId: currentUser?.id || null,
@@ -1255,6 +1255,9 @@ export default function CRM() {
   const convRate = leads.length ? Math.round((leads.filter((l) => normalizeStage(l.stage) === "inscrito").length / leads.length) * 100) : 0;
 
   const openWA = (lead) => {
+    if (!lead.whatsapp) {
+      return showToast("Este lead llegó por Messenger, no tiene número de WhatsApp", "error");
+    }
     const template = WA_TEMPLATES[normalizeStage(lead.stage)] || WA_TEMPLATES["primer_contacto"];
     const msg = encodeURIComponent(template((lead.nombre || '').split(" ")[0] || 'estimado/a', lead.curso));
     const num = lead.whatsapp.replace(/\D/g, "");

@@ -3,6 +3,7 @@ import {
   getMetaConfig,
   getWhatsAppProvider,
   normalizePhoneNumber,
+  sendMessengerMessage,
   sendMetaWhatsAppMessage,
   type WhatsAppProvider,
 } from '@/lib/whatsapp/provider'
@@ -230,7 +231,7 @@ function detectarPreguntaDireccion(msg: string): boolean {
 
 function hasLeadProgram(curso: string | null | undefined) {
   const value = String(curso || '').trim().toLowerCase()
-  return !!value && value !== 'whatsapp - instituto windsor'
+  return !!value && value !== 'whatsapp - instituto windsor' && value !== 'messenger - instituto windsor'
 }
 
 function getNextDataPhase(lead: LeadSnapshot | null | undefined, whatsapp: string) {
@@ -269,6 +270,63 @@ function isMetaWebhookPayload(payload: unknown) {
       'object' in payload &&
       (payload as { object?: string }).object === 'whatsapp_business_account'
   )
+}
+
+function isMessengerWebhookPayload(payload: unknown) {
+  return Boolean(
+    payload &&
+      typeof payload === 'object' &&
+      'object' in payload &&
+      (payload as { object?: string }).object === 'page'
+  )
+}
+
+function parseMessengerPayload(payload: unknown): IncomingWhatsAppMessage | null {
+  const entry = Array.isArray((payload as { entry?: unknown[] }).entry)
+    ? ((payload as { entry: unknown[] }).entry[0] as { messaging?: unknown[] } | undefined)
+    : undefined
+  const messaging = Array.isArray(entry?.messaging) ? entry?.messaging?.[0] : null
+  if (!messaging || typeof messaging !== 'object') return null
+
+  const m = messaging as {
+    sender?: { id?: string }
+    message?: {
+      text?: string
+      quick_reply?: { payload?: string }
+      attachments?: Array<{ type?: string }>
+    }
+    postback?: { payload?: string; title?: string }
+  }
+
+  const psid = m.sender?.id
+  if (!psid) return null
+
+  const rawPayloadObj = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+  const base = {
+    provider: 'messenger' as const,
+    from: psid,
+    waNumber: psid,
+    profileName: '',
+    rawPayload: rawPayloadObj,
+  }
+
+  if (m.postback?.title || m.postback?.payload) {
+    return { ...base, body: m.postback.title || m.postback.payload || '' }
+  }
+
+  if (m.message?.quick_reply?.payload) {
+    return { ...base, body: m.message.quick_reply.payload }
+  }
+
+  if (m.message?.text) {
+    return { ...base, body: m.message.text }
+  }
+
+  if (Array.isArray(m.message?.attachments) && m.message.attachments.length > 0) {
+    return { ...base, body: '__MEDIA__' }
+  }
+
+  return null
 }
 
 // ─── NOTIFICACIONES AL ASESOR ────────────────────────────────────────────────
@@ -469,6 +527,10 @@ async function parseIncomingWhatsAppMessage(
   if (contentType.includes('application/json')) {
     const payload = await request.json().catch(() => null)
 
+    if (isMessengerWebhookPayload(payload)) {
+      return parseMessengerPayload(payload)
+    }
+
     if (!isMetaWebhookPayload(payload)) return null
 
     const entry = Array.isArray((payload as { entry?: unknown[] }).entry)
@@ -576,6 +638,13 @@ async function buildProviderResponse(
   if (provider === 'meta') {
     if (waNumber) {
       await sendMetaWhatsAppMessage({ to: waNumber, body: message })
+    }
+    return Response.json({ ok: true })
+  }
+
+  if (provider === 'messenger') {
+    if (waNumber) {
+      await sendMessengerMessage({ to: waNumber, body: message })
     }
     return Response.json({ ok: true })
   }
@@ -1545,12 +1614,14 @@ export async function POST(request: Request) {
 
         // Normalizamos el número como lo recibimos, sin transformarlo más
         const whatsappValue = waNumber
+        const esMessenger = provider === 'messenger'
+        const leadIdentityColumn = esMessenger ? 'messenger_psid' : 'whatsapp'
 
-        // Verificar si ya existe un lead con este WhatsApp
+        // Verificar si ya existe un lead con este identificador (teléfono o PSID de Messenger)
         const { data: existingLead } = await supabase
           .from('leads')
           .select('id, nombre, email, curso, stage, whatsapp')
-          .eq('whatsapp', whatsappValue)
+          .eq(leadIdentityColumn, whatsappValue)
           .maybeSingle()
 
         leadId = existingLead?.id as string | undefined
@@ -1560,7 +1631,7 @@ export async function POST(request: Request) {
           const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' })
           const defaultAssignee = await getDefaultAssigneeId(supabase)
 
-          const origenLead = referral ? 'meta_ads' : 'bot'
+          const origenLead = esMessenger ? 'messenger_bot' : referral ? 'meta_ads' : 'bot'
           const { data: insertedLead } = await supabase
             .from('leads')
             .upsert(
@@ -1568,17 +1639,17 @@ export async function POST(request: Request) {
                 {
                   nombre: '',
                   email: '',
-                  whatsapp: whatsappValue,
-                  curso: 'WhatsApp - Instituto Windsor',
+                  ...(esMessenger ? { messenger_psid: whatsappValue } : { whatsapp: whatsappValue }),
+                  curso: esMessenger ? 'Messenger - Instituto Windsor' : 'WhatsApp - Instituto Windsor',
                   valor: 0,
-                  notas: `Lead creado automáticamente desde WhatsApp.${profileName ? ' Nombre WA: ' + profileName : ''}`,
+                  notas: `Lead creado automáticamente desde ${esMessenger ? 'Messenger' : 'WhatsApp'}.${profileName ? ' Nombre WA: ' + profileName : ''}`,
                   stage: 'contactado',
                   fecha: today,
                   origen: origenLead,
                   ...(defaultAssignee ? { asignado_a: defaultAssignee } : {}),
                 },
               ],
-              { onConflict: 'whatsapp', ignoreDuplicates: true }
+              { onConflict: leadIdentityColumn, ignoreDuplicates: true }
             )
             .select('id, nombre, email, curso, stage, whatsapp')
             .maybeSingle()
@@ -1587,7 +1658,7 @@ export async function POST(request: Request) {
           const finalLead = insertedLead ?? (await supabase
             .from('leads')
             .select('id, nombre, email, curso, stage, whatsapp')
-            .eq('whatsapp', whatsappValue)
+            .eq(leadIdentityColumn, whatsappValue)
             .maybeSingle()).data
 
           leadId = finalLead?.id
@@ -1600,8 +1671,10 @@ export async function POST(request: Request) {
                 actor_id: null,
                 event_type: 'primer_contacto',
                 title: 'Primer contacto',
-                detail: referral ? 'Contacto entrante por WhatsApp desde anuncio de Meta Ads.' : 'Contacto entrante por WhatsApp.',
-                meta: { source: 'whatsapp', provider, ...(referral ? { referral } : {}) },
+                detail: esMessenger
+                  ? 'Contacto entrante por Messenger.'
+                  : referral ? 'Contacto entrante por WhatsApp desde anuncio de Meta Ads.' : 'Contacto entrante por WhatsApp.',
+                meta: { source: esMessenger ? 'messenger' : 'whatsapp', provider, ...(referral ? { referral } : {}) },
               },
             ])
             if (activityError) {
@@ -1660,6 +1733,7 @@ export async function POST(request: Request) {
                 lead_id: leadId ?? null,
                 estado: 'abierta',
                 fase: desiredPhase,
+                provider,
               },
             ])
             .select('id, modo_humano, fase')

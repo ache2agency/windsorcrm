@@ -119,7 +119,8 @@ export default function LeadDetailModal({
   };
 
   const enviarMensaje = async () => {
-    if (!lead.whatsapp) return;
+    const destino = lead.whatsapp || lead.messenger_psid;
+    if (!destino) return;
     const templates = META_TEMPLATES(lead.nombre);
     const tpl = templates.find((x) => x.id === msgPlantilla);
     const esLibre = tpl?.templateName === null;
@@ -128,8 +129,8 @@ export default function LeadDetailModal({
     setMsgStatus(null);
     const nombre = (lead.nombre || "").trim() || "ahí";
     const payload = esLibre
-      ? { to: lead.whatsapp, body: msgTexto.trim(), leadId: lead.id }
-      : { to: lead.whatsapp, body: tpl.preview, templateName: tpl.templateName, templateParams: tpl.params(nombre), leadId: lead.id };
+      ? { to: destino, body: msgTexto.trim(), leadId: lead.id }
+      : { to: destino, body: tpl.preview, templateName: tpl.templateName, templateParams: tpl.params(nombre), leadId: lead.id };
     try {
       const res = await fetch("/api/whatsapp/send", {
         method: "POST",
