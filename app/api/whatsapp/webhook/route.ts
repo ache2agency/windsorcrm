@@ -920,6 +920,218 @@ function getValorPrograma(programa: string | null | undefined): number | null {
   return VALOR_POR_PROGRAMA[programa] ?? null
 }
 
+// ─── Comando "registro" — alta rápida de leads vía WhatsApp ──────────────────
+// Cualquiera puede mandarle al bot: "registro, Nombre, correo, WhatsApp, oferta educativa"
+// El bot confirma antes de guardar para evitar errores en la oferta educativa
+// (de eso depende que el bot pueda mandar la info correcta después).
+
+const OFERTAS_REGISTRO_VALIDAS = [
+  'Inglés para adultos',
+  'Inglés para niños',
+  'Psicología',
+  'Licenciatura en Inglés',
+  'Licenciatura en Inglés online',
+  'Administración turística',
+  'Administración turística online',
+  'Relaciones públicas y mercadotecnia',
+  'Relaciones públicas y mercadotecnia online',
+  'Bachillerato',
+  'Cursos de verano niños',
+  'Cursos de verano adultos',
+]
+
+/** Normaliza un número escrito a mano (10 dígitos sin lada país) — igual que normalizarWhatsapp() en crm.jsx. */
+function normalizarWhatsappManual(num: string): string {
+  let n = num.replace(/\s+/g, '').replace(/[^\d+]/g, '')
+  if (!n.startsWith('+')) {
+    const digits = n.replace(/\D/g, '')
+    if (digits.length === 10) n = `+52${digits}`
+    else n = `+${digits}`
+  }
+  return n
+}
+
+function quitarAcentos(s: string): string {
+  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '')
+}
+
+function matchOfertaEducativa(input: string): string | null {
+  const norm = quitarAcentos(input.trim().toLowerCase())
+  if (!norm) return null
+
+  const esNino = /nin|kids?|infantil/.test(norm)
+  const esOnline = /online|virtual|distancia/.test(norm)
+
+  if (/verano|summer/.test(norm)) return esNino ? 'Cursos de verano niños' : 'Cursos de verano adultos'
+  if (/ingles|english/.test(norm)) {
+    if (/licenciatura|^lic\b/.test(norm)) return esOnline ? 'Licenciatura en Inglés online' : 'Licenciatura en Inglés'
+    return esNino ? 'Inglés para niños' : 'Inglés para adultos'
+  }
+  if (/psicolog/.test(norm)) return 'Psicología'
+  if (/turis/.test(norm)) return esOnline ? 'Administración turística online' : 'Administración turística'
+  if (/relaciones publicas|mercadotecnia/.test(norm)) return esOnline ? 'Relaciones públicas y mercadotecnia online' : 'Relaciones públicas y mercadotecnia'
+  if (/bachillerato|prepa/.test(norm)) return 'Bachillerato'
+
+  return null
+}
+
+type FaseRegistro = 'registro_confirmar' | 'registro_cancelado' | 'registro_listo'
+
+/** Registra el mensaje del usuario + la respuesta del bot en la pseudo-conversación de "registro" (sin lead_id) y responde. */
+async function finalizarRegistro(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  waNumber: string,
+  provider: WhatsAppProvider,
+  originalText: string,
+  mensaje: string,
+  nuevaFase: FaseRegistro
+): Promise<Response> {
+  const now = new Date().toISOString()
+  const { data: conv } = await supabase
+    .from('whatsapp_conversaciones')
+    .select('id')
+    .eq('whatsapp', waNumber)
+    .order('ultimo_mensaje_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  let conversacionId = (conv as { id?: string } | null)?.id
+  if (!conversacionId) {
+    const { data: nueva } = await supabase
+      .from('whatsapp_conversaciones')
+      .insert([{ whatsapp: waNumber, lead_id: null, estado: 'cerrada', fase: nuevaFase, provider, ultimo_mensaje_at: now }])
+      .select('id')
+      .single()
+    conversacionId = (nueva as { id?: string } | null)?.id
+  } else {
+    await supabase
+      .from('whatsapp_conversaciones')
+      .update({ fase: nuevaFase, estado: 'cerrada', ultimo_mensaje_at: now })
+      .eq('id', conversacionId)
+  }
+
+  if (conversacionId) {
+    await supabase.from('whatsapp_mensajes').insert([
+      { conversacion_id: conversacionId, rol: 'usuario', contenido: originalText },
+      { conversacion_id: conversacionId, rol: 'bot', contenido: mensaje },
+    ])
+  }
+
+  return buildProviderResponse(provider, mensaje, waNumber)
+}
+
+const REGISTRO_AFIRMATIVO = /^(s[ií]|confirmar|correcto|ok|dale|exacto)\b/i
+const REGISTRO_NEGATIVO = /^(no|cancelar|cancela)\b/i
+const REGISTRO_FORMATO_AYUDA = 'Formato:\n\nregistro, Nombre completo, correo, WhatsApp, oferta educativa\n\nEj: registro, Juan Pérez, juan@email.com, 7471234567, inglés para adultos'
+
+/** Si el mensaje es el comando "registro" o la respuesta a una confirmación pendiente, lo maneja y responde. Si no, regresa null y el flujo normal del bot continúa. */
+async function handleRegistroCommand(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  provider: WhatsAppProvider,
+  waNumber: string,
+  originalText: string
+): Promise<Response | null> {
+  const trimmed = originalText.trim()
+  // Exige además el formato de comas (3+) para no confundir una frase real de un prospecto
+  // que por casualidad empiece con "registro" (ej. "Registro de mi hija, ¿es necesario?")
+  const esComandoRegistro = /^registro\b/i.test(trimmed) && trimmed.split(',').length >= 4
+
+  const { data: convRegistro } = await supabase
+    .from('whatsapp_conversaciones')
+    .select('id, fase')
+    .eq('whatsapp', waNumber)
+    .eq('fase', 'registro_confirmar')
+    .order('ultimo_mensaje_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!esComandoRegistro && !convRegistro) return null
+
+  if (esComandoRegistro) {
+    const partes = trimmed.replace(/^registro\b[,:]?\s*/i, '').split(',').map((p) => p.trim())
+    if (partes.length < 4 || !partes[0] || !partes[2] || !partes[3]) {
+      return finalizarRegistro(supabase, waNumber, provider, originalText, `No reconocí el formato. ${REGISTRO_FORMATO_AYUDA}`, 'registro_cancelado')
+    }
+    const [nombre, correo, whatsappRaw, ofertaRaw] = partes
+    const digits = whatsappRaw.replace(/\D/g, '')
+    if (digits.length < 10) {
+      return finalizarRegistro(supabase, waNumber, provider, originalText, `El WhatsApp "${whatsappRaw}" no parece válido (necesita 10 dígitos). Vuelve a mandar *registro* con el número correcto.`, 'registro_cancelado')
+    }
+    const ofertaMatch = matchOfertaEducativa(ofertaRaw)
+    if (!ofertaMatch) {
+      return finalizarRegistro(supabase, waNumber, provider, originalText, `No reconozco la oferta educativa "${ofertaRaw}". Usa una de estas:\n\n${OFERTAS_REGISTRO_VALIDAS.join('\n')}\n\nVuelve a mandar *registro* con el nombre correcto.`, 'registro_cancelado')
+    }
+
+    const draft = `📋 Confirma estos datos:\nNombre: ${nombre}\nCorreo: ${correo || '(sin correo)'}\nWhatsApp: ${digits}\nOferta educativa: ${ofertaMatch}\n\n¿Es correcto? Responde *sí* para guardar o *no* para cancelar.`
+    return finalizarRegistro(supabase, waNumber, provider, originalText, draft, 'registro_confirmar')
+  }
+
+  // Hay una confirmación pendiente — este mensaje debe ser sí/no
+  if (REGISTRO_NEGATIVO.test(trimmed)) {
+    return finalizarRegistro(supabase, waNumber, provider, originalText, 'Cancelado. Puedes volver a mandar *registro* con los datos correctos.', 'registro_cancelado')
+  }
+
+  if (REGISTRO_AFIRMATIVO.test(trimmed)) {
+    const { data: ultimoBotMsg } = await supabase
+      .from('whatsapp_mensajes')
+      .select('contenido')
+      .eq('conversacion_id', (convRegistro as { id: string }).id)
+      .eq('rol', 'bot')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const draftTexto = (ultimoBotMsg as { contenido?: string } | null)?.contenido || ''
+    const nombre = /Nombre:\s*(.+)/.exec(draftTexto)?.[1]?.trim()
+    const correoLinea = /Correo:\s*(.+)/.exec(draftTexto)?.[1]?.trim()
+    const whatsappLinea = /WhatsApp:\s*(.+)/.exec(draftTexto)?.[1]?.trim()
+    const ofertaLinea = /Oferta educativa:\s*(.+)/.exec(draftTexto)?.[1]?.trim()
+
+    if (!nombre || !whatsappLinea || !ofertaLinea) {
+      return finalizarRegistro(supabase, waNumber, provider, originalText, `No encontré los datos pendientes. ${REGISTRO_FORMATO_AYUDA}`, 'registro_cancelado')
+    }
+
+    const correo = correoLinea === '(sin correo)' ? '' : (correoLinea || '')
+    const whatsappNuevoLead = normalizarWhatsappManual(whatsappLinea)
+    const valor = getValorPrograma(ofertaLinea) ?? 0
+
+    const { data: existente } = await supabase
+      .from('leads')
+      .select('id')
+      .eq('whatsapp', whatsappNuevoLead)
+      .maybeSingle()
+
+    if ((existente as { id?: string } | null)?.id) {
+      await supabase.from('leads').update({ nombre, email: correo, curso: ofertaLinea, valor }).eq('id', (existente as { id: string }).id)
+    } else {
+      await supabase.from('leads').insert([{
+        nombre,
+        email: correo,
+        whatsapp: whatsappNuevoLead,
+        curso: ofertaLinea,
+        valor,
+        stage: 'contactado',
+        fecha: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' }),
+        origen: 'registro_wa',
+      }])
+    }
+
+    return finalizarRegistro(supabase, waNumber, provider, originalText, `✅ Registrado: ${nombre} · ${ofertaLinea} · ${whatsappLinea}`, 'registro_listo')
+  }
+
+  // Respuesta no clara — recordar la pregunta pendiente
+  const { data: ultimoBotMsg2 } = await supabase
+    .from('whatsapp_mensajes')
+    .select('contenido')
+    .eq('conversacion_id', (convRegistro as { id: string }).id)
+    .eq('rol', 'bot')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const recordatorio = `${(ultimoBotMsg2 as { contenido?: string } | null)?.contenido || REGISTRO_FORMATO_AYUDA}\n\n(Responde *sí* o *no*)`
+  return finalizarRegistro(supabase, waNumber, provider, originalText, recordatorio, 'registro_confirmar')
+}
+
 /** Programas de idiomas (Track A): después del info van a examen de ubicación */
 function esInglesIdioma(programa: string | null | undefined): boolean {
   return /ingl[eé]s para (ni[ñn]os?|adultos?)/i.test(programa || '')
@@ -1604,6 +1816,13 @@ export async function POST(request: Request) {
     const waNumber = incoming.waNumber || ''
     const profileName = incoming.profileName || ''
     const referral = incoming.referral
+
+    // ── Comando "registro" — alta rápida de leads, bypassea el flujo normal de prospecto ──
+    if (waNumber) {
+      const supabaseRegistro = createServiceRoleClient()
+      const registroResponse = await handleRegistroCommand(supabaseRegistro, provider, waNumber, originalText)
+      if (registroResponse) return registroResponse
+    }
 
     let leadSnapshot: LeadSnapshot | null = null
 
