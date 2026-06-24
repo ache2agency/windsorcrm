@@ -7,6 +7,7 @@ import {
   sendMetaWhatsAppMessage,
   type WhatsAppProvider,
 } from '@/lib/whatsapp/provider'
+import { enviarBienvenidaLeadManual } from '@/lib/whatsapp/bienvenida'
 
 function escapeXml(value: string) {
   return value
@@ -955,24 +956,120 @@ function quitarAcentos(s: string): string {
   return s.normalize('NFD').replace(/\p{Diacritic}/gu, '')
 }
 
-function matchOfertaEducativa(input: string): string | null {
+type OfertaMatchResult = { match: string | null; ambiguous: boolean }
+
+/** Reconoce la oferta educativa por palabras clave. Si reconoce la categoría pero falta
+ * el calificador niños/adultos, marca ambiguous en vez de adivinar uno de los dos. */
+function matchOfertaEducativa(input: string): OfertaMatchResult {
   const norm = quitarAcentos(input.trim().toLowerCase())
-  if (!norm) return null
+  if (!norm) return { match: null, ambiguous: false }
 
   const esNino = /nin|kids?|infantil/.test(norm)
+  const esAdulto = /adult/.test(norm)
   const esOnline = /online|virtual|distancia/.test(norm)
 
-  if (/verano|summer/.test(norm)) return esNino ? 'Cursos de verano niños' : 'Cursos de verano adultos'
-  if (/ingles|english/.test(norm)) {
-    if (/licenciatura|^lic\b/.test(norm)) return esOnline ? 'Licenciatura en Inglés online' : 'Licenciatura en Inglés'
-    return esNino ? 'Inglés para niños' : 'Inglés para adultos'
+  if (/verano|summer/.test(norm)) {
+    if (esNino) return { match: 'Cursos de verano niños', ambiguous: false }
+    if (esAdulto) return { match: 'Cursos de verano adultos', ambiguous: false }
+    return { match: null, ambiguous: true }
   }
-  if (/psicolog/.test(norm)) return 'Psicología'
-  if (/turis/.test(norm)) return esOnline ? 'Administración turística online' : 'Administración turística'
-  if (/relaciones publicas|mercadotecnia/.test(norm)) return esOnline ? 'Relaciones públicas y mercadotecnia online' : 'Relaciones públicas y mercadotecnia'
-  if (/bachillerato|prepa/.test(norm)) return 'Bachillerato'
+  if (/ingles|english/.test(norm)) {
+    if (/licenciatura|^lic\b/.test(norm)) return { match: esOnline ? 'Licenciatura en Inglés online' : 'Licenciatura en Inglés', ambiguous: false }
+    if (esNino) return { match: 'Inglés para niños', ambiguous: false }
+    if (esAdulto) return { match: 'Inglés para adultos', ambiguous: false }
+    return { match: null, ambiguous: true }
+  }
+  if (/psicolog/.test(norm)) return { match: 'Psicología', ambiguous: false }
+  if (/turis/.test(norm)) return { match: esOnline ? 'Administración turística online' : 'Administración turística', ambiguous: false }
+  if (/relaciones publicas|mercadotecnia/.test(norm)) return { match: esOnline ? 'Relaciones públicas y mercadotecnia online' : 'Relaciones públicas y mercadotecnia', ambiguous: false }
+  if (/bachillerato|prepa/.test(norm)) return { match: 'Bachillerato', ambiguous: false }
 
-  return null
+  return { match: null, ambiguous: false }
+}
+
+const ASESOR_AUTOMATICO = '(automático según turno)'
+
+/** Busca un asesor por nombre (coincidencia parcial, igual criterio que getDefaultAssigneeId). */
+async function matchAsesor(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  texto: string
+): Promise<{ id: string; nombre: string } | null> {
+  const norm = texto.trim().toLowerCase()
+  if (!norm) return null
+  const { data: perfiles } = await supabase.from('profiles').select('id, nombre')
+  const match = (perfiles || []).find((p: { nombre?: string | null }) => {
+    const n = (p.nombre || '').toLowerCase()
+    return n.includes(norm) || (n && norm.includes(n.split(' ')[0]))
+  }) as { id: string; nombre: string } | undefined
+  return match ? { id: match.id, nombre: match.nombre } : null
+}
+
+async function listaNombresAsesores(supabase: ReturnType<typeof createServiceRoleClient>): Promise<string> {
+  const { data: perfiles } = await supabase.from('profiles').select('nombre').not('nombre', 'is', null)
+  return (perfiles || []).map((p: { nombre?: string | null }) => p.nombre).filter(Boolean).join(', ')
+}
+
+type PartesRegistro = {
+  nombre: string | null
+  correo: string | null
+  whatsappRaw: string | null
+  ofertaRaw: string | null
+  asesorRaw: string | null
+}
+
+/** Clasifica los datos del comando "registro" sin importar el orden en que se manden:
+ * WhatsApp y correo se detectan por patrón, la oferta por palabra clave, y el asesor
+ * (si lo hay) probando los textos restantes contra los perfiles. Lo que quede es el nombre. */
+async function clasificarPartesRegistro(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  partes: string[]
+): Promise<PartesRegistro> {
+  const restantes: string[] = []
+  let whatsappRaw: string | null = null
+  let correo: string | null = null
+  let ofertaRaw: string | null = null
+
+  for (const parte of partes) {
+    const soloDigitos = parte.replace(/\D/g, '')
+    const soloTexto = parte.replace(/[\s\-+]/g, '')
+    if (!whatsappRaw && soloDigitos.length >= 10 && soloDigitos.length === soloTexto.length) {
+      whatsappRaw = parte
+      continue
+    }
+    if (!correo && /\S+@\S+\.\S+/.test(parte)) {
+      correo = parte
+      continue
+    }
+    if (!ofertaRaw) {
+      const r = matchOfertaEducativa(parte)
+      if (r.match || r.ambiguous) {
+        ofertaRaw = parte
+        continue
+      }
+    }
+    restantes.push(parte)
+  }
+
+  let nombre: string | null = null
+  let asesorRaw: string | null = null
+
+  if (restantes.length <= 1) {
+    nombre = restantes[0] || null
+  } else {
+    // probar de derecha a izquierda cuál de los restantes es un asesor conocido
+    let idxAsesor = -1
+    for (let i = restantes.length - 1; i >= 0; i--) {
+      if (await matchAsesor(supabase, restantes[i])) { idxAsesor = i; break }
+    }
+    if (idxAsesor >= 0) {
+      asesorRaw = restantes[idxAsesor]
+      nombre = restantes.filter((_, i) => i !== idxAsesor).join(' ') || null
+    } else {
+      nombre = restantes.join(' ')
+    }
+  }
+
+  return { nombre, correo, whatsappRaw, ofertaRaw, asesorRaw }
 }
 
 type FaseRegistro = 'registro_confirmar' | 'registro_cancelado' | 'registro_listo'
@@ -1022,7 +1119,7 @@ async function finalizarRegistro(
 
 const REGISTRO_AFIRMATIVO = /^(s[ií]|confirmar|correcto|ok|dale|exacto)\b/i
 const REGISTRO_NEGATIVO = /^(no|cancelar|cancela)\b/i
-const REGISTRO_FORMATO_AYUDA = 'Formato:\n\nregistro, Nombre completo, correo, WhatsApp, oferta educativa\n\nEj: registro, Juan Pérez, juan@email.com, 7471234567, inglés para adultos'
+const REGISTRO_FORMATO_AYUDA = 'Formato:\n\nregistro, Nombre completo, correo, WhatsApp, oferta educativa, asesor (opcional)\n\nEj: registro, Juan Pérez, juan@email.com, 7471234567, inglés para adultos\nEj con asesor: registro, Juan Pérez, juan@email.com, 7471234567, inglés para adultos, Edgar'
 
 /** Si el mensaje es el comando "registro" o la respuesta a una confirmación pendiente, lo maneja y responde. Si no, regresa null y el flujo normal del bot continúa. */
 async function handleRegistroCommand(
@@ -1048,21 +1145,38 @@ async function handleRegistroCommand(
   if (!esComandoRegistro && !convRegistro) return null
 
   if (esComandoRegistro) {
-    const partes = trimmed.replace(/^registro\b[,:]?\s*/i, '').split(',').map((p) => p.trim())
-    if (partes.length < 4 || !partes[0] || !partes[2] || !partes[3]) {
+    const partesCrudas = trimmed.replace(/^registro\b[,:]?\s*/i, '').split(',').map((p) => p.trim()).filter(Boolean)
+    const { nombre, correo, whatsappRaw, ofertaRaw, asesorRaw } = await clasificarPartesRegistro(supabase, partesCrudas)
+
+    if (!nombre || !whatsappRaw || !ofertaRaw) {
       return finalizarRegistro(supabase, waNumber, provider, originalText, `No reconocí el formato. ${REGISTRO_FORMATO_AYUDA}`, 'registro_cancelado')
     }
-    const [nombre, correo, whatsappRaw, ofertaRaw] = partes
+
     const digits = whatsappRaw.replace(/\D/g, '')
     if (digits.length < 10) {
       return finalizarRegistro(supabase, waNumber, provider, originalText, `El WhatsApp "${whatsappRaw}" no parece válido (necesita 10 dígitos). Vuelve a mandar *registro* con el número correcto.`, 'registro_cancelado')
     }
-    const ofertaMatch = matchOfertaEducativa(ofertaRaw)
-    if (!ofertaMatch) {
+
+    const ofertaResultado = matchOfertaEducativa(ofertaRaw)
+    if (ofertaResultado.ambiguous) {
+      return finalizarRegistro(supabase, waNumber, provider, originalText, `"${ofertaRaw}" es ambiguo — especifica si es para niños o adultos (ej. "inglés para adultos" o "verano niños"). Vuelve a mandar *registro*.`, 'registro_cancelado')
+    }
+    if (!ofertaResultado.match) {
       return finalizarRegistro(supabase, waNumber, provider, originalText, `No reconozco la oferta educativa "${ofertaRaw}". Usa una de estas:\n\n${OFERTAS_REGISTRO_VALIDAS.join('\n')}\n\nVuelve a mandar *registro* con el nombre correcto.`, 'registro_cancelado')
     }
+    const ofertaMatch = ofertaResultado.match
 
-    const draft = `📋 Confirma estos datos:\nNombre: ${nombre}\nCorreo: ${correo || '(sin correo)'}\nWhatsApp: ${digits}\nOferta educativa: ${ofertaMatch}\n\n¿Es correcto? Responde *sí* para guardar o *no* para cancelar.`
+    let asesorTexto = ASESOR_AUTOMATICO
+    if (asesorRaw) {
+      const asesorMatch = await matchAsesor(supabase, asesorRaw)
+      if (!asesorMatch) {
+        const validos = await listaNombresAsesores(supabase)
+        return finalizarRegistro(supabase, waNumber, provider, originalText, `No reconozco al asesor "${asesorRaw}". Usa uno de estos:\n\n${validos}\n\nVuelve a mandar *registro* con el nombre correcto, o sin asesor para asignación automática.`, 'registro_cancelado')
+      }
+      asesorTexto = asesorMatch.nombre
+    }
+
+    const draft = `📋 Confirma estos datos:\nNombre: ${nombre}\nCorreo: ${correo || '(sin correo)'}\nWhatsApp: ${digits}\nOferta educativa: ${ofertaMatch}\nAsesor: ${asesorTexto}\n\n¿Es correcto? Responde *sí* para guardar o *no* para cancelar.`
     return finalizarRegistro(supabase, waNumber, provider, originalText, draft, 'registro_confirmar')
   }
 
@@ -1086,6 +1200,7 @@ async function handleRegistroCommand(
     const correoLinea = /Correo:\s*(.+)/.exec(draftTexto)?.[1]?.trim()
     const whatsappLinea = /WhatsApp:\s*(.+)/.exec(draftTexto)?.[1]?.trim()
     const ofertaLinea = /Oferta educativa:\s*(.+)/.exec(draftTexto)?.[1]?.trim()
+    const asesorLinea = /Asesor:\s*(.+)/.exec(draftTexto)?.[1]?.trim()
 
     if (!nombre || !whatsappLinea || !ofertaLinea) {
       return finalizarRegistro(supabase, waNumber, provider, originalText, `No encontré los datos pendientes. ${REGISTRO_FORMATO_AYUDA}`, 'registro_cancelado')
@@ -1095,6 +1210,14 @@ async function handleRegistroCommand(
     const whatsappNuevoLead = normalizarWhatsappManual(whatsappLinea)
     const valor = getValorPrograma(ofertaLinea) ?? 0
 
+    let asignadoA: string | null = null
+    if (asesorLinea && asesorLinea !== ASESOR_AUTOMATICO) {
+      const asesorMatch = await matchAsesor(supabase, asesorLinea)
+      asignadoA = asesorMatch?.id ?? await getDefaultAssigneeId(supabase)
+    } else {
+      asignadoA = await getDefaultAssigneeId(supabase)
+    }
+
     const { data: existente } = await supabase
       .from('leads')
       .select('id')
@@ -1102,9 +1225,11 @@ async function handleRegistroCommand(
       .maybeSingle()
 
     if ((existente as { id?: string } | null)?.id) {
-      await supabase.from('leads').update({ nombre, email: correo, curso: ofertaLinea, valor }).eq('id', (existente as { id: string }).id)
+      const updateData: Record<string, unknown> = { nombre, email: correo, curso: ofertaLinea, valor }
+      if (asesorLinea && asesorLinea !== ASESOR_AUTOMATICO && asignadoA) updateData.asignado_a = asignadoA
+      await supabase.from('leads').update(updateData).eq('id', (existente as { id: string }).id)
     } else {
-      await supabase.from('leads').insert([{
+      const { data: nuevoLead } = await supabase.from('leads').insert([{
         nombre,
         email: correo,
         whatsapp: whatsappNuevoLead,
@@ -1113,7 +1238,11 @@ async function handleRegistroCommand(
         stage: 'contactado',
         fecha: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' }),
         origen: 'registro_wa',
-      }])
+        ...(asignadoA ? { asignado_a: asignadoA } : {}),
+      }]).select('id').maybeSingle()
+
+      const nuevoLeadId = (nuevoLead as { id?: string } | null)?.id
+      if (nuevoLeadId) await enviarBienvenidaLeadManual(supabase, nuevoLeadId)
     }
 
     return finalizarRegistro(supabase, waNumber, provider, originalText, `✅ Registrado: ${nombre} · ${ofertaLinea} · ${whatsappLinea}`, 'registro_listo')
