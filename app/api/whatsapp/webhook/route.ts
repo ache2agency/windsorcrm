@@ -680,6 +680,7 @@ Modalidad: Presencial | Duración: 3 años
 *💰 Inversión:*
 • Inscripción semestral: $2,300
 • Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$2,300~ → $690 (70% de descuento)
@@ -699,6 +700,7 @@ Modalidad: Presencial | Duración: 3 años
 *💰 Inversión:*
 • Inscripción semestral: $2,150
 • Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$2,150~ → $645 (70% de descuento)
@@ -716,6 +718,7 @@ Modalidad: Online | Duración: 3 años
 *💰 Inversión:*
 • Inscripción semestral: $2,150
 • Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$2,150~ → $645 (70% de descuento)
@@ -735,6 +738,7 @@ Modalidad: Presencial | Duración: 3 años
 *💰 Inversión:*
 • Inscripción semestral: $2,200
 • Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$2,200~ → $660 (70% de descuento)
@@ -752,6 +756,7 @@ Modalidad: Online | Duración: 3 años
 *💰 Inversión:*
 • Inscripción semestral: $2,200
 • Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$2,200~ → $660 (70% de descuento)
@@ -771,6 +776,7 @@ Modalidad: Presencial | Duración: 3 años
 *💰 Inversión:*
 • Inscripción semestral: $2,300
 • Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$2,300~ → $690 (70% de descuento)
@@ -790,6 +796,7 @@ Modalidad: Online | Duración: 3 años
 *💰 Inversión:*
 • Inscripción semestral: $2,300
 • Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$2,300~ → $690 (70% de descuento)
@@ -1349,7 +1356,7 @@ Beneficiarios: Trabajador, hijos y cónyuges
 📚 *Cursos libres:* 30% descuento
 🎓 *Preparatoria:* 20% descuento
 🎓 *Maestría:* 30% descuento
-☀️ *Verano 2026:* 20% descuento`,
+☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   suspeg: `*Convenio: SUSPEG Central*
 Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: 15-Dic-2025
@@ -1359,7 +1366,7 @@ Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: 15-Dic-2025
 📚 *Cursos libres:* 40% descuento
 🎓 *Preparatoria:* 20% descuento
 🎓 *Maestría:* 30% descuento
-☀️ *Verano 2026:* 20% descuento`,
+☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   seccion7: `*Convenio: Sección VII*
 Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Marzo 2027
@@ -1369,7 +1376,7 @@ Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Marzo 2027
 📚 *Cursos libres:* 40% descuento
 🎓 *Preparatoria:* 20% descuento
 🎓 *Maestría:* 30% descuento
-☀️ *Verano 2026:* 20% descuento`,
+☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   seccion36: `*Convenio: Sección 36 de Salud*
 Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Noviembre 2025
@@ -1379,7 +1386,7 @@ Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Noviembre 2025
 📚 *Cursos libres:* 30% descuento
 🎓 *Preparatoria:* 20% descuento
 🎓 *Maestría:* 25% descuento
-☀️ *Verano 2026:* 20% descuento`,
+☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   tribunal: `*Convenio: Tribunal Electoral del Estado de Guerrero*
 Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Marzo 2026
@@ -1389,7 +1396,7 @@ Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Marzo 2026
 📚 *Cursos libres:* 30% descuento
 🎓 *Preparatoria:* 20% descuento
 🎓 *Maestría:* 20% descuento
-☀️ *Verano 2026:* 20% descuento`,
+☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   cobach: `*Convenio: Colegios de Bachilleres del Estado de Guerrero*
 Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Marzo 2027
@@ -1399,7 +1406,7 @@ Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Marzo 
 📚 *Cursos libres:* 30% descuento
 🎓 *Preparatoria:* 20% descuento
 🎓 *Maestría:* 30% descuento
-☀️ *Verano 2026:* 20% descuento`,
+☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   migrantes: `*Convenio: Secretaría de Migrantes y Asuntos Internacionales*
 Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Mayo 2026
@@ -1409,7 +1416,7 @@ Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Mayo 2
 📚 *Cursos libres:* 30% descuento
 🎓 *Preparatoria:* 20% descuento
 🎓 *Maestría:* 30% descuento
-☀️ *Verano 2026:* 20% descuento`,
+☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   proteccioncivil: `*Convenio: Secretaría de Gestión Integral y Protección Civil*
 Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Sep-2027
@@ -1419,7 +1426,7 @@ Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Sep-20
 📚 *Cursos libres:* 30% descuento
 🎓 *Preparatoria:* 20% descuento
 🎓 *Maestría:* 20% descuento
-☀️ *Verano 2026:* 20% descuento`,
+☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   sitmabeg: `*Convenio: SITMABEG*
 Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Mayo 2027
@@ -1429,7 +1436,7 @@ Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Mayo 2
 📚 *Cursos libres:* 30% descuento
 🎓 *Preparatoria:* 20% descuento
 🎓 *Maestría:* 20% descuento
-☀️ *Verano 2026:* 20% descuento`,
+☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   metro: `*Convenio: Sindicato del Metro CD. México*
 Beneficiarios: Trabajadores e hijos | Vigencia: Ene-2027
@@ -1439,7 +1446,7 @@ Beneficiarios: Trabajadores e hijos | Vigencia: Ene-2027
 📚 *Cursos libres:* 20% descuento
 🎓 *Preparatoria:* 20% descuento
 🎓 *Maestría:* 20% descuento
-☀️ *Verano 2026:* 20% descuento`,
+☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   egresados: `*Convenio: Egresados Instituto Windsor*
 Beneficiarios: Egresados de Licenciaturas | Vigencia: Permanente
@@ -1449,7 +1456,7 @@ Beneficiarios: Egresados de Licenciaturas | Vigencia: Permanente
 📚 *Cursos libres:* 50% descuento
 🎓 *Preparatoria:* No aplica
 🎓 *Maestría:* 25% descuento
-☀️ *Verano 2026:* 20% descuento`,
+☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   itech: `*Convenio: Instituto Tecnológico de Chilpancingo*
 Beneficiarios: Alumnos ITECH
@@ -1597,7 +1604,7 @@ Llena el formulario de inscripción y adjunta tus documentos:
 Confírmanos aquí por WhatsApp cuando lo hayas completado.
 
 *B) Presencial* 🏫
-Visítanos con tus documentos y comprobante de pago:
+Visítanos con tus documentos — el pago lo puedes realizar directamente en las instalaciones, a la cuenta bancaria que te compartimos arriba:
 📍 Chilpancingo: Sofía Tena #1, Col. Viguri
 📍 Iguala: Ignacio Zaragoza 99, Col. Centro
 🕐 Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
@@ -1833,6 +1840,10 @@ REGLAS:
 - INCORPORACIÓN TARDÍA VERANO: Si preguntan si pueden inscribirse después de que inicie el curso, responde: "Por el momento My Best Summer se ofrece como curso completo. Sin embargo, si al inicio del curso aún hay espacios disponibles, con gusto puedes incorporarte. ¿Te gustaría apartar tu lugar desde ahora para asegurarlo?"
 - DIRECCIÓN: Si preguntan dónde queda la escuela, dónde está ubicada o cuál es la dirección, responde con ambos planteles: "Estamos en *Chilpancingo*: Calle *Sofía Tena #1, Col. Viguri* 📍 También tenemos plantel en *Iguala*: Ignacio Zaragoza 99, Col. Centro 📍". Nunca respondas solo "México" o "Guerrero" como dirección.
 - TÍTULO/CERTIFICADO LICENCIATURAS: Si preguntan si reciben título, certificado, diploma, si el título vale o sirve, o si está avalado, responde directamente: "Sí, al concluir la licenciatura recibes un *Título de Licenciatura* con *RVOE SEG/00052/2002*, reconocido oficialmente por la SEP 🎓". No avances la fase a inscripción por esta pregunta — respóndela sin importar en qué fase esté.
+- CREDENCIAL DE ESTUDIANTE (solo LICENCIATURAS): La inscripción de licenciatura NO incluye la credencial de estudiante — se tramita por separado. Si preguntan, acláralo directamente. Esto NO aplica a cursos regulares de idiomas ni a My Best Summer (verano) — ahí ni siquiera menciones el tema de credencial a menos que pregunten específicamente.
+- INICIO CICLO ESCOLAR LICENCIATURAS: Las licenciaturas inician a *principios de septiembre* de cada año. Si preguntan cuándo empiezan las clases o el ciclo escolar de la licenciatura, responde eso directamente — no des una respuesta vaga como "el próximo ciclo escolar" sin fecha.
+- PRECIOS LICENCIATURAS (CRÍTICO — NUNCA INVENTES): Nunca inventes, redondees ni recuerdes de memoria los precios de inscripción o mensualidad de licenciaturas. Usa EXACTAMENTE los montos de la ficha del programa (revisa el historial de la conversación si ya se envió, o los datos de la BASE). Si no tienes el monto exacto a la mano, no des un precio aproximado — ofrece reenviar la ficha completa del programa en vez de arriesgarte a dar un dato incorrecto.
+- VIGENCIA DE PROMOCIÓN: El descuento de la "promoción del mes" (actualmente 30% en mensualidad) es el vigente este mes para nuevas inscripciones. Si el prospecto se inscribe mientras esta promoción está activa, el descuento se mantiene FIJO durante todo su primer año. A partir del segundo año, el descuento del 30% se puede conservar SI el estudiante mantiene un promedio mínimo de 9. Si preguntan si el precio es fijo o temporal, responde: "Esta es la promoción vigente este mes. Si te inscribes ahora, el descuento de tu mensualidad queda fijo durante todo tu primer año. A partir del segundo año, puedes seguir teniendo el 30% de descuento si mantienes un promedio de 9 o más." NUNCA digas que el descuento desaparece automáticamente al terminar el primer año sin mencionar la condición del promedio.
 - RVOE: El RVOE de Instituto Windsor es *SEG/00052/2002*, avalado por la SEP. Cuando alguien pregunte por RVOE, reconocimiento oficial, o validez del título, da este número directamente.
 - CERTEZA: Si tienes la información, dala directa. NUNCA uses frases como "permíteme verificarlo", "déjame revisar", "lo confirmo en un momento" o similares en tu respuesta. Si genuinamente no sabes, usa necesitaRevision: true — no hedges.
 - PRECIOS: NUNCA calcules precios ni descuentos tú mismo. Copia los precios EXACTOS de la BASE DE CONOCIMIENTO tal como están escritos. Si la BASE no tiene el precio exacto, NO lo inventes — di que le darás el detalle cuando elija el programa específico.
@@ -2288,37 +2299,178 @@ export async function POST(request: Request) {
         await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: `✅ Respuesta enviada al lead.` })
         return Response.json({ ok: true, haroldReply: true })
       }
-      // Sin conversación en revisando → Harold está pidiendo un reporte como asistente
+      // Sin conversación en revisando → Harold consulta el CRM en lenguaje natural
+      // Solo se activa si el mensaje empieza con "crm"
+      if (!/^crm\b/i.test(originalText.trim())) {
+        return Response.json({ ok: true, haroldIgnored: true })
+      }
       const supabaseAd = createServiceRoleClient()
+      const pregunta = originalText.trim().replace(/^crm\s*/i, '').trim() || 'dame un resumen general'
 
-      // Contar leads verano
-      const { data: leadsVerano } = await supabaseAd
-        .from('leads')
-        .select('stage, curso')
-        .ilike('curso', '%verano%')
+      // ── Shortcut: "crm pendientes" → reporte por asesor sin GPT ─────────────
+      if (/^pendientes?\b/i.test(pregunta)) {
+        try {
+          const { data: pendientes } = await supabaseAd
+            .from('seguimientos')
+            .select('lead_id, lead_nombre, lead_whatsapp, lead_curso, tier, tipo')
+            .eq('estado', 'pendiente')
+            .order('tier', { ascending: true })
 
-      const niños = (leadsVerano || []).filter(l => l.curso?.toLowerCase().includes('niño')).length
-      const adultos = (leadsVerano || []).filter(l => l.curso?.toLowerCase().includes('adulto')).length
-      const interesados = (leadsVerano || []).filter(l => ['interesado', 'inscripcion_pendiente'].includes(l.stage)).length
-      const inscritos = (leadsVerano || []).filter(l => l.stage === 'inscrito').length
+          if (!pendientes?.length) {
+            await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: '✅ No hay seguimientos pendientes hoy.' })
+            return Response.json({ ok: true, adminPendientes: true })
+          }
 
-      // Leads nuevos de las últimas 24h
-      const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-      const { data: nuevos24h } = await supabaseAd
-        .from('leads')
-        .select('nombre, curso, stage')
-        .ilike('curso', '%verano%')
-        .gte('created_at', ayer)
+          // Obtener asignaciones de leads
+          const leadIds = [...new Set(pendientes.map((s: any) => s.lead_id))]
+          const { data: leadsAsignados } = await supabaseAd
+            .from('leads')
+            .select('id, asignado_a')
+            .in('id', leadIds)
 
-      const reporte = `📊 *Reporte My Best Summer*\n\n` +
-        `👧 Niños: ${niños}/100 | 🧑 Adultos: ${adultos}/50\n` +
-        `🔥 Interesados: ${interesados} | ✅ Inscritos: ${inscritos}\n\n` +
-        `📥 *Nuevos (24h):* ${(nuevos24h || []).length}\n` +
-        (nuevos24h?.slice(0, 5).map(l => `• ${l.nombre || '(sin nombre)'} — ${l.stage}`).join('\n') || 'Ninguno') +
-        `\n\n¿Qué más necesitas? 😊`
+          const { data: perfiles } = await supabaseAd
+            .from('profiles')
+            .select('id, nombre')
 
-      await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: reporte })
-      return Response.json({ ok: true, adminReport: true })
+          const asesorNombre = (id: string | null) => {
+            if (!id) return 'Sin asignar'
+            const p = (perfiles || []).find((p: any) => p.id === id)
+            return (p as any)?.nombre || 'Sin asignar'
+          }
+
+          const asignacionMap: Record<string, string> = {}
+          for (const l of leadsAsignados || []) {
+            asignacionMap[(l as any).id] = (l as any).asignado_a
+          }
+
+          const tipoEmoji: Record<string, string> = {
+            llamada: '📞 Llamar a',
+            mensaje_wa: '💬 Mensaje a',
+            template: '📋 Template a',
+          }
+
+          // Agrupar por asesor
+          const porAsesor: Record<string, { asesorNombre: string; items: string[] }> = {}
+          for (const s of pendientes as any[]) {
+            const aid = asignacionMap[s.lead_id] || null
+            const nombre = asesorNombre(aid)
+            if (!porAsesor[nombre]) porAsesor[nombre] = { asesorNombre: nombre, items: [] }
+            const tel = (s.lead_whatsapp || '').replace(/\D/g, '').replace(/^52/, '')
+            const emoji = tipoEmoji[s.tipo] || '➡️'
+            const leadInfo = s.lead_nombre || '(sin nombre)'
+            const curso = s.lead_curso ? ` — ${s.lead_curso}` : ''
+            const telStr = s.tipo === 'llamada' && tel ? ` · ${tel}` : ''
+            porAsesor[nombre].items.push(`  ${emoji} ${leadInfo}${telStr}${curso}`)
+          }
+
+          const ahora = new Date()
+          const fechaStr = ahora.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+          const lineas = [`📋 *Pendientes del día — ${fechaStr}*\n`]
+
+          for (const [nombre, grupo] of Object.entries(porAsesor)) {
+            lineas.push(`👤 *${nombre}* (${grupo.items.length}):`)
+            lineas.push(...grupo.items)
+            lineas.push('')
+          }
+
+          await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: lineas.join('\n').trim() })
+        } catch (e) {
+          console.error('[CRM Pendientes Harold]', e)
+          await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: '⚠️ Error consultando pendientes. Intenta de nuevo.' })
+        }
+        return Response.json({ ok: true, adminPendientes: true })
+      }
+
+      try {
+        const ahora = new Date()
+        const inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()).toISOString()
+        const inicioAyer = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - 1).toISOString()
+        const hace48h = new Date(ahora.getTime() - 48 * 60 * 60 * 1000).toISOString()
+        const hace7d = new Date(ahora.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+        const [
+          { data: todosLeads },
+          { data: nuevosHoy },
+          { data: nuevosAyer },
+          { data: nuevos7d },
+          { data: convsSinRespuesta },
+        ] = await Promise.all([
+          supabaseAd.from('leads').select('nombre, whatsapp, curso, stage, created_at').order('created_at', { ascending: false }).limit(200),
+          supabaseAd.from('leads').select('nombre, curso, stage').gte('created_at', inicioHoy),
+          supabaseAd.from('leads').select('nombre, curso, stage').gte('created_at', inicioAyer).lt('created_at', inicioHoy),
+          supabaseAd.from('leads').select('nombre, curso, stage').gte('created_at', hace7d),
+          supabaseAd.from('whatsapp_conversaciones').select('whatsapp, fase, ultimo_mensaje_at').lt('ultimo_mensaje_at', hace48h).not('fase', 'in', '(cerrado,perdido)').limit(50),
+        ])
+
+        const porStage = (todosLeads || []).reduce((acc: Record<string, number>, l) => {
+          const s = l.stage || 'sin_stage'; acc[s] = (acc[s] || 0) + 1; return acc
+        }, {})
+
+        const porCurso = (todosLeads || []).reduce((acc: Record<string, number>, l) => {
+          const c = l.curso || 'sin_curso'; acc[c] = (acc[c] || 0) + 1; return acc
+        }, {})
+
+        const listaRecientes = (todosLeads || []).slice(0, 15)
+          .map(l => `• ${l.nombre || '(sin nombre)'} | ${l.curso || '—'} | stage: ${l.stage || '—'} | ${new Date(l.created_at).toLocaleDateString('es-MX')}`)
+          .join('\n')
+
+        const listaHoy = (nuevosHoy || []).map(l => `• ${l.nombre || '(sin nombre)'} — ${l.curso || '—'} [${l.stage || '—'}]`).join('\n') || 'Ninguno'
+        const listaAyer = (nuevosAyer || []).map(l => `• ${l.nombre || '(sin nombre)'} — ${l.curso || '—'} [${l.stage || '—'}]`).join('\n') || 'Ninguno'
+
+        const contexto = `Fecha actual: ${ahora.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} ${ahora.toLocaleTimeString('es-MX')}
+
+TOTAL DE LEADS EN CRM: ${(todosLeads || []).length}
+
+LEADS POR STAGE (etapa en el CRM):
+${Object.entries(porStage).map(([s, n]) => `- ${s}: ${n}`).join('\n')}
+
+LEADS POR CURSO/OFERTA:
+${Object.entries(porCurso).map(([c, n]) => `- ${c}: ${n}`).join('\n')}
+
+NUEVOS HOY (${(nuevosHoy || []).length}):
+${listaHoy}
+
+NUEVOS AYER (${(nuevosAyer || []).length}):
+${listaAyer}
+
+NUEVOS ESTA SEMANA: ${(nuevos7d || []).length}
+
+CONVERSACIONES SIN RESPUESTA DEL LEAD EN +48H: ${(convsSinRespuesta || []).length}
+
+ÚLTIMOS 15 LEADS REGISTRADOS:
+${listaRecientes}
+
+STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente, inscrito, perdido`
+
+        const gptRes = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: `Eres el asistente del CRM del Instituto Windsor. Harold te hace preguntas sobre los leads y tú respondes con los datos del CRM. Responde de forma concisa y directa para WhatsApp. Usa *negrita* para resaltar números importantes. Máximo 25 líneas. Si la pregunta no es sobre el CRM, di que solo puedes consultar datos del CRM.`,
+              },
+              {
+                role: 'user',
+                content: `Datos del CRM:\n${contexto}\n\nPregunta de Harold: ${pregunta}`,
+              },
+            ],
+            temperature: 0.2,
+            max_tokens: 600,
+          }),
+          signal: AbortSignal.timeout(10000),
+        })
+
+        const gptData = await gptRes.json()
+        const respuestaCRM = gptData.choices?.[0]?.message?.content?.trim() || '⚠️ No pude generar la respuesta. Intenta de nuevo.'
+        await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: respuestaCRM })
+      } catch (e) {
+        console.error('[CRM Query Harold]', e)
+        await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: '⚠️ Error consultando el CRM. Intenta de nuevo.' })
+      }
+      return Response.json({ ok: true, adminQuery: true })
     }
 
     // ── Quick Reply: lead toca "Sí, envíame la info" ────────────────────────────
@@ -2759,11 +2911,15 @@ export async function POST(request: Request) {
           ?? ((/ni[ñn]os?|kids?/i.test(originalText)) ? 'Cursos de verano niños'
              : (/adultos?|adolescen/i.test(originalText)) ? 'Cursos de verano adultos'
              : null)
-        if (veranoProg) {
+        // Si es "cambioVerano" (mencionó niños/kids/adultos pero no dijo "verano" explícitamente)
+        // y el programa detectado es el mismo que ya tiene el lead, no es un cambio real —
+        // probablemente es una pregunta normal sobre su grupo. Dejar que la responda el GPT.
+        const noEsCambioReal = cambioVerano && !mensionVerano && veranoProg === leadSnapshot?.curso
+        if (veranoProg && !noEsCambioReal) {
           const infoVerano = INFO_MSGS[veranoProg] + buildCTA(veranoProg)
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, infoVerano, currentFase || phase, leadId)
           return buildProviderResponse(provider, infoVerano, waNumber)
-        } else {
+        } else if (!veranoProg && !cambioVerano) {
           const disambigV = `¡Qué buena elección! ☀️ My Best Summer tiene dos modalidades, ¿cuál te interesa?\n\nA) Niños (4 a 12 años)\nB) Adolescentes y adultos`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, disambigV, 'verano_disambig', leadId)
           return buildProviderResponse(provider, disambigV, waNumber)
@@ -2819,7 +2975,9 @@ export async function POST(request: Request) {
       // Confirmación de inscripción verano — fase inscripcion_pendiente
       if (phase === 'inscripcion_pendiente') {
         // Si el usuario se despide o agradece, responder con cortesía sin repetir los pasos
-        const esGoodbyeInscripcion = /^\s*(gracias|muchas gracias|ok gracias|muy amable|listo gracias|de nada|con gusto|est[aá] bien|okey gracias|excelente|muchas grac|genial|perfecto gracias|gracias!|gracias\.)\s*[!.]*\s*$/i.test(originalText.trim())
+        const textoGoodbye = originalText.trim()
+        const esGoodbyeInscripcion = /gracias|muy amable|de nada|con gusto|est[aá] bien|okey|genial|excelente|perfecto/i.test(textoGoodbye)
+          && textoGoodbye.length <= 30 && !/\?/.test(textoGoodbye)
         if (esGoodbyeInscripcion) {
           const despMsg = '¡Con gusto! 😊 Si tienes alguna duda o necesitas ayuda con los pasos de inscripción, aquí estaré. ¡Mucho éxito! ☀️'
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, despMsg)
@@ -2847,7 +3005,7 @@ export async function POST(request: Request) {
         // Solo recordar pasos si es respuesta corta sin pregunta (sí, ok, entendido, etc.)
         const esPregunta = /\?/.test(originalText) || originalText.trim().length > 20
         if (!esPregunta) {
-          const recordatorio = `Recuerda los pasos para completar tu inscripción:\n\n1️⃣ Realiza tu pago: https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk\n2️⃣ Llena el formulario con tu comprobante: https://forms.gle/fvxiekCtLb7KNz2U8\n3️⃣ Confírmanos aquí cuando lo hayas completado. 😊`
+          const recordatorio = `Recuerda los pasos para completar tu inscripción:\n\n*A) En línea:*\n1️⃣ Realiza tu pago: https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk\n2️⃣ Llena el formulario con tu comprobante: https://forms.gle/fvxiekCtLb7KNz2U8\n3️⃣ Confírmanos aquí cuando lo hayas completado.\n\n*B) Presencial:* Visítanos con tu acta de nacimiento — puedes pagar directamente en las instalaciones. 😊`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, recordatorio, 'inscripcion_pendiente', leadId)
           return buildProviderResponse(provider, recordatorio, waNumber)
         }
