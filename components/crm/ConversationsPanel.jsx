@@ -447,7 +447,7 @@ export default function ConversationsPanel({
         /* mobile */
         @media (max-width: 768px) {
           .wa-root { flex-direction: column; width: 100vw; max-width: 100vw; border-radius: 0; overflow: hidden; }
-          .wa-list { display: ${mobileView === "list" ? "flex" : "none"}; width: 100%; max-width: 100%; overflow-x: hidden; }
+          .wa-list { display: ${mobileView === "list" ? "flex" : "none"}; width: 100%; max-width: 100%; overflow-x: hidden; flex: 1; min-height: 0; }
           .wa-chat { display: ${mobileView === "chat" ? "flex" : "none"}; width: 100%; max-width: 100%; overflow-x: hidden; }
           .wa-chat-header { padding: 8px 10px; gap: 6px; overflow: hidden; }
           .wa-chat-actions { gap: 4px; }
