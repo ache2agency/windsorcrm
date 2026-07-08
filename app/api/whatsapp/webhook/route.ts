@@ -1596,6 +1596,8 @@ const INSCRIPCION_VERANO_MSG = `¡Perfecto! ☀️ El proceso de inscripción a 
 *💳 Pago:* Puedes apartar tu lugar con el 50% hoy y cubrir el resto al inicio del curso.
 🏦 Datos bancarios: https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
 
+*📦 Material:* tiene un costo de $400 (ya incluido) y se paga en efectivo directamente en las instalaciones.
+
 *📋 Puedes inscribirte de dos formas:*
 
 *A) En línea* 💻
