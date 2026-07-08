@@ -904,6 +904,34 @@ Ofrecemos cursos Extra Intensivos de Idiomas para que avances tu nivel en pocas 
 📄 Programa completo: https://drive.google.com/file/d/17H3avjLp_BDilOsaqSbs6gXBIlH5BcAz/view?usp=sharing
 
 🚨 *Inscripciones abiertas | Cupo limitado*`,
+
+  'Habilidades para la práctica psicoterapéutica': `📚 Te comparto la información de nuestro curso *Habilidades para la práctica psicoterapéutica*:
+
+Existen diversas habilidades básicas para el correcto desarrollo de la labor clínica del psicólogo, que no siempre se desarrollan en la formación tradicional. Este curso desarrolla el análisis, la evaluación, el moldeamiento verbal y la dirección de actividades para brindar intervenciones psicoterapéuticas confiables y eficientes.
+
+*🎯 Objetivo:* Que el estudiante desarrolle habilidades de análisis conductual en el área clínica, para predecir, explicar e intervenir de manera eficiente ante distintos problemas psicológicos.
+
+*📋 Competencias a desarrollar:*
+• Análisis conductual aplicado
+• Análisis de casos clínicos
+• Análisis de la conducta verbal y no verbal
+• Moldeamiento verbal
+• Regulación y autorregulación de las emociones
+• Estrategias conductuales y emocionales en tratamientos multidisciplinares
+
+*👨‍🏫 Responsable:* Psic. Carlos Manuel Palacios Pita
+
+*🗓️ Duración:* 4 módulos de 3 sesiones cada uno (4 semanas), lunes a miércoles de 3:00 p.m. a 4:30 p.m.
+1️⃣ Introducción y habilidades básicas — 20 al 22 de julio
+2️⃣ Análisis funcional aplicado — 27 al 29 de julio
+3️⃣ Moldeamiento verbal — 3 al 5 de agosto
+4️⃣ Autorregulación emocional — 10 al 12 de agosto
+
+*💰 Costo* (incluye constancia):
+• Alumnos Windsor: $300
+• Público en general: $400
+
+🚨 *Cupo limitado:* mínimo 10, máximo 25 participantes.`,
 }
 
 const VALOR_POR_PROGRAMA: Record<string, number> = {
@@ -921,6 +949,7 @@ const VALOR_POR_PROGRAMA: Record<string, number> = {
   'Italiano': 990,
   'Cursos de verano niños': 2100,
   'Cursos de verano adultos': 2200,
+  'Habilidades para la práctica psicoterapéutica': 400,
 }
 
 function getValorPrograma(programa: string | null | undefined): number | null {
@@ -946,6 +975,7 @@ const OFERTAS_REGISTRO_VALIDAS = [
   'Bachillerato',
   'Cursos de verano niños',
   'Cursos de verano adultos',
+  'Habilidades para la práctica psicoterapéutica',
 ]
 
 /** Normaliza un número escrito a mano (10 dígitos sin lada país) — igual que normalizarWhatsapp() en crm.jsx. */
@@ -986,6 +1016,7 @@ function matchOfertaEducativa(input: string): OfertaMatchResult {
     if (esAdulto) return { match: 'Inglés para adultos', ambiguous: false }
     return { match: null, ambiguous: true }
   }
+  if (/psicoterap|habilidades.*(practica|clinic)/.test(norm)) return { match: 'Habilidades para la práctica psicoterapéutica', ambiguous: false }
   if (/psicolog/.test(norm)) return { match: 'Psicología', ambiguous: false }
   if (/turis/.test(norm)) return { match: esOnline ? 'Administración turística online' : 'Administración turística', ambiguous: false }
   if (/relaciones publicas|mercadotecnia/.test(norm)) return { match: esOnline ? 'Relaciones públicas y mercadotecnia online' : 'Relaciones públicas y mercadotecnia', ambiguous: false }
@@ -1297,6 +1328,7 @@ function detectarPrograma(msg: string): string | null {
   if (/ingl[eé]s para adultos?|adultos?.*ingl[eé]s|ingl[eé]s.*adultos?/i.test(msg)) return 'Inglés para adultos'
   if (/licenciatura.*ingl[eé]s.*online|ingl[eé]s.*licenciatura.*online|\blic\b.*ingl[eé]s.*online/i.test(msg)) return 'Licenciatura en Inglés online'
   if (/licenciatura.*ingl[eé]s|ingl[eé]s.*licenciatura|\blic\b.*ingl[eé]s|ingl[eé]s.*\blic\b/i.test(msg)) return 'Licenciatura en Inglés'
+  if (/psicoterap|habilidades.*(pr[aá]ctica|cl[ií]nica).*psic/i.test(msg)) return 'Habilidades para la práctica psicoterapéutica'
   if (/psicolog|psico\b/i.test(msg)) return 'Psicología'
   if (/tur[ií]s.*(online|en l[ií]nea)|(online|en l[ií]nea).*tur[ií]s/i.test(msg)) return 'Administración turística online'
   if (/tur[ií]s|turism/i.test(msg)) return 'Administración turística'
@@ -1545,6 +1577,10 @@ const CATALOGO_OFERTA = `¿Cuál de nuestras ofertas educativas te interesa?
 •Italiano
 •Verano adultos
 •Verano niños
+
+🔵CURSOS Y TALLERES
+
+•Habilidades para la práctica psicoterapéutica
 
 🔴EN LINEA
 
@@ -1847,6 +1883,7 @@ REGLAS:
 - PRECIOS LICENCIATURAS (CRÍTICO — NUNCA INVENTES): Nunca inventes, redondees ni recuerdes de memoria los precios de inscripción o mensualidad de licenciaturas. Usa EXACTAMENTE los montos de la ficha del programa (revisa el historial de la conversación si ya se envió, o los datos de la BASE). Si no tienes el monto exacto a la mano, no des un precio aproximado — ofrece reenviar la ficha completa del programa en vez de arriesgarte a dar un dato incorrecto.
 - VIGENCIA DE PROMOCIÓN: El descuento de la "promoción del mes" (actualmente 30% en mensualidad) es el vigente este mes para nuevas inscripciones. Si el prospecto se inscribe mientras esta promoción está activa, el descuento se mantiene FIJO durante todo su primer año. A partir del segundo año, el descuento del 30% se puede conservar SI el estudiante mantiene un promedio mínimo de 9. Si preguntan si el precio es fijo o temporal, responde: "Esta es la promoción vigente este mes. Si te inscribes ahora, el descuento de tu mensualidad queda fijo durante todo tu primer año. A partir del segundo año, puedes seguir teniendo el 30% de descuento si mantienes un promedio de 9 o más." NUNCA digas que el descuento desaparece automáticamente al terminar el primer año sin mencionar la condición del promedio.
 - RVOE: El RVOE de Instituto Windsor es *SEG/00052/2002*, avalado por la SEP. Cuando alguien pregunte por RVOE, reconocimiento oficial, o validez del título, da este número directamente.
+- CURSO HABILIDADES PARA LA PRÁCTICA PSICOTERAPÉUTICA (usa estos datos exactos, nunca inventes otros): Responsable: Psic. Carlos Manuel Palacios Pita. Duración: 4 módulos de 3 sesiones cada uno, repartidos en 4 semanas, lunes a miércoles de 3:00 p.m. a 4:30 p.m. Fechas: Módulo 1 "Introducción y habilidades básicas" 20-22 jul, Módulo 2 "Análisis funcional aplicado" 27-29 jul, Módulo 3 "Moldeamiento verbal" 3-5 ago, Módulo 4 "Autorregulación emocional" 10-12 ago. Costo (incluye constancia): alumnos Windsor $300, público en general $400 — pregunta si es alumno Windsor para dar el precio correcto. Cupo: mínimo 10, máximo 25 participantes.
 - CERTEZA: Si tienes la información, dala directa. NUNCA uses frases como "permíteme verificarlo", "déjame revisar", "lo confirmo en un momento" o similares en tu respuesta. Si genuinamente no sabes, usa necesitaRevision: true — no hedges.
 - PRECIOS: NUNCA calcules precios ni descuentos tú mismo. Copia los precios EXACTOS de la BASE DE CONOCIMIENTO tal como están escritos. Si la BASE no tiene el precio exacto, NO lo inventes — di que le darás el detalle cuando elija el programa específico.
 - Si el prospecto pregunta por varias licenciaturas o programas en general (sin elegir uno), da solo una vista general muy breve (mención de programas, duración, existencia de promociones) y pide que elija uno específico para darle el detalle completo y exacto. No intentes resumir precios de múltiples programas.
