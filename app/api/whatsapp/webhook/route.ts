@@ -1672,6 +1672,19 @@ https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drive
 3️⃣ Confírmanos aquí por WhatsApp cuando hayas completado el formulario.
 4️⃣ Un asesor revisará todo y confirmará tu inscripción. 😊`
 
+const CURSO_HABILIDADES_PSICO = 'Habilidades para la práctica psicoterapéutica'
+
+function esHabilidadesPsico(curso: string | null | undefined): boolean {
+  return (curso || '') === CURSO_HABILIDADES_PSICO
+}
+
+const INSCRIPCION_HABILIDADES_MSG = `¡Perfecto! 😊 Para inscribirte al curso *Habilidades para la práctica psicoterapéutica* solo necesitas:
+
+1️⃣ Llenar este formulario: https://docs.google.com/forms/d/e/1FAIpQLSf2QqhL5xo-C35_g2suWzMpX0oWpdvZS082DPHNksY-CcPNBQ/viewform
+2️⃣ Realizar tu pago en efectivo directamente en las instalaciones ($300 alumnos Windsor / $400 público)
+
+Confírmanos aquí cuando hayas completado el formulario. 🎉`
+
 function buildInscripcionPresencialMsg(nombre?: string | null, email?: string | null, programa?: string | null, telefono?: string | null): string {
   const link = buildAgendarLink('inscripcion', nombre, email, programa, telefono)
   return `¡Perfecto! Para tu inscripción presencial necesitas traer los siguientes documentos:
@@ -1887,6 +1900,7 @@ REGLAS:
 - CURSO HABILIDADES PARA LA PRÁCTICA PSICOTERAPÉUTICA (usa estos datos exactos, nunca inventes otros): Responsable: Psic. Carlos Manuel Palacios Pita. Duración: 4 módulos de 3 sesiones cada uno, repartidos en 4 semanas, lunes a miércoles de 3:00 p.m. a 4:30 p.m. Fechas: Módulo 1 "Introducción y habilidades básicas" 20-22 jul, Módulo 2 "Análisis funcional aplicado" 27-29 jul, Módulo 3 "Moldeamiento verbal" 3-5 ago, Módulo 4 "Autorregulación emocional" 10-12 ago. Costo (incluye constancia): alumnos Windsor $300, público en general $400 — pregunta si es alumno Windsor para dar el precio correcto. Cupo: mínimo 10, máximo 25 participantes.
 - CERTEZA: Si tienes la información, dala directa. NUNCA uses frases como "permíteme verificarlo", "déjame revisar", "lo confirmo en un momento" o similares en tu respuesta. Si genuinamente no sabes, usa necesitaRevision: true — no hedges.
 - PRECIOS: NUNCA calcules precios ni descuentos tú mismo. Copia los precios EXACTOS de la BASE DE CONOCIMIENTO tal como están escritos. Si la BASE no tiene el precio exacto, NO lo inventes — di que le darás el detalle cuando elija el programa específico.
+- LICENCIATURAS DISPONIBLES (lista completa, usa siempre estas 4 — nunca omitas ninguna): *Licenciatura en Inglés* (presencial u online), *Administración Turística* (presencial u online), *Relaciones Públicas y Mercadotecnia* (presencial u online), *Psicología* (presencial). Si preguntan "qué licenciaturas tienen" o piden la lista general, menciona las 4 por nombre — no te bases solo en lo que traiga la BASE DE CONOCIMIENTO para esta lista, ya la tienes aquí completa.
 - Si el prospecto pregunta por varias licenciaturas o programas en general (sin elegir uno), da solo una vista general muy breve (mención de programas, duración, existencia de promociones) y pide que elija uno específico para darle el detalle completo y exacto. No intentes resumir precios de múltiples programas.
 - "siguienteFase": saludo, programa, correo, info_enviada, dudas, accion, asesor, inscripcion, clase_prueba, cerrado, perdido, seguimiento.
 
@@ -2750,7 +2764,8 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       }
       if (/^no\s*tengo\s*dudas[\s\S]*$/i.test(msgTrimBtn)) {
         const esVer = (leadSnapshot?.curso || '').toLowerCase().includes('verano')
-        const botMsg = esVer ? INSCRIPCION_VERANO_MSG : INSCRIPCION_LICS_MSG
+        const esHab = esHabilidadesPsico(leadSnapshot?.curso)
+        const botMsg = esVer ? INSCRIPCION_VERANO_MSG : esHab ? INSCRIPCION_HABILIDADES_MSG : INSCRIPCION_LICS_MSG
         const nextF = esVer ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
         // Asegurar que el stage del lead llegue a inscripcion_pendiente en Kanban
@@ -2768,7 +2783,8 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       // ── Interceptor de botones de template reactivacion_verano ──────────────
       if (/^quiero\s*apartar\s*mi\s*lugar[\s\S]*$/i.test(msgTrimBtn)) {
         const esVer = (leadSnapshot?.curso || '').toLowerCase().includes('verano')
-        const botMsg = esVer ? INSCRIPCION_VERANO_MSG : INSCRIPCION_LICS_MSG
+        const esHab = esHabilidadesPsico(leadSnapshot?.curso)
+        const botMsg = esVer ? INSCRIPCION_VERANO_MSG : esHab ? INSCRIPCION_HABILIDADES_MSG : INSCRIPCION_LICS_MSG
         const nextF = esVer ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
         if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
@@ -2993,6 +3009,9 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           } else if ((leadSnapshot?.curso || '').toLowerCase().includes('verano')) {
             await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_VERANO_MSG, 'inscripcion_pendiente', leadId)
             return buildProviderResponse(provider, INSCRIPCION_VERANO_MSG, waNumber)
+          } else if (esHabilidadesPsico(leadSnapshot?.curso)) {
+            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_HABILIDADES_MSG, 'inscripcion', leadId)
+            return buildProviderResponse(provider, INSCRIPCION_HABILIDADES_MSG, waNumber)
           } else {
             await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_LICS_MSG, 'inscripcion', leadId)
             return buildProviderResponse(provider, INSCRIPCION_LICS_MSG, waNumber)
@@ -3077,6 +3096,12 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         if (cursoLowerInsc.includes('verano') || cursoLowerInsc.includes('my best summer')) {
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_VERANO_MSG, 'inscripcion_pendiente', leadId)
           return buildProviderResponse(provider, INSCRIPCION_VERANO_MSG, waNumber)
+        }
+        // Habilidades para la práctica psicoterapéutica: no usa el flujo A/B de licenciaturas
+        // (no pide acta de nacimiento ni certificado de bachillerato) — solo formulario + pago en efectivo
+        if (esHabilidadesPsico(leadSnapshot?.curso)) {
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_HABILIDADES_MSG, 'inscripcion', leadId)
+          return buildProviderResponse(provider, INSCRIPCION_HABILIDADES_MSG, waNumber)
         }
         const msgI = originalText.toLowerCase()
         if (/\ba\b|en l[ií]nea|online|desde aqu[ií]|digital|virtual/i.test(msgI)) {
@@ -3467,6 +3492,8 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         if (cursoLower.includes('verano') || cursoLower.includes('my best summer')) {
           botMessage = INSCRIPCION_VERANO_MSG
           nextFase = 'inscripcion_pendiente'
+        } else if (esHabilidadesPsico(leadSnapshot?.curso)) {
+          botMessage = INSCRIPCION_HABILIDADES_MSG
         } else {
           botMessage = INSCRIPCION_LICS_MSG
         }
