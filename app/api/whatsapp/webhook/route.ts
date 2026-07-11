@@ -698,12 +698,12 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,150
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,150~ → $645 (70% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
 • Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Docente, traductor, asesor editorial, call centers, centros de investigación y organismos internacionales.
@@ -716,12 +716,12 @@ Modalidad: Presencial | Duración: 3 años
 Modalidad: Online | Duración: 3 años
 
 *💰 Inversión:*
-• Inscripción semestral: $2,150
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,150~ → $645 (70% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
 • Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Docente, traductor, asesor editorial, call centers, centros de investigación y organismos internacionales.
@@ -736,12 +736,12 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,200
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,200~ → $660 (70% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
 • Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Agencias de viajes, hoteles, resorts, operadores turísticos, eventos y convenciones.
@@ -754,12 +754,12 @@ Modalidad: Presencial | Duración: 3 años
 Modalidad: Online | Duración: 3 años
 
 *💰 Inversión:*
-• Inscripción semestral: $2,200
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,200~ → $660 (70% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
 • Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Agencias de viajes, hoteles, resorts, operadores turísticos, eventos y convenciones.
@@ -1880,6 +1880,7 @@ REGLAS:
 - TÍTULO/CERTIFICADO LICENCIATURAS: Si preguntan si reciben título, certificado, diploma, si el título vale o sirve, o si está avalado, responde directamente: "Sí, al concluir la licenciatura recibes un *Título de Licenciatura* con *RVOE SEG/00052/2002*, reconocido oficialmente por la SEP 🎓". No avances la fase a inscripción por esta pregunta — respóndela sin importar en qué fase esté.
 - CREDENCIAL DE ESTUDIANTE (solo LICENCIATURAS): La inscripción de licenciatura NO incluye la credencial de estudiante — se tramita por separado. Si preguntan, acláralo directamente. Esto NO aplica a cursos regulares de idiomas ni a My Best Summer (verano) — ahí ni siquiera menciones el tema de credencial a menos que pregunten específicamente.
 - INICIO CICLO ESCOLAR LICENCIATURAS: Las licenciaturas inician a *principios de septiembre* de cada año. Si preguntan cuándo empiezan las clases o el ciclo escolar de la licenciatura, responde eso directamente — no des una respuesta vaga como "el próximo ciclo escolar" sin fecha.
+- HORARIOS LICENCIATURAS (usa estos exactos, aplican a todas las licenciaturas, son aproximados y pueden cambiar cada cuatrimestre): *Matutino* 8:00 a.m. a 1:00 p.m. | *Vespertino* 2:00 p.m. a 8:00 p.m. (este turno solo se abre si hay suficientes interesados, no está garantizado que se ofrezca cada cuatrimestre) | *Sabatino* 8:00 a.m. a 5:30 p.m. Si preguntan por el horario de alguna licenciatura o específicamente por la modalidad sabatina, da este dato directamente — NUNCA derives a un asesor por esta pregunta, ya la sabes.
 - PRECIOS LICENCIATURAS (CRÍTICO — NUNCA INVENTES): Nunca inventes, redondees ni recuerdes de memoria los precios de inscripción o mensualidad de licenciaturas. Usa EXACTAMENTE los montos de la ficha del programa (revisa el historial de la conversación si ya se envió, o los datos de la BASE). Si no tienes el monto exacto a la mano, no des un precio aproximado — ofrece reenviar la ficha completa del programa en vez de arriesgarte a dar un dato incorrecto.
 - VIGENCIA DE PROMOCIÓN: El descuento de la "promoción del mes" (actualmente 30% en mensualidad) es el vigente este mes para nuevas inscripciones. Si el prospecto se inscribe mientras esta promoción está activa, el descuento se mantiene FIJO durante todo su primer año. A partir del segundo año, el descuento del 30% se puede conservar SI el estudiante mantiene un promedio mínimo de 9. Si preguntan si el precio es fijo o temporal, responde: "Esta es la promoción vigente este mes. Si te inscribes ahora, el descuento de tu mensualidad queda fijo durante todo tu primer año. A partir del segundo año, puedes seguir teniendo el 30% de descuento si mantienes un promedio de 9 o más." NUNCA digas que el descuento desaparece automáticamente al terminar el primer año sin mencionar la condición del promedio.
 - RVOE: El RVOE de Instituto Windsor es *SEG/00052/2002*, avalado por la SEP. Cuando alguien pregunte por RVOE, reconocimiento oficial, o validez del título, da este número directamente.
@@ -1960,6 +1961,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  let waNumber = ''
   try {
     let leadSummary = ''
     let leadId: string | undefined
@@ -1992,7 +1994,7 @@ export async function POST(request: Request) {
     const provider = incoming.provider || getWhatsAppProvider()
     const originalText = incoming.body.trim().normalize('NFC')
     const text = originalText.toLowerCase()
-    const waNumber = incoming.waNumber || ''
+    waNumber = incoming.waNumber || ''
     const profileName = incoming.profileName || ''
     const referral = incoming.referral
 
@@ -2763,6 +2765,23 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         return buildProviderResponse(provider, resp, waNumber)
       }
 
+      // ── Interceptor de botones de template reactivacion_verano ──────────────
+      if (/^quiero\s*apartar\s*mi\s*lugar[\s\S]*$/i.test(msgTrimBtn)) {
+        const esVer = (leadSnapshot?.curso || '').toLowerCase().includes('verano')
+        const botMsg = esVer ? INSCRIPCION_VERANO_MSG : INSCRIPCION_LICS_MSG
+        const nextF = esVer ? 'inscripcion_pendiente' : 'inscripcion'
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
+        if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
+        return buildProviderResponse(provider, botMsg, waNumber)
+      }
+      if (/^tal\s*vez\s*el\s*pr[oó]ximo\s*a[ñn]o[\s\S]*$/i.test(msgTrimBtn)) {
+        const nombre = leadSnapshot?.nombre ? ` ${leadSnapshot.nombre.split(' ')[0]}` : ''
+        const resp = `¡No hay problema${nombre}! Te quedamos atentos para el siguiente My Best Summer. ¡Que tengas un excelente día! ☀️`
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'cerrado', leadId)
+        if (leadId) await supabase.from('leads').update({ stage: 'archivado' }).eq('id', leadId)
+        return buildProviderResponse(provider, resp, waNumber)
+      }
+
       // ── Interceptor global de convenios ─────────────────────────────────────
       // Fase convenios: el prospecto ya vio la lista y menciona su institución
       if (phase === 'convenios') {
@@ -3526,6 +3545,6 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       }
     } catch {}
     const fallback = 'Disculpa, tuvimos un detalle momentáneo. Escríbeme de nuevo y con gusto te respondo.'
-    return buildProviderResponse(getWhatsAppProvider(), fallback, '')
+    return buildProviderResponse(getWhatsAppProvider(), fallback, waNumber)
   }
 }
