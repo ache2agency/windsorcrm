@@ -795,7 +795,12 @@ export default function CRM() {
       const res = await fetch("/api/whatsapp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: selectedConv.whatsapp, body: agentMessage }),
+        body: JSON.stringify({
+          to: selectedConv.whatsapp,
+          body: agentMessage,
+          leadId: selectedConv.lead_id,
+          agentUserId: currentUser?.id || null,
+        }),
       });
       if (!res.ok) {
         let errMsg = "Error enviando mensaje de WhatsApp";
@@ -811,7 +816,8 @@ export default function CRM() {
       const now = new Date().toISOString();
       const msgToShow = { id: `local-${now}`, rol: "agente", contenido: agentMessage, created_at: now };
 
-      // Siempre mostrar el mensaje en el chat cuando Twilio acepta el envío
+      // El insert y update reales ya los hace /api/whatsapp/send del lado del servidor.
+      // Aquí solo reflejamos el envío en la UI de forma optimista, sin volver a escribir en la base.
       setConvMessages((prev) => [...prev, msgToShow]);
       setSelectedConv((prev) =>
         prev ? { ...prev, ultimo_mensaje_at: now, modo_humano: true, tomado_por: currentUser?.id || null } : prev
@@ -826,29 +832,13 @@ export default function CRM() {
       setAgentMessage("");
       showToast("Mensaje enviado. Si no llega a WhatsApp, el número debe haber iniciado chat con el bot (sandbox).");
 
-      // Guardar en historial (no bloquea la UI)
-      const { error } = await supabase.from("whatsapp_mensajes").insert([
-        {
-          conversacion_id: selectedConv.id,
-          rol: "agente",
-          contenido: agentMessage,
-        },
-      ]);
-      if (error) {
-        showToast("No se pudo guardar en el historial", "error");
-      } else {
-        await supabase
-          .from("whatsapp_conversaciones")
-          .update({ ultimo_mensaje_at: now, modo_humano: true, tomado_por: currentUser?.id || null })
-          .eq("id", selectedConv.id);
-        await logLeadActivity({
-          leadId: selectedConv.lead_id,
-          eventType: "agent_reply_sent",
-          title: "Respuesta enviada por vendedor",
-          detail: agentMessage,
-          meta: { conversacion_id: selectedConv.id, whatsapp: selectedConv.whatsapp },
-        });
-      }
+      await logLeadActivity({
+        leadId: selectedConv.lead_id,
+        eventType: "agent_reply_sent",
+        title: "Respuesta enviada por vendedor",
+        detail: agentMessage,
+        meta: { conversacion_id: selectedConv.id, whatsapp: selectedConv.whatsapp },
+      });
     } catch (e) {
       showToast(e?.message || "Error enviando mensaje de WhatsApp", "error");
     } finally {
