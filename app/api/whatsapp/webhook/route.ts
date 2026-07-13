@@ -40,6 +40,8 @@ type IncomingWhatsAppMessage = {
   messageSid?: string
   rawPayload: Record<string, unknown>
   referral?: Record<string, unknown>
+  mediaKind?: 'audio' | 'image'
+  mediaId?: string
 }
 
 const ADMIN_WA_ALERTA = '527471028306'
@@ -586,7 +588,14 @@ async function parseIncomingWhatsAppMessage(
       }
       // Mensajes multimedia (audio, imagen, video, sticker, etc.)
       const mediaTypes = ['audio', 'image', 'video', 'sticker', 'document', 'voice']
-      if (mediaTypes.includes(message.type || '')) {
+      const msgType = message.type || ''
+      if (mediaTypes.includes(msgType)) {
+        const msgAny = message as Record<string, unknown>
+        const mediaKind: 'audio' | 'image' | undefined =
+          msgType === 'audio' || msgType === 'voice' ? 'audio' : msgType === 'image' ? 'image' : undefined
+        const mediaObj = mediaKind
+          ? (msgAny[msgType === 'voice' ? 'audio' : msgType] as { id?: string } | undefined)
+          : undefined
         return {
           provider: 'meta',
           body: '__MEDIA__',
@@ -595,6 +604,8 @@ async function parseIncomingWhatsAppMessage(
           profileName,
           rawPayload: rawPayloadObj,
           referral,
+          mediaKind,
+          mediaId: mediaObj?.id,
         }
       }
       return null
@@ -1742,6 +1753,109 @@ type GptBotResult = {
   necesitaRevision?: boolean
 }
 
+/** Descarga un archivo multimedia de WhatsApp (Meta) usando el media id. */
+async function getMetaMediaBuffer(mediaId: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const { accessToken } = getMetaConfig()
+  if (!accessToken) return null
+  try {
+    const metaRes = await fetch(`https://graph.facebook.com/v23.0/${mediaId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(10000),
+    })
+    if (!metaRes.ok) return null
+    const metaData = await metaRes.json()
+    const url = metaData?.url as string | undefined
+    const mimeType = (metaData?.mime_type as string | undefined) || 'application/octet-stream'
+    if (!url) return null
+
+    const fileRes = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(15000),
+    })
+    if (!fileRes.ok) return null
+    const arrayBuffer = await fileRes.arrayBuffer()
+    return { buffer: Buffer.from(arrayBuffer), mimeType }
+  } catch (e) {
+    console.error('[getMetaMediaBuffer]', e)
+    return null
+  }
+}
+
+/** Transcribe una nota de voz con Whisper y devuelve el texto (o null si falla). */
+async function transcribeAudioMessage(mediaId: string): Promise<string | null> {
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+  if (!OPENAI_API_KEY) return null
+  const media = await getMetaMediaBuffer(mediaId)
+  if (!media) return null
+  try {
+    const ext = media.mimeType.includes('mp4') ? 'mp4' : media.mimeType.includes('amr') ? 'amr' : 'ogg'
+    const form = new FormData()
+    form.append('file', new Blob([new Uint8Array(media.buffer)], { type: media.mimeType }), `audio.${ext}`)
+    form.append('model', 'whisper-1')
+    form.append('language', 'es')
+    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: form,
+      signal: AbortSignal.timeout(20000),
+    })
+    if (!res.ok) {
+      console.error('[transcribeAudioMessage] whisper error', await res.text().catch(() => ''))
+      return null
+    }
+    const data = await res.json()
+    const transcript = typeof data?.text === 'string' ? data.text.trim() : ''
+    return transcript || null
+  } catch (e) {
+    console.error('[transcribeAudioMessage]', e)
+    return null
+  }
+}
+
+/** Describe una imagen recibida con GPT-4o vision y devuelve un texto usable como mensaje del usuario. */
+async function describeImageMessage(mediaId: string): Promise<string | null> {
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+  if (!OPENAI_API_KEY) return null
+  const media = await getMetaMediaBuffer(mediaId)
+  if (!media) return null
+  try {
+    const base64 = media.buffer.toString('base64')
+    const dataUrl = `data:${media.mimeType};base64,${base64}`
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Un lead de una escuela de idiomas (Instituto Windsor) envió esta imagen por WhatsApp. En 1-2 frases en español, describe qué contiene de forma útil para un asesor (ej. comprobante de pago con monto/folio, documento, captura de pantalla, foto personal, etc.). Si hay texto legible relevante (montos, fechas, folios, nombres), inclúyelo.',
+              },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        temperature: 0.2,
+        max_tokens: 200,
+      }),
+      signal: AbortSignal.timeout(15000),
+    })
+    if (!res.ok) {
+      console.error('[describeImageMessage] gpt error', await res.text().catch(() => ''))
+      return null
+    }
+    const data = await res.json()
+    const desc = data?.choices?.[0]?.message?.content?.trim()
+    return desc ? `[Imagen] ${desc}` : null
+  } catch (e) {
+    console.error('[describeImageMessage]', e)
+    return null
+  }
+}
+
 async function getBotPrompt(): Promise<string> {
   try {
     const supabase = createServiceRoleClient()
@@ -1983,7 +2097,7 @@ export async function POST(request: Request) {
     let currentFase = 'saludo'
     let conversacionIdOuter: string | undefined
 
-    const incoming = await parseIncomingWhatsAppMessage(request)
+    let incoming = await parseIncomingWhatsAppMessage(request)
     if (!incoming) {
       return Response.json({ ok: true, ignored: true })
     }
@@ -2002,6 +2116,21 @@ export async function POST(request: Request) {
         return incoming.provider === 'twilio'
           ? buildTwiml('')
           : Response.json({ ok: true, deduplicated: true })
+      }
+    }
+
+    // Notas de voz e imágenes: transcribir / describir antes de procesar, para que
+    // el mensaje fluya como texto normal por el resto del pipeline. Si falla, se
+    // deja el sentinel '__MEDIA__' y sigue el fallback de "no podemos procesar".
+    if (incoming.body === '__MEDIA__' && incoming.mediaId) {
+      const resolvedText =
+        incoming.mediaKind === 'audio'
+          ? await transcribeAudioMessage(incoming.mediaId)
+          : incoming.mediaKind === 'image'
+            ? await describeImageMessage(incoming.mediaId)
+            : null
+      if (resolvedText) {
+        incoming = { ...incoming, body: resolvedText }
       }
     }
 
