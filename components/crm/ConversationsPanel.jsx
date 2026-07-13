@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Fragment } from "react";
 
 const RESPUESTAS_RAPIDAS = [
   { grupo: "Idiomas", items: [
@@ -302,6 +302,35 @@ function avatarColor(name) {
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
+function dayKeyMx(date) {
+  return date.toLocaleDateString("en-CA", { timeZone: "America/Mexico_City" });
+}
+
+function formatDateSep(dateStr) {
+  const d = new Date(dateStr);
+  const key = dayKeyMx(d);
+  const now = new Date();
+  if (key === dayKeyMx(now)) return "Hoy";
+  if (key === dayKeyMx(new Date(now.getTime() - 86400000))) return "Ayer";
+  const sameYear = d.getFullYear() === now.getFullYear();
+  return d.toLocaleDateString("es-MX", sameYear
+    ? { day: "2-digit", month: "short", timeZone: "America/Mexico_City" }
+    : { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Mexico_City" });
+}
+
+function formatListTime(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const key = dayKeyMx(d);
+  const now = new Date();
+  if (key === dayKeyMx(now)) return d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" });
+  if (key === dayKeyMx(new Date(now.getTime() - 86400000))) return "Ayer";
+  const sameYear = d.getFullYear() === now.getFullYear();
+  return d.toLocaleDateString("es-MX", sameYear
+    ? { day: "2-digit", month: "2-digit", timeZone: "America/Mexico_City" }
+    : { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "America/Mexico_City" });
+}
+
 export default function ConversationsPanel({
   filteredWhatsConvs,
   convSearch,
@@ -432,6 +461,7 @@ export default function ConversationsPanel({
         .wa-msg-role { font-size: 10px; font-weight: 700; margin-bottom: 3px; }
         .wa-msg-time { position:absolute; bottom:4px; right:8px; font-size:10px; color:#8696a0; }
         .wa-msg.out .wa-msg-time { color: #6a9e7a; }
+        .wa-date-sep { align-self: center; background: rgba(255,255,255,0.9); color: #54656f; font-size: 11.5px; font-weight: 500; padding: 4px 10px; border-radius: 6px; box-shadow: 0 1px 1px rgba(0,0,0,0.1); margin: 6px 0; }
 
         /* input */
         .wa-input-bar { padding: 8px 12px; background: #f0f2f5; display: flex; align-items: flex-end; gap: 8px; flex-shrink: 0; z-index: 1; }
@@ -560,9 +590,7 @@ export default function ConversationsPanel({
               filteredWhatsConvs.map((c) => {
                 const name = getDisplayName(c);
                 const owner = vendedores.find((v) => v.id === c.tomado_por);
-                const time = c.ultimo_mensaje_at
-                  ? new Date(c.ultimo_mensaje_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" })
-                  : "";
+                const time = formatListTime(c.ultimo_mensaje_at);
                 return (
                   <div
                     key={c.id}
@@ -687,16 +715,24 @@ export default function ConversationsPanel({
                 {convMessages.length === 0 ? (
                   <div className="wa-empty">Sin mensajes registrados</div>
                 ) : (
-                  convMessages.map((m) => {
+                  convMessages.map((m, i) => {
                     const isOut = m.rol === "bot" || m.rol === "agente";
                     const time = m.created_at ? new Date(m.created_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" }) : "";
+                    const prevDay = i > 0 && convMessages[i - 1].created_at ? dayKeyMx(new Date(convMessages[i - 1].created_at)) : null;
+                    const thisDay = m.created_at ? dayKeyMx(new Date(m.created_at)) : null;
+                    const showDateSep = thisDay && thisDay !== prevDay;
                     return (
-                      <div key={m.id} className={`wa-msg ${isOut ? "out" : "in"}`}>
-                        {m.rol === "agente" && <div className="wa-msg-role" style={{ color: "#A8263C" }}>Vendedor</div>}
-                        {m.rol === "bot" && <div className="wa-msg-role" style={{ color: WA_TEAL }}>Bot</div>}
-                        {m.contenido}
-                        <div className="wa-msg-time">{time}</div>
-                      </div>
+                      <Fragment key={m.id}>
+                        {showDateSep && (
+                          <div className="wa-date-sep"><span>{formatDateSep(m.created_at)}</span></div>
+                        )}
+                        <div className={`wa-msg ${isOut ? "out" : "in"}`}>
+                          {m.rol === "agente" && <div className="wa-msg-role" style={{ color: "#A8263C" }}>Vendedor</div>}
+                          {m.rol === "bot" && <div className="wa-msg-role" style={{ color: WA_TEAL }}>Bot</div>}
+                          {m.contenido}
+                          <div className="wa-msg-time">{time}</div>
+                        </div>
+                      </Fragment>
                     );
                   })
                 )}
