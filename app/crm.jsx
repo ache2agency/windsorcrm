@@ -130,6 +130,9 @@ export default function CRM() {
   const [convModeFilter, setConvModeFilter] = useState("todos");
   const [convPhaseFilter, setConvPhaseFilter] = useState("todas");
   const [convVentanaFilter, setConvVentanaFilter] = useState(false);
+  const [convAtoradaFilter, setConvAtoradaFilter] = useState(false);
+  const [selectedAtoradaIds, setSelectedAtoradaIds] = useState([]);
+  const [marcandoPerdidas, setMarcandoPerdidas] = useState(false);
   const [editTitulo, setEditTitulo] = useState("");
   const [flowRules, setFlowRules] = useState([]);
   const [flowLoading, setFlowLoading] = useState(false);
@@ -775,6 +778,45 @@ export default function CRM() {
     showToast(stage === "inscrito" ? "Lead marcado como inscrito" : "Lead marcado como perdido");
   };
 
+  /** Marca en bulk como "perdidas" las conversaciones seleccionadas (limpieza de atoradas viejas sin caso). */
+  const marcarPerdidasBulk = async (convIds) => {
+    if (!convIds.length) return;
+    setMarcandoPerdidas(true);
+    try {
+      const leadIds = whatsConvs
+        .filter((c) => convIds.includes(c.id) && c.lead_id)
+        .map((c) => c.lead_id);
+
+      const { error: convError } = await supabase
+        .from("whatsapp_conversaciones")
+        .update({ estado: "cerrada", fase: "perdido" })
+        .in("id", convIds);
+      if (convError) { showToast("Error cerrando conversaciones", "error"); return; }
+
+      if (leadIds.length) {
+        await supabase.from("leads").update({ stage: "perdido" }).in("id", leadIds);
+        await supabase.from("lead_activities").insert(
+          leadIds.map((leadId) => ({
+            lead_id: leadId,
+            actor_id: currentUser?.id || null,
+            event_type: "stage_changed",
+            title: "Lead perdido",
+            detail: "Marcado en bulk desde limpieza de conversaciones atoradas",
+          }))
+        );
+      }
+
+      setWhatsConvs((prev) =>
+        prev.map((c) => (convIds.includes(c.id) ? { ...c, estado: "cerrada", fase: "perdido" } : c))
+      );
+      setLeads((prev) => prev.map((l) => (leadIds.includes(l.id) ? { ...l, stage: "perdido" } : l)));
+      setSelectedAtoradaIds([]);
+      showToast(`${convIds.length} conversaciones marcadas como perdidas`);
+    } finally {
+      setMarcandoPerdidas(false);
+    }
+  };
+
   /** Si estamos en una conv en modo humano y el usuario va a salir, pide confirmar. Aceptar = pasar a BOT y ejecutar callback; Cancelar = no hacer nada. */
   const confirmReturnToBotIfNeeded = async (thenDo) => {
     if (view !== "convs" || !selectedConv?.modo_humano) {
@@ -969,6 +1011,15 @@ export default function CRM() {
     return matchV && matchS;
   });
 
+  // Conversaciones "atoradas": abiertas, en fase temprana sin resolver, sin actividad hace +3h.
+  const FASES_ATORABLES = ["saludo", "programa", "correo", "verano_disambig"];
+  const esAtorada = (conv) =>
+    conv.estado !== "cerrada" &&
+    FASES_ATORABLES.includes(conv.fase) &&
+    !!conv.ultimo_mensaje_at &&
+    (Date.now() - new Date(conv.ultimo_mensaje_at).getTime()) > 3 * 60 * 60 * 1000;
+  const atoradasCount = whatsConvs.filter(esAtorada).length;
+
   const conversationPhaseOptions = ["todas", ...Array.from(new Set(whatsConvs.map((c) => c.fase).filter(Boolean)))];
   const filteredWhatsConvs = whatsConvs.filter((conv) => {
     // Asesores solo ven conversaciones de sus leads
@@ -989,7 +1040,8 @@ export default function CRM() {
       convPhaseFilter === "todas" || (conv.fase || "—") === convPhaseFilter;
     const matchesVentana = !convVentanaFilter ||
       (conv.ultimo_mensaje_at && (Date.now() - new Date(conv.ultimo_mensaje_at).getTime()) < 24 * 60 * 60 * 1000);
-    return matchesSearch && matchesMode && matchesPhase && matchesVentana;
+    const matchesAtorada = !convAtoradaFilter || esAtorada(conv);
+    return matchesSearch && matchesMode && matchesPhase && matchesVentana && matchesAtorada;
   });
 
   const selectedConvLead = leads.find((lead) => lead.id === selectedConv?.lead_id) || null;
@@ -2226,6 +2278,14 @@ export default function CRM() {
             conversationPhaseOptions={conversationPhaseOptions}
             convVentanaFilter={convVentanaFilter}
             setConvVentanaFilter={setConvVentanaFilter}
+            convAtoradaFilter={convAtoradaFilter}
+            setConvAtoradaFilter={setConvAtoradaFilter}
+            atoradasCount={atoradasCount}
+            esAtorada={esAtorada}
+            selectedAtoradaIds={selectedAtoradaIds}
+            setSelectedAtoradaIds={setSelectedAtoradaIds}
+            marcarPerdidasBulk={marcarPerdidasBulk}
+            marcandoPerdidas={marcandoPerdidas}
             getPhaseLabel={getPhaseLabel}
             selectedConv={selectedConv}
             setSelectedConv={setSelectedConv}

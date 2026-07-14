@@ -343,6 +343,14 @@ export default function ConversationsPanel({
   getPhaseLabel,
   convVentanaFilter,
   setConvVentanaFilter,
+  convAtoradaFilter,
+  setConvAtoradaFilter,
+  atoradasCount,
+  esAtorada,
+  selectedAtoradaIds,
+  setSelectedAtoradaIds,
+  marcarPerdidasBulk,
+  marcandoPerdidas,
   selectedConv,
   setSelectedConv,
   confirmReturnToBotIfNeeded,
@@ -580,6 +588,47 @@ export default function ConversationsPanel({
               </button>
             </div>
           )}
+          {setConvAtoradaFilter && atoradasCount > 0 && (
+            <div style={{ padding: "0 12px 6px" }}>
+              <button
+                onClick={() => setConvAtoradaFilter(v => !v)}
+                style={{
+                  width: "100%", fontSize: 11, padding: "5px 0", borderRadius: 12, border: "none", cursor: "pointer", fontWeight: 600,
+                  background: convAtoradaFilter ? "#A8263C" : "#fde8ec",
+                  color: convAtoradaFilter ? "#fff" : "#A8263C",
+                }}
+                title="Conversaciones abiertas en fase temprana (saludo/programa/correo) sin actividad hace más de 3 horas"
+              >
+                ⚠️ {atoradasCount} atorada{atoradasCount === 1 ? "" : "s"}
+              </button>
+            </div>
+          )}
+
+          {convAtoradaFilter && setSelectedAtoradaIds && (
+            <div style={{ padding: "0 12px 6px", display: "flex", alignItems: "center", gap: 8 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#54656f", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={filteredWhatsConvs.length > 0 && selectedAtoradaIds.length === filteredWhatsConvs.length}
+                  onChange={(e) => setSelectedAtoradaIds(e.target.checked ? filteredWhatsConvs.map((c) => c.id) : [])}
+                />
+                Seleccionar todas ({filteredWhatsConvs.length})
+              </label>
+              {selectedAtoradaIds.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (window.confirm(`¿Marcar ${selectedAtoradaIds.length} conversación(es) como perdidas? Esto las cierra y no se puede deshacer desde aquí.`)) {
+                      marcarPerdidasBulk(selectedAtoradaIds);
+                    }
+                  }}
+                  disabled={marcandoPerdidas}
+                  style={{ fontSize: 11, padding: "4px 10px", borderRadius: 10, border: "none", background: "#A8263C", color: "#fff", fontWeight: 600, cursor: marcandoPerdidas ? "default" : "pointer", opacity: marcandoPerdidas ? 0.6 : 1 }}
+                >
+                  {marcandoPerdidas ? "Marcando..." : `Marcar ${selectedAtoradaIds.length} como perdidas`}
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="wa-convs-count">{filteredWhatsConvs.length} conversaciones</div>
 
@@ -597,12 +646,28 @@ export default function ConversationsPanel({
                     className={`wa-item${selectedConv?.id === c.id ? " active" : ""}`}
                     onClick={() => handleSelectConv(c)}
                   >
+                    {convAtoradaFilter && setSelectedAtoradaIds && (
+                      <input
+                        type="checkbox"
+                        checked={selectedAtoradaIds.includes(c.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          setSelectedAtoradaIds((prev) =>
+                            e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id)
+                          );
+                        }}
+                        style={{ marginRight: 8, flexShrink: 0 }}
+                      />
+                    )}
                     <div className="wa-avatar" style={{ background: avatarColor(name) }}>
                       {getInitials(name)}
                     </div>
                     <div className="wa-item-body">
                       <div className="wa-item-row1">
-                        <span className="wa-item-name">{name}</span>
+                        <span className="wa-item-name">
+                          {esAtorada?.(c) && <span title="Atorada: sin avanzar hace más de 3h" style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#A8263C", marginRight: 6 }} />}
+                          {name}
+                        </span>
                         <span className="wa-item-time">{time}</span>
                       </div>
                       <div className="wa-item-row2">
