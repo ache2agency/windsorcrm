@@ -3110,15 +3110,20 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       const mensionVerano = /verano|summer|my best summer/i.test(originalText)
       const cambioVerano = leadEsVerano && /ni[ñn]os?|kids?|adultos?|adolescen/i.test(originalText)
       if ((mensionVerano || cambioVerano) && phase !== 'saludo' && phase !== 'correo') {
-        const veranoProg = detectarPrograma(originalText)
-          ?? ((/ni[ñn]os?|kids?/i.test(originalText)) ? 'Cursos de verano niños'
+        // detectarPrograma() puede reconocer palabras sueltas (ej. "francés") que no son
+        // programas de verano en sí, sino solo actividades dentro del paquete — aquí solo
+        // nos sirve si cae exactamente en una de las dos modalidades de verano.
+        const programaDetectado = detectarPrograma(originalText)
+        const veranoProg = (programaDetectado === 'Cursos de verano niños' || programaDetectado === 'Cursos de verano adultos')
+          ? programaDetectado
+          : ((/ni[ñn]os?|kids?/i.test(originalText)) ? 'Cursos de verano niños'
              : (/adultos?|adolescen/i.test(originalText)) ? 'Cursos de verano adultos'
              : null)
         // Si es "cambioVerano" (mencionó niños/kids/adultos pero no dijo "verano" explícitamente)
         // y el programa detectado es el mismo que ya tiene el lead, no es un cambio real —
         // probablemente es una pregunta normal sobre su grupo. Dejar que la responda el GPT.
         const noEsCambioReal = cambioVerano && !mensionVerano && veranoProg === leadSnapshot?.curso
-        if (veranoProg && !noEsCambioReal) {
+        if (veranoProg && !noEsCambioReal && INFO_MSGS[veranoProg]) {
           const infoVerano = INFO_MSGS[veranoProg] + buildCTA(veranoProg)
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, infoVerano, currentFase || phase, leadId)
           return buildProviderResponse(provider, infoVerano, waNumber)
