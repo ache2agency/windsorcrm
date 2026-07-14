@@ -1366,6 +1366,7 @@ function noQuiereEmail(msg: string): boolean {
   const m = msg.toLowerCase()
   if (/no (lo )?ten(go)?|sin correo|no.*correo|no.*email|no.*mail|no quiero|no doy|no hay|no pos|nop/i.test(m)) return true
   if (/por este medio|por aqu[ií]|as[ií] est[aá] bien|no uso|no manejo/i.test(m)) return true
+  if (/\b(solo|s[oó]lo|nada m[aá]s|nom[aá]s)\b.*(informaci[oó]n|info|eso)/i.test(m)) return true
   if (!m.includes('@') && /^(info|siguiente|dale|ok|omite|salta|después|despues|luego|no|nada|sin|omitir|skip)$/i.test(m.trim())) return true
   return false
 }
@@ -3396,7 +3397,9 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
 
       // ── Interceptor de despedida ─────────────────────────────────────────────
       // Si el usuario se despide, responder con cortesía y no seguir el flujo de ventas
-      const isGoodbye = /^\s*(gracias|adio?s|hasta luego|hasta pronto|bye|chao|chau|nos vemos|que pase(s)? (un )?(buen|excelente)|buen(os)? d[ií]as?|buenas (noches?|tardes?)|hasta ma[ñn]ana|de nada|con gusto|est[aá] bien|ok gracias|okey gracias|muchas gracias|muy amable|listo gracias)\s*[!.]*\s*$/i.test(originalText.trim())
+      // NOTA: "buenos días/tardes/noches" se usan tanto para saludar como para despedirse —
+      // se excluyen de esta lista para no despedir por error a un lead que apenas está saludando.
+      const isGoodbye = /^\s*(gracias|adio?s|hasta luego|hasta pronto|bye|chao|chau|nos vemos|que pase(s)? (un )?(buen|excelente)|hasta ma[ñn]ana|de nada|con gusto|est[aá] bien|ok gracias|okey gracias|muchas gracias|muy amable|listo gracias)\s*[!.]*\s*$/i.test(originalText.trim())
       if (isGoodbye) {
         const despedidaMsg = '¡Con gusto! 😊 Si en algún momento tienes más preguntas sobre Instituto Windsor, aquí estaré. ¡Que tengas un excelente día! 🌟'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, despedidaMsg)
