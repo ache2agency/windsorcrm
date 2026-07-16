@@ -1036,6 +1036,20 @@ function matchOfertaEducativa(input: string): OfertaMatchResult {
   return { match: null, ambiguous: false }
 }
 
+/** Canonicaliza el programa antes de guardarlo en leads.curso. GPT a veces normaliza
+ * de más (ej. resume "habilidades para la práctica psicoterapéutica" como "psicología")
+ * y pierde el matiz que decide a qué proceso de inscripción va el lead. Por eso se
+ * prioriza el regex de matchOfertaEducativa() sobre el texto ORIGINAL del usuario —
+ * más confiable que la extracción libre de GPT — y solo se usa gpt.programa tal cual
+ * si el texto original no matchea nada conocido. */
+function canonicalizarPrograma(gptPrograma: string, textoOriginal: string): string {
+  const deTexto = matchOfertaEducativa(textoOriginal)
+  if (deTexto.match) return deTexto.match
+  const deGpt = matchOfertaEducativa(gptPrograma)
+  if (deGpt.match) return deGpt.match
+  return gptPrograma
+}
+
 const ASESOR_AUTOMATICO = '(automático según turno)'
 
 /** Busca un asesor por nombre (coincidencia parcial, igual criterio que getDefaultAssigneeId). */
@@ -1317,20 +1331,27 @@ function esInglesIdioma(programa: string | null | undefined): boolean {
 
 /** CTA siempre en código, nunca delegado a GPT */
 function buildCTA(programa: string | null | undefined): string {
-  const opcionB = esInglesIdioma(programa)
-    ? '*B)* Agendar mi examen de ubicación gratuito 📝'
-    : '*B)* Quiero inscribirme ✍️'
-  return `\n\n¿Cómo te gustaría continuar?\n*A)* Tengo dudas 🤔\n${opcionB}`
+  if (esInglesIdioma(programa)) {
+    // El examen de ubicación es opcional — nunca debe bloquear la inscripción
+    return `\n\n¿Cómo te gustaría continuar?\n*A)* Tengo dudas 🤔\n*B)* Quiero inscribirme ✍️\n*C)* Agendar mi examen de ubicación gratuito (opcional) 📝`
+  }
+  return `\n\n¿Cómo te gustaría continuar?\n*A)* Tengo dudas 🤔\n*B)* Quiero inscribirme ✍️`
 }
 
 function eligeB(msg: string): boolean {
   const m = msg.toLowerCase()
-  return /\bb\b|opci[oó]n.*b|\b2\b|quiero.*clase|clase.*prueba|quiero inscrib|inscribirme|agendar.*examen|examen.*ubicaci[oó]n|quiero.*agendar|prueba.*gratuita/.test(m)
+  return /\bb\b|opci[oó]n.*b|\b2\b|quiero inscrib|inscribirme/.test(m)
 }
 
 function eligeA(msg: string): boolean {
   const m = msg.toLowerCase()
   return /\ba\b|opci[oó]n.*a|\b1\b|tengo duda|más duda|tengo preguntas/.test(m)
+}
+
+/** Examen de ubicación — solo aplica a cursos de idiomas y es opcional, nunca sustituye a "quiero inscribirme" */
+function eligeExamenUbicacion(msg: string): boolean {
+  const m = msg.toLowerCase()
+  return /\bc\b|opci[oó]n.*c|\b3\b|quiero.*clase|clase.*prueba|agendar.*examen|examen.*ubicaci[oó]n|quiero.*agendar|prueba.*gratuita/.test(m)
 }
 
 /** Detecta programa específico en el mensaje (igual que lab) — nunca retorna "inglés" genérico */
@@ -1690,6 +1711,201 @@ function esHabilidadesPsico(curso: string | null | undefined): boolean {
   return (curso || '') === CURSO_HABILIDADES_PSICO
 }
 
+// Lista cerrada de licenciaturas — únicas que piden Acta de Nacimiento,
+// Certificado de Bachillerato, CURP y fotografías. Todo lo que no esté
+// aquí NO debe recibir ese proceso solo por descarte.
+const PROGRAMAS_LICENCIATURA = [
+  'Psicología',
+  'Licenciatura en Inglés',
+  'Licenciatura en Inglés online',
+  'Administración turística',
+  'Administración turística online',
+  'Relaciones públicas y mercadotecnia',
+  'Relaciones públicas y mercadotecnia online',
+]
+
+function esLicenciatura(curso: string | null | undefined): boolean {
+  return PROGRAMAS_LICENCIATURA.includes(curso || '')
+}
+
+// Lista cerrada de cursos cortos/verano que NO son licenciatura y usan
+// el proceso simple de My Best Summer (acta + comprobante de pago).
+// Se mantiene explícita en vez de inferir "todo lo que no sea licenciatura"
+// para no arrastrar programas nuevos o no contemplados a un proceso incorrecto.
+const PROGRAMAS_VERANO_CORTO = [
+  'Cursos de verano niños',
+  'Cursos de verano adultos',
+  'Francés',
+  'Italiano',
+]
+
+function esVeranoOCorto(curso: string | null | undefined): boolean {
+  const c = curso || ''
+  if (PROGRAMAS_VERANO_CORTO.includes(c)) return true
+  const cLower = c.toLowerCase()
+  return cLower.includes('verano') || cLower.includes('my best summer')
+}
+
+const CURSO_BACHILLERATO = 'Bachillerato'
+
+function esBachillerato(curso: string | null | undefined): boolean {
+  return (curso || '') === CURSO_BACHILLERATO
+}
+
+const INSCRIPCION_BACHILLERATO_MSG = `🔴PROCESO DE INSCRIPCIÓN BACHILLERATO 🔴
+
+Antes que nada permítenos felicitarte por tomar acción en tu proceso de crecimiento profesional y personal, estamos seguros que has tomado la decisión correcta y nos dará mucho gusto acompañarte en este proceso.
+
+Para empezar tu proceso de inscripción vas a necesitar los siguientes archivos:
+
+Acta de nacimiento, el archivo debe llevar el siguiente nombre:
+Acta de nacimiento (tu nombre)
+
+Certificado de secundaria, el archivo debe llevar el siguiente nombre:
+Certificado de secundaria (tu nombre)
+
+Comprobante de pago, el archivo debe llevar el siguiente nombre:
+Comprobante de pago (tu nombre)
+
+Haz clic en la liga para descargar la información de nuestra cuenta bancaria:
+https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
+
+🔵¿Ya tienes todos los documentos?
+
+Por favor, sigue las indicaciones para completar tu inscripción.
+
+1️⃣ Ingresar a https://www.windsor.edu.mx/solicitud-de-inscripcion y llenar la "solicitud de inscripción bachillerato / licenciatura"
+
+2️⃣ Envíanos un mensaje por este medio cuando hayas terminado.
+
+Listo, ya eres parte de la familia Windsor 🎉🎉🎉
+
+¡¡BIENVENID@!!`
+
+// Lista cerrada de los diplomados del catálogo (más el keyword "diplomado" como
+// señal explícita adicional, no un catch-all sobre curso genérico).
+const PROGRAMAS_DIPLOMADO = [
+  'Administración de Instituciones de la Salud',
+  'Administración de recursos humanos',
+  'Administración de restaurantes',
+  'Análisis y Evaluación de Políticas Públicas',
+  'Comunicación y Liderazgo en el Sector Público',
+  'Comunicación y Liderazgo empresarial',
+  'Competencias educativas',
+  'Comunicación y Gobierno Digital',
+  'Contabilidad',
+  'Creación y dirección de franquicias',
+  'Ciencias del deporte',
+  'Enfermería',
+  'Epidemiología',
+  'Equidad de genero y diversidad sexual',
+  'Farmacología',
+  'Gamificación educativa',
+  'Gerontología',
+  'Innovación y Gobierno Digital',
+  'Mindfulness',
+  'Nutrición deportiva',
+  'Nutrición y Dietética',
+  'Políticas y Procesos de Participación Ciudadana',
+  'Piscología criminológica',
+  'Psicología educativa',
+  'Realidad Virtual',
+  'Salud pública',
+  'Tecnología educativa',
+  'Terapia ocupacional',
+  'Tanatología',
+  'Enseñanza del idioma inglés',
+  'Enseñanza del idioma español',
+]
+
+function esDiplomado(curso: string | null | undefined): boolean {
+  const c = curso || ''
+  if (PROGRAMAS_DIPLOMADO.includes(c)) return true
+  return /diplomado/i.test(c)
+}
+
+const INSCRIPCION_DIPLOMADO_MSG = `🔴PROCESO DE INSCRIPCIÓN DIPLOMADOS🔴
+
+1️⃣ Enviar documentación escaneada al correo hola@windsor.edu.mx (copia de Acta de Nacimiento)
+
+2️⃣ Ingresar a https://www.windsor.edu.mx/solicitud-de-inscripcion y llenar la solicitud de inscripción.
+
+3️⃣ Una vez recibida la solicitud, te enviamos una referencia y la cuenta a la que harás tu pago.
+
+Listo, ya eres parte de la familia Windsor 🎉🎉🎉
+
+¡¡BIENVENID@!!`
+
+const INSCRIPCION_IDIOMA_MSG = `🔴PROCESO DE INSCRIPCIÓN CURSOS DE IDIOMAS🔴
+
+Antes que nada permítenos felicitarte por tomar acción en tu proceso de crecimiento profesional y personal, estamos seguros que has tomado la decisión correcta y nos dará mucho gusto acompañarte en este proceso.
+
+Para empezar tu proceso de inscripción vas a necesitar los siguientes archivos:
+
+Acta de nacimiento, el archivo debe llevar el siguiente nombre:
+Acta de nacimiento (tu nombre)
+
+Comprobante de pago, el archivo debe llevar el siguiente nombre:
+Comprobante de pago (tu nombre)
+
+Haz clic en la liga para descargar la información de nuestra cuenta bancaria:
+https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
+
+🔵¿Ya tienes todos los documentos?
+
+Por favor, sigue las indicaciones para completar tu inscripción.
+
+1️⃣ Ingresar a https://www.windsor.edu.mx/solicitud-de-inscripcion y llenar la "solicitud de inscripción cursos de idiomas"
+
+2️⃣ Envíanos un mensaje por este medio cuando hayas terminado.
+
+Listo, ya eres parte de la familia Windsor 🎉🎉🎉
+
+¡¡BIENVENID@!!`
+
+/**
+ * Tipo de proceso de inscripción según el curso del lead.
+ * 'desconocido' es intencional: ante un curso no contemplado en ninguna
+ * lista, el bot NO debe adivinar (así se originó el bug de mandar
+ * documentos de licenciatura a leads de cursos cortos) — debe escalar.
+ */
+type TipoInscripcion = 'verano' | 'habilidades' | 'bachillerato' | 'diplomado' | 'idioma' | 'licenciatura' | 'desconocido'
+
+function tipoInscripcion(curso: string | null | undefined): TipoInscripcion {
+  if (esHabilidadesPsico(curso)) return 'habilidades'
+  if (esVeranoOCorto(curso)) return 'verano'
+  if (esBachillerato(curso)) return 'bachillerato'
+  if (esDiplomado(curso)) return 'diplomado'
+  if (esInglesIdioma(curso)) return 'idioma'
+  if (esLicenciatura(curso)) return 'licenciatura'
+  return 'desconocido'
+}
+
+const INSCRIPCION_DESCONOCIDA_MSG = `¡Perfecto! 🎉 Para darte el proceso de inscripción exacto de tu programa, permíteme confirmarlo un momento con un asesor. En breve te contactamos. 😊`
+
+/** Mensaje de inscripción para un tipo ya conocido (no llamar con 'desconocido': ese caso se maneja aparte, con alerta a Harold). */
+function mensajeInscripcionPara(tipo: Exclude<TipoInscripcion, 'desconocido'>): string {
+  switch (tipo) {
+    case 'verano': return INSCRIPCION_VERANO_MSG
+    case 'habilidades': return INSCRIPCION_HABILIDADES_MSG
+    case 'bachillerato': return INSCRIPCION_BACHILLERATO_MSG
+    case 'diplomado': return INSCRIPCION_DIPLOMADO_MSG
+    case 'idioma': return INSCRIPCION_IDIOMA_MSG
+    case 'licenciatura': return INSCRIPCION_LICS_MSG
+  }
+}
+
+async function alertarProgramaNoReconocido(nombreLead: string | null | undefined, waNumber: string, curso: string | null | undefined) {
+  try {
+    await sendMetaWhatsAppMessage({
+      to: ADMIN_WA_ALERTA,
+      body: `⚠️ Programa no reconocido en flujo de inscripción: "${curso || '(vacío)'}"\nLead: ${nombreLead || waNumber} (${waNumber})\n\nAgrégalo a la lista correspondiente en webhook/route.ts (PROGRAMAS_LICENCIATURA, PROGRAMAS_VERANO_CORTO o PROGRAMAS_DIPLOMADO).`,
+    })
+  } catch (err) {
+    console.error('[INSCRIPCION] Error alertando programa no reconocido:', err)
+  }
+}
+
 const INSCRIPCION_HABILIDADES_MSG = `¡Perfecto! 😊 Para inscribirte al curso *Habilidades para la práctica psicoterapéutica* solo necesitas:
 
 1️⃣ Llenar este formulario: https://docs.google.com/forms/d/e/1FAIpQLSf2QqhL5xo-C35_g2suWzMpX0oWpdvZS082DPHNksY-CcPNBQ/viewform
@@ -1911,10 +2127,10 @@ No menciones el programa todavía — solo pide el correo.`,
     info_enviada: `Da la información del programa usando la BASE DE CONOCIMIENTO: duración, costos (inscripción y mensualidad), horarios, modalidad, certificaciones, campo laboral.
 IMPORTANTE: SIEMPRE incluye la promoción vigente indicando el porcentaje de descuento y el precio final a pagar. Formatea así: "Inscripción: ~$PRECIO_ORIGINAL~ → $PRECIO_CON_DESCUENTO (X% de descuento)". Si la BASE no tiene el precio exacto con descuento, calcula el descuento a partir del porcentaje indicado.
 NO incluyas el proceso de inscripción ni links de pago — eso se envía en otro paso.
-SIEMPRE termina el mensaje con exactamente estas dos opciones, sin excepción:
+SIEMPRE termina el mensaje con exactamente estas opciones, sin excepción:
 A) Tengo dudas sobre el programa
 B) Quiero inscribirme
-(Si el programa es inglés adultos, inglés niños o cualquier curso de idiomas, cambia B por: "B) Quiero agendar mi clase de prueba gratuita" y pon siguienteFase: accion)`,
+(Si el programa es inglés adultos, inglés niños o cualquier curso de idiomas, agrega una tercera opción: "C) Quiero agendar mi examen de ubicación gratuito (opcional)". El examen es opcional y NUNCA sustituye a la opción B — quien quiera inscribirse debe poder hacerlo sin haberlo tomado)`,
 
     dudas: `Responde la duda con datos concretos de la BASE (costos, horarios, requisitos, etc.). Si la duda es sobre costos o precio, incluye siempre la promoción vigente con el porcentaje de descuento y el precio final (ej. "Inscripción: ~$2,300~ → $690 (70% de descuento)").
 Si la pregunta es ambigua o indirecta, interpreta la intención del prospecto y busca en la BASE el tema más relacionado. Ejemplos:
@@ -1924,14 +2140,16 @@ Si la pregunta es ambigua o indirecta, interpreta la intención del prospecto y 
 - Si pregunta cuánto tiempo o cuándo termina → responde sobre duración
 Al terminar, vuelve a presentar:
 A) Tengo más dudas
-B) Quiero inscribirme [o "B) Quiero mi clase de prueba" si es inglés]
-Si elige A → siguienteFase: dudas. Si elige B → siguienteFase: inscripcion (o clase_prueba si es inglés).`,
+B) Quiero inscribirme
+(Si es inglés adultos/niños, agrega: C) Quiero agendar mi examen de ubicación gratuito (opcional))
+Si elige A → siguienteFase: dudas. Si elige B → siguienteFase: inscripcion. Si elige C (solo idiomas) → siguienteFase: examen.`,
 
-    accion: `Si el prospecto hace una pregunta (sobre costos, horarios, uniformes, materiales, requisitos, etc.), respóndela primero con datos concretos de la BASE y luego presenta las opciones. Si solo responde con A/B o no hace ninguna pregunta, presenta directamente las opciones.
+    accion: `Si el prospecto hace una pregunta (sobre costos, horarios, uniformes, materiales, requisitos, etc.), respóndela primero con datos concretos de la BASE y luego presenta las opciones. Si solo responde con A/B/C o no hace ninguna pregunta, presenta directamente las opciones.
 Opciones a presentar:
-- Si el programa es inglés (niños o adultos): A) Tengo dudas  B) Quiero agendar mi clase de prueba gratuita → siguienteFase: clase_prueba
-- Para todos los demás programas: A) Tengo dudas  B) Quiero inscribirme → siguienteFase: inscripcion
-Si elige A → siguienteFase: dudas.`,
+- Si el programa es inglés (niños o adultos): A) Tengo dudas  B) Quiero inscribirme  C) Quiero agendar mi examen de ubicación gratuito (opcional)
+- Para todos los demás programas: A) Tengo dudas  B) Quiero inscribirme
+El examen de ubicación (opción C) es opcional y NUNCA sustituye a la inscripción — no lo ofrezcas como si fuera el único camino.
+Si elige A → siguienteFase: dudas. Si elige B → siguienteFase: inscripcion. Si elige C (solo idiomas) → siguienteFase: examen.`,
 
     asesor: `INFORMACIÓN DE CONTACTO DE LOS PLANTELES:
 🏢 CHILPANCINGO: Sofía Tena #1, Col. Viguri | Tel: 747 472 8775 / 747 472 2466 / 747 491 4498
@@ -1952,7 +2170,7 @@ Si la pregunta es ambigua o indirecta, interpreta la intención y busca en la BA
 - Si pregunta si el título "vale" o "sirve" → responde sobre RVOE y reconocimiento oficial
 - Si pregunta qué necesita traer o si hay libros → responde sobre material
 - Si pregunta cuánto tiempo o cuándo termina → responde sobre duración
-Si quiere inscribirse → siguienteFase: inscripcion. Si quiere clase de prueba (solo inglés) → siguienteFase: clase_prueba.
+Si quiere inscribirse → siguienteFase: inscripcion. Si quiere el examen de ubicación (opcional, solo inglés) → siguienteFase: examen.
 Si no hay una pregunta clara, recuérdale amablemente el siguiente paso según su programa.`,
     inscripcion_pendiente: `El lead está completando su inscripción a My Best Summer. Si hace una pregunta, respóndela PRIMERO antes de recordar los pasos:
 - Diploma/certificado: "Sí, al concluir el nivel recibes un *Diploma avalado por la SEP* 🎓"
@@ -2011,10 +2229,12 @@ REGLAS:
 - HORARIOS LICENCIATURAS (usa estos exactos, aplican a todas las licenciaturas, son aproximados y pueden cambiar cada cuatrimestre): *Matutino* 8:00 a.m. a 1:00 p.m. | *Vespertino* 2:00 p.m. a 8:00 p.m. (este turno solo se abre si hay suficientes interesados, no está garantizado que se ofrezca cada cuatrimestre) | *Sabatino* 8:00 a.m. a 5:30 p.m. Si preguntan por el horario de alguna licenciatura o específicamente por la modalidad sabatina, da este dato directamente — NUNCA derives a un asesor por esta pregunta, ya la sabes.
 - PRECIOS LICENCIATURAS (CRÍTICO — NUNCA INVENTES): Nunca inventes, redondees ni recuerdes de memoria los precios de inscripción o mensualidad de licenciaturas. Usa EXACTAMENTE los montos de la ficha del programa (revisa el historial de la conversación si ya se envió, o los datos de la BASE). Si no tienes el monto exacto a la mano, no des un precio aproximado — ofrece reenviar la ficha completa del programa en vez de arriesgarte a dar un dato incorrecto.
 - VIGENCIA DE PROMOCIÓN: El descuento de la "promoción del mes" (actualmente 30% en mensualidad) es el vigente este mes para nuevas inscripciones. Si el prospecto se inscribe mientras esta promoción está activa, el descuento se mantiene FIJO durante todo su primer año. A partir del segundo año, el descuento del 30% se puede conservar SI el estudiante mantiene un promedio mínimo de 9. Si preguntan si el precio es fijo o temporal, responde: "Esta es la promoción vigente este mes. Si te inscribes ahora, el descuento de tu mensualidad queda fijo durante todo tu primer año. A partir del segundo año, puedes seguir teniendo el 30% de descuento si mantienes un promedio de 9 o más." NUNCA digas que el descuento desaparece automáticamente al terminar el primer año sin mencionar la condición del promedio.
+- PROMOCIÓN VS. CONVENIO (CRÍTICO — NO SON ACUMULABLES): La "promoción del mes" (70% inscripción / 30% mensualidad) y los descuentos de CONVENIOS_DETALLE son dos beneficios distintos que NUNCA se suman ni se aplican uno sobre el otro. Si el prospecto ya tiene un convenio identificado Y pregunta por precio, preséntale AMBAS opciones por separado (la promoción vigente y el descuento de su convenio) con sus montos ya calculados a partir de la BASE, y aclara que aplica el que él elija, no los dos juntos. Además, son de distinta naturaleza: la promoción del mes aplica fija el primer año (revisable a partir del segundo con promedio ≥9, ver regla de arriba); el descuento de convenio aplica durante TODA la carrera mientras el convenio con esa institución siga vigente. Menciona esa diferencia cuando compares ambas opciones — no declares una como "mejor" sin explicar el trade-off (más descuento inicial vs. estabilidad todo el programa). NUNCA tomes el precio ya promocionado (ej. el de 30% de descuento) como si fuera el precio "normal" para después aplicarle el porcentaje del convenio encima.
 - RVOE: El RVOE de Instituto Windsor es *SEG/00052/2002*, avalado por la SEP. Cuando alguien pregunte por RVOE, reconocimiento oficial, o validez del título, da este número directamente.
 - CURSO HABILIDADES PARA LA PRÁCTICA PSICOTERAPÉUTICA (usa estos datos exactos, nunca inventes otros): Responsable: Psic. Carlos Manuel Palacios Pita. Duración: 4 módulos de 3 sesiones cada uno, repartidos en 4 semanas, lunes a miércoles de 3:00 p.m. a 4:30 p.m. Fechas: Módulo 1 "Introducción y habilidades básicas" 20-22 jul, Módulo 2 "Análisis funcional aplicado" 27-29 jul, Módulo 3 "Moldeamiento verbal" 3-5 ago, Módulo 4 "Autorregulación emocional" 10-12 ago. Costo (incluye constancia): alumnos Windsor $300, público en general $400 — pregunta si es alumno Windsor para dar el precio correcto. Cupo: mínimo 10, máximo 25 participantes.
 - CERTEZA: Si tienes la información, dala directa. NUNCA uses frases como "permíteme verificarlo", "déjame revisar", "lo confirmo en un momento" o similares en tu respuesta. Si genuinamente no sabes, usa necesitaRevision: true — no hedges.
 - PRECIOS: NUNCA calcules precios ni descuentos tú mismo. Copia los precios EXACTOS de la BASE DE CONOCIMIENTO tal como están escritos. Si la BASE no tiene el precio exacto, NO lo inventes — di que le darás el detalle cuando elija el programa específico.
+- DATOS BANCARIOS (CRÍTICO — NUNCA INVENTES NI ESCRIBAS NÚMEROS): Jamás escribas un número de cuenta, CLABE, tarjeta o banco de memoria — no existen en tu BASE DE CONOCIMIENTO y cualquier dígito que generes es una alucinación. La única forma válida de dar datos bancarios es el link de Drive que ya está en el proceso de inscripción del programa (se envía en su propio paso). Si el prospecto pide la cuenta/CLABE antes de llegar a ese paso, o pregunta algo de pago que no reconoces con certeza, responde amablemente que se lo confirma un asesor y pon necesitaRevision: true — NUNCA generes tú el dato.
 - LICENCIATURAS DISPONIBLES (lista completa, usa siempre estas 4 — nunca omitas ninguna): *Licenciatura en Inglés* (presencial u online), *Administración Turística* (presencial u online), *Relaciones Públicas y Mercadotecnia* (presencial u online), *Psicología* (presencial). Si preguntan "qué licenciaturas tienen" o piden la lista general, menciona las 4 por nombre — no te bases solo en lo que traiga la BASE DE CONOCIMIENTO para esta lista, ya la tienes aquí completa.
 - Si el prospecto pregunta por varias licenciaturas o programas en general (sin elegir uno), da solo una vista general muy breve (mención de programas, duración, existencia de promociones) y pide que elija uno específico para darle el detalle completo y exacto. No intentes resumir precios de múltiples programas.
 - "siguienteFase": saludo, programa, correo, info_enviada, dudas, accion, asesor, inscripcion, clase_prueba, cerrado, perdido, seguimiento.
@@ -2245,7 +2465,6 @@ export async function POST(request: Request) {
 
         if (existingConv?.id) {
           conversacionId = existingConv.id
-          conversacionRow = existingConv
           const nextConversationUpdate: {
             lead_id: string | null
             estado: string
@@ -2268,6 +2487,9 @@ export async function POST(request: Request) {
             .from('whatsapp_conversaciones')
             .update(nextConversationUpdate)
             .eq('id', existingConv.id)
+          // Refleja de inmediato el salto de fase (si hubo) para que el resto de
+          // este mismo request use la fase nueva, no la vieja recién leída de la DB.
+          conversacionRow = { ...existingConv, fase: nextConversationUpdate.fase ?? existingConv.fase }
         } else {
           const { data: nuevaConv } = await supabase
             .from('whatsapp_conversaciones')
@@ -2893,10 +3115,14 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         return buildProviderResponse(provider, resp, waNumber)
       }
       if (/^no\s*tengo\s*dudas[\s\S]*$/i.test(msgTrimBtn)) {
-        const esVer = (leadSnapshot?.curso || '').toLowerCase().includes('verano')
-        const esHab = esHabilidadesPsico(leadSnapshot?.curso)
-        const botMsg = esVer ? INSCRIPCION_VERANO_MSG : esHab ? INSCRIPCION_HABILIDADES_MSG : INSCRIPCION_LICS_MSG
-        const nextF = esVer ? 'inscripcion_pendiente' : 'inscripcion'
+        const tipoIns = tipoInscripcion(leadSnapshot?.curso)
+        if (tipoIns === 'desconocido') {
+          await alertarProgramaNoReconocido(leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_DESCONOCIDA_MSG, 'seguimiento', leadId)
+          return buildProviderResponse(provider, INSCRIPCION_DESCONOCIDA_MSG, waNumber)
+        }
+        const botMsg = mensajeInscripcionPara(tipoIns)
+        const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
         // Asegurar que el stage del lead llegue a inscripcion_pendiente en Kanban
         if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
@@ -2912,10 +3138,14 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
 
       // ── Interceptor de botones de template reactivacion_verano ──────────────
       if (/^quiero\s*apartar\s*mi\s*lugar[\s\S]*$/i.test(msgTrimBtn)) {
-        const esVer = (leadSnapshot?.curso || '').toLowerCase().includes('verano')
-        const esHab = esHabilidadesPsico(leadSnapshot?.curso)
-        const botMsg = esVer ? INSCRIPCION_VERANO_MSG : esHab ? INSCRIPCION_HABILIDADES_MSG : INSCRIPCION_LICS_MSG
-        const nextF = esVer ? 'inscripcion_pendiente' : 'inscripcion'
+        const tipoIns = tipoInscripcion(leadSnapshot?.curso)
+        if (tipoIns === 'desconocido') {
+          await alertarProgramaNoReconocido(leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_DESCONOCIDA_MSG, 'seguimiento', leadId)
+          return buildProviderResponse(provider, INSCRIPCION_DESCONOCIDA_MSG, waNumber)
+        }
+        const botMsg = mensajeInscripcionPara(tipoIns)
+        const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
         if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
         return buildProviderResponse(provider, botMsg, waNumber)
@@ -3137,20 +3367,23 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
 
       // ── Fase accion: elegir A (dudas) o B (inscripción/examen) ───────────────
       if (phase === 'accion') {
+        // El examen de ubicación es opcional (solo idiomas) y nunca debe bloquear
+        // el acceso a "quiero inscribirme" — se revisa aparte, antes de eligeB.
+        if (esInglesIdioma(leadSnapshot?.curso) && eligeExamenUbicacion(originalText)) {
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, EXAMEN_UBICACION_MSG, 'examen', leadId)
+          return buildProviderResponse(provider, EXAMEN_UBICACION_MSG, waNumber)
+        }
         if (eligeB(originalText)) {
-          if (esInglesIdioma(leadSnapshot?.curso)) {
-            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, EXAMEN_UBICACION_MSG, 'examen', leadId)
-            return buildProviderResponse(provider, EXAMEN_UBICACION_MSG, waNumber)
-          } else if ((leadSnapshot?.curso || '').toLowerCase().includes('verano')) {
-            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_VERANO_MSG, 'inscripcion_pendiente', leadId)
-            return buildProviderResponse(provider, INSCRIPCION_VERANO_MSG, waNumber)
-          } else if (esHabilidadesPsico(leadSnapshot?.curso)) {
-            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_HABILIDADES_MSG, 'inscripcion', leadId)
-            return buildProviderResponse(provider, INSCRIPCION_HABILIDADES_MSG, waNumber)
-          } else {
-            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_LICS_MSG, 'inscripcion', leadId)
-            return buildProviderResponse(provider, INSCRIPCION_LICS_MSG, waNumber)
+          const tipoIns = tipoInscripcion(leadSnapshot?.curso)
+          if (tipoIns === 'desconocido') {
+            await alertarProgramaNoReconocido(leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
+            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_DESCONOCIDA_MSG, 'seguimiento', leadId)
+            return buildProviderResponse(provider, INSCRIPCION_DESCONOCIDA_MSG, waNumber)
           }
+          const botMsgAccion = mensajeInscripcionPara(tipoIns)
+          const nextFAccion = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsgAccion, nextFAccion, leadId)
+          return buildProviderResponse(provider, botMsgAccion, waNumber)
         }
         if (eligeA(originalText)) {
           // Deja que GPT maneje la duda con RAG — sigue al bloque principal
@@ -3237,6 +3470,30 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         if (esHabilidadesPsico(leadSnapshot?.curso)) {
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_HABILIDADES_MSG, 'inscripcion', leadId)
           return buildProviderResponse(provider, INSCRIPCION_HABILIDADES_MSG, waNumber)
+        }
+        // Bachillerato y Diplomados tampoco usan el flujo A/B de licenciaturas —
+        // cada uno tiene su propio proceso simple
+        if (esBachillerato(leadSnapshot?.curso)) {
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_BACHILLERATO_MSG, 'inscripcion', leadId)
+          return buildProviderResponse(provider, INSCRIPCION_BACHILLERATO_MSG, waNumber)
+        }
+        if (esDiplomado(leadSnapshot?.curso)) {
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_DIPLOMADO_MSG, 'inscripcion', leadId)
+          return buildProviderResponse(provider, INSCRIPCION_DIPLOMADO_MSG, waNumber)
+        }
+        // Cursos de idiomas (inglés adultos/niños): tampoco usan el flujo A/B de
+        // licenciaturas — el examen de ubicación es aparte y opcional
+        if (esInglesIdioma(leadSnapshot?.curso)) {
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_IDIOMA_MSG, 'inscripcion', leadId)
+          return buildProviderResponse(provider, INSCRIPCION_IDIOMA_MSG, waNumber)
+        }
+        // A partir de aquí el flujo A/B (INSCRIPCION_ONLINE_MSG / buildInscripcionPresencialMsg)
+        // pide Certificado de Bachillerato y CURP — solo aplica a licenciaturas. Si el curso
+        // no está en la lista cerrada de licenciaturas, no adivinar: escalar.
+        if (!esLicenciatura(leadSnapshot?.curso)) {
+          await alertarProgramaNoReconocido(leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_DESCONOCIDA_MSG, 'seguimiento', leadId)
+          return buildProviderResponse(provider, INSCRIPCION_DESCONOCIDA_MSG, waNumber)
         }
         const msgI = originalText.toLowerCase()
         if (/\ba\b|en l[ií]nea|online|desde aqu[ií]|digital|virtual/i.test(msgI)) {
@@ -3542,7 +3799,8 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         await supabase.from('leads').update({ email: gpt.email }).eq('id', leadId)
       }
       if (gpt.programa && leadId) {
-        await supabase.from('leads').update({ curso: gpt.programa, ...(getValorPrograma(gpt.programa) ? { valor: getValorPrograma(gpt.programa) } : {}) }).eq('id', leadId)
+        const cursoCanonico = canonicalizarPrograma(gpt.programa, originalText)
+        await supabase.from('leads').update({ curso: cursoCanonico, ...(getValorPrograma(cursoCanonico) ? { valor: getValorPrograma(cursoCanonico) } : {}) }).eq('id', leadId)
       }
 
       // Actualizar stage del lead según la fase destino
@@ -3572,8 +3830,9 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         }
         // Si el usuario ya nombró un programa específico sin ambigüedad, saltar catálogo e ir a correo
         if (gpt.programa && leadId) {
-          await supabase.from('leads').update({ curso: gpt.programa, ...(getValorPrograma(gpt.programa) ? { valor: getValorPrograma(gpt.programa) } : {}) }).eq('id', leadId)
-          const correoMsg = gpt.respuesta || `¡Perfecto! Para contarte todo sobre ${gpt.programa}, ¿me compartes tu correo para darte seguimiento personalizado?`
+          const cursoCanonico = canonicalizarPrograma(gpt.programa, originalText)
+          await supabase.from('leads').update({ curso: cursoCanonico, ...(getValorPrograma(cursoCanonico) ? { valor: getValorPrograma(cursoCanonico) } : {}) }).eq('id', leadId)
+          const correoMsg = gpt.respuesta || `¡Perfecto! Para contarte todo sobre ${cursoCanonico}, ¿me compartes tu correo para darte seguimiento personalizado?`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, correoMsg, 'correo')
           return buildProviderResponse(provider, correoMsg, waNumber)
         }
@@ -3624,22 +3883,35 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         botMessage = buildClasePruebaMsg(leadSnapshot?.nombre, leadSnapshot?.email, leadSnapshot?.curso, leadSnapshot?.whatsapp)
         nextFase = 'clase_prueba'
       } else if (nextFase === 'inscripcion' && phase !== 'inscripcion') {
-        // Track B: proceso de inscripción — verano va directo al proceso de verano
-        const cursoLower = (leadSnapshot?.curso || '').toLowerCase()
-        if (cursoLower.includes('verano') || cursoLower.includes('my best summer')) {
-          botMessage = INSCRIPCION_VERANO_MSG
-          nextFase = 'inscripcion_pendiente'
-        } else if (esHabilidadesPsico(leadSnapshot?.curso)) {
-          botMessage = INSCRIPCION_HABILIDADES_MSG
+        // Track B: proceso de inscripción — según lista cerrada de programas, nunca por descarte
+        const tipoInsGPT = tipoInscripcion(leadSnapshot?.curso)
+        if (tipoInsGPT === 'desconocido') {
+          await alertarProgramaNoReconocido(leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
+          botMessage = INSCRIPCION_DESCONOCIDA_MSG
+          nextFase = 'seguimiento'
         } else {
-          botMessage = INSCRIPCION_LICS_MSG
+          botMessage = mensajeInscripcionPara(tipoInsGPT)
+          nextFase = tipoInsGPT === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         }
       } else if (nextFase === 'inscripcion_online') {
         botMessage = INSCRIPCION_ONLINE_MSG
         nextFase = 'seguimiento'
       } else if (nextFase === 'inscripcion_presencial') {
-        botMessage = buildInscripcionPresencialMsg(leadSnapshot?.nombre, leadSnapshot?.email, leadSnapshot?.curso, leadSnapshot?.whatsapp)
-        nextFase = 'seguimiento'
+        // buildInscripcionPresencialMsg pide Certificado de Bachillerato y CURP — solo licenciaturas
+        if (esLicenciatura(leadSnapshot?.curso)) {
+          botMessage = buildInscripcionPresencialMsg(leadSnapshot?.nombre, leadSnapshot?.email, leadSnapshot?.curso, leadSnapshot?.whatsapp)
+          nextFase = 'seguimiento'
+        } else {
+          const tipoInsPres = tipoInscripcion(leadSnapshot?.curso)
+          if (tipoInsPres === 'desconocido') {
+            await alertarProgramaNoReconocido(leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
+            botMessage = INSCRIPCION_DESCONOCIDA_MSG
+            nextFase = 'seguimiento'
+          } else {
+            botMessage = mensajeInscripcionPara(tipoInsPres)
+            nextFase = tipoInsPres === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
+          }
+        }
       } else if (nextFase === 'inscripcion_confirmada') {
         const nombreLead = leadSnapshot?.nombre || ''
         botMessage = `¡Perfecto${nombreLead ? ' ' + nombreLead : ''}! 🎉 Recibimos tu información. Un asesor revisará todo y te confirmará tu inscripción en breve. ¡Bienvenid@ a la familia Windsor!`
