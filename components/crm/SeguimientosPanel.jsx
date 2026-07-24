@@ -32,6 +32,15 @@ function diasDesde(fechaStr) {
   return Math.floor((Date.now() - new Date(fechaStr).getTime()) / (1000 * 60 * 60 * 24));
 }
 
+function tiempoRestanteVentana(fechaStr) {
+  if (!fechaStr) return null;
+  const cierraEn = new Date(fechaStr).getTime() + 24 * 60 * 60 * 1000 - Date.now();
+  if (cierraEn <= 0) return null;
+  const horas = Math.floor(cierraEn / (1000 * 60 * 60));
+  const minutos = Math.floor((cierraEn % (1000 * 60 * 60)) / (1000 * 60));
+  return horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min`;
+}
+
 function formatTelefono(wa) {
   if (!wa) return "";
   return wa.replace(/^52/, "").replace(/(\d{3})(\d{3})(\d{4})/, "$1 $2 $3");
@@ -56,6 +65,7 @@ function TarjetaMensaje({ seg, onAccion }) {
   }
   const tier = TIER_CONFIG[seg.tier] || TIER_CONFIG[1];
   const dias = diasDesde(seg.ultimo_usuario_at);
+  const restanteVentana = seg.en_ventana_24h ? tiempoRestanteVentana(seg.ultimo_usuario_at) : null;
 
   async function enviar() {
     setBusy(true);
@@ -89,7 +99,7 @@ function TarjetaMensaje({ seg, onAccion }) {
               {TIPO_ICON.mensaje_wa} {tier.label}
             </span>
             {seg.en_ventana_24h
-              ? <span style={{ fontSize: 11, background: "#dcfce7", color: "#15803d", padding: "2px 8px", borderRadius: 6, fontWeight: 500 }}>✅ Ventana 24h abierta</span>
+              ? <span style={{ fontSize: 11, background: "#dcfce7", color: "#15803d", padding: "2px 8px", borderRadius: 6, fontWeight: 500 }}>✅ Cierra en {restanteVentana || "menos de 1min"}</span>
               : <span style={{ fontSize: 11, background: "#fef9c3", color: "#92400e", padding: "2px 8px", borderRadius: 6, fontWeight: 500 }}>⏰ Fuera de ventana</span>
             }
           </div>

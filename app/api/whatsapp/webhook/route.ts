@@ -9,6 +9,8 @@ import {
 } from '@/lib/whatsapp/provider'
 import { enviarBienvenidaLeadManual } from '@/lib/whatsapp/bienvenida'
 
+export const maxDuration = 60
+
 function escapeXml(value: string) {
   return value
     .replace(/&/g, '&amp;')
@@ -671,13 +673,13 @@ async function buildProviderResponse(
 const INFO_MSGS: Record<string, string> = {
   'Inglés para adultos': `😊 Los cursos regulares de inglés para adultos inician en *septiembre 2026*.
 
-Sin embargo, si quieres empezar antes, tenemos nuestro programa *My Best Summer* que inicia el *13 de julio* ☀️ — cursos Extra Intensivos de inglés, francés e italiano ideales para avanzar tu nivel en pocas semanas.
+Sin embargo, si quieres empezar antes, tenemos nuestro programa *My Best Summer* que inicia el *20 de julio* ☀️ — cursos Extra Intensivos de inglés, francés e italiano ideales para avanzar tu nivel en pocas semanas.
 
 ¿Te gustaría conocer los detalles de My Best Summer o prefieres que te contactemos cuando abran inscripciones de septiembre?`,
 
   'Inglés para niños': `😊 Los cursos regulares de inglés para niños inician en *septiembre 2026*.
 
-Sin embargo, si quieres que tu hij@ empiece antes, tenemos *My Best Summer 2026* que inicia el *13 de julio* ☀️ — un verano lleno de actividades: idiomas, robótica, arte, kung fu, repostería y más, organizado por grupos de edad (4-6, 7-9 y 10-12 años).
+Sin embargo, si quieres que tu hij@ empiece antes, tenemos *My Best Summer 2026* que inicia el *20 de julio* ☀️ — un verano lleno de actividades: idiomas, robótica, arte, kung fu, repostería y más, organizado por grupos de edad (4-6, 7-9 y 10-12 años).
 
 ¿Te gustaría conocer los detalles de My Best Summer o prefieres que te contactemos cuando abran inscripciones de septiembre?`,
 
@@ -699,7 +701,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Salud, educación, medio ambiente, producción, consumo y convivencia social.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1mw16jhbwN3K2dBy3ajcb3qREOPVXZ9rb/view`,
+📄 Plan de estudios: https://drive.google.com/file/d/1CuvtEmWZ8TdrI48xYXBxUBPb2PyGveBw/view`,
 
   'Licenciatura en Inglés': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Inglés:
 
@@ -719,7 +721,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Docente, traductor, asesor editorial, call centers, centros de investigación y organismos internacionales.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1M_K1sIqh-8LgZdTsiAmIRMOkVIiTw295/view`,
+📄 Plan de estudios: https://drive.google.com/file/d/1NZeL0KEroyx0eVFeAKSaxgr5bnjjKR_Z/view`,
 
   'Licenciatura en Inglés online': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Inglés Online:
 
@@ -757,7 +759,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Agencias de viajes, hoteles, resorts, operadores turísticos, eventos y convenciones.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1FMFbZ4pupnqkD_X1pBUcxlVo0HmRxUPb/view`,
+📄 Plan de estudios: https://drive.google.com/file/d/18QTS1qOE5DDJuI--RCqhuIv89hPv0DiK/view`,
 
   'Administración turística online': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Administración Turística Online:
 
@@ -797,7 +799,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Agencias de publicidad, marketing, medios de comunicación, gobierno, tecnología, entretenimiento.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1tv2023m30ZVHJRryfwhNm6tT9wICHvnZ/view`,
+📄 Plan de estudios: https://drive.google.com/file/d/1GtQPIwHcopnkvfBh4oQpUNZw0ekkyayf/view`,
 
   'Relaciones públicas y mercadotecnia online': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Relaciones Públicas y Mercadotecnia Online:
 
@@ -838,7 +840,7 @@ Modalidad: Presencial | Duración: 2 años
 
   'Cursos de verano niños': `👋 ¡Hola! Gracias por tu interés en *My Best Summer 2026* de Instituto Windsor. ☀️
 
-📅 *Fechas:* Del 13 de julio al 07 de agosto.
+📅 *Fechas:* Del 20 de julio al 07 de agosto.
 
 👧🧒 Contamos con grupos por edades:
 
@@ -877,16 +879,14 @@ Modalidad: Presencial | Duración: 2 años
 
 📍 *Ubicación:* Calle Sofía Tena #1, Col. Viguri.
 
-📄 Programa completo: https://drive.google.com/file/d/1I7kD2vtkRsJ_XlYa1ZaLijuRfUUgkW6j/view?usp=sharing
-
-💰 *Inversión:* $2,100 MXN + $400 materiales.
+💰 *Inversión:* $1,650 MXN + $300 materiales.
 💳 *Pago:* Puedes apartar tu lugar con el 50% y cubrir el resto al inicio del curso.
 
 🚨 *Inscripciones abiertas | Cupo limitado*`,
 
   'Cursos de verano adultos': `👋 ¡Hola! Gracias por tu interés en *My Best Summer* para Adolescentes y Adultos de Instituto Windsor. 🌟
 
-📅 *Fechas:* Del 13 de julio al 07 de agosto.
+📅 *Fechas:* Del 20 de julio al 07 de agosto.
 
 Ofrecemos cursos Extra Intensivos de Idiomas para que avances tu nivel en pocas semanas.
 
@@ -907,12 +907,10 @@ Ofrecemos cursos Extra Intensivos de Idiomas para que avances tu nivel en pocas 
 🇮🇹 *Italiano Intensivo*
 🕐 1:00 p.m. a 3:00 p.m.
 
-💰 *Inversión:* $2,200 MXN por curso.
+💰 *Inversión:* $1,700 MXN por curso.
 📚 Manual para cursos de inglés: $150 MXN adicionales.
 
 📍 *Ubicación:* Calle Sofía Tena #1, Col. Viguri.
-
-📄 Programa completo: https://drive.google.com/file/d/17H3avjLp_BDilOsaqSbs6gXBIlH5BcAz/view?usp=sharing
 
 🚨 *Inscripciones abiertas | Cupo limitado*`,
 
@@ -958,8 +956,8 @@ const VALOR_POR_PROGRAMA: Record<string, number> = {
   'Bachillerato': 1440,
   'Francés': 990,
   'Italiano': 990,
-  'Cursos de verano niños': 2100,
-  'Cursos de verano adultos': 2200,
+  'Cursos de verano niños': 1650,
+  'Cursos de verano adultos': 1700,
   'Habilidades para la práctica psicoterapéutica': 400,
 }
 
@@ -1656,7 +1654,7 @@ const CATALOGO_OFERTA = `¿Cuál de nuestras ofertas educativas te interesa?
 •Enseñanza del idioma inglés
 •Enseñanza del idioma español`
 
-const INSCRIPCION_VERANO_MSG = `¡Perfecto! ☀️ El proceso de inscripción a *My Best Summer* es muy sencillo:
+const INSCRIPCION_VERANO_NINOS_MSG = `¡Perfecto! ☀️ El proceso de inscripción a *My Best Summer* es muy sencillo:
 
 *📄 Documentos necesarios:*
 • Acta de nacimiento
@@ -1665,7 +1663,33 @@ const INSCRIPCION_VERANO_MSG = `¡Perfecto! ☀️ El proceso de inscripción a 
 *💳 Pago:* Puedes apartar tu lugar con el 50% hoy y cubrir el resto al inicio del curso.
 🏦 Datos bancarios: https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
 
-*📦 Material:* tiene un costo de $400 (ya incluido) y se paga en efectivo directamente en las instalaciones.
+*📦 Material:* tiene un costo de $300 (ya incluido) y se paga en efectivo directamente en las instalaciones.
+
+*📋 Puedes inscribirte de dos formas:*
+
+*A) En línea* 💻
+Llena el formulario de inscripción y adjunta tus documentos:
+📝 https://forms.gle/fvxiekCtLb7KNz2U8
+Confírmanos aquí por WhatsApp cuando lo hayas completado.
+
+*B) Presencial* 🏫
+Visítanos con tus documentos — el pago lo puedes realizar directamente en las instalaciones, a la cuenta bancaria que te compartimos arriba:
+📍 Chilpancingo: Sofía Tena #1, Col. Viguri
+📍 Iguala: Ignacio Zaragoza 99, Col. Centro
+🕐 Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
+
+🚨 *¡Cupo limitado!* Asegura tu lugar pronto. 😊`
+
+const INSCRIPCION_VERANO_ADULTOS_MSG = `¡Perfecto! ☀️ El proceso de inscripción a *My Best Summer* es muy sencillo:
+
+*📄 Documentos necesarios:*
+• Acta de nacimiento
+• Comprobante de pago
+
+*💳 Pago:* Puedes apartar tu lugar con el 50% hoy y cubrir el resto al inicio del curso.
+🏦 Datos bancarios: https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
+
+*📦 Manual (solo cursos de inglés):* tiene un costo de $150 y se paga en efectivo directamente en las instalaciones.
 
 *📋 Puedes inscribirte de dos formas:*
 
@@ -1884,9 +1908,9 @@ function tipoInscripcion(curso: string | null | undefined): TipoInscripcion {
 const INSCRIPCION_DESCONOCIDA_MSG = `¡Perfecto! 🎉 Para darte el proceso de inscripción exacto de tu programa, permíteme confirmarlo un momento con un asesor. En breve te contactamos. 😊`
 
 /** Mensaje de inscripción para un tipo ya conocido (no llamar con 'desconocido': ese caso se maneja aparte, con alerta a Harold). */
-function mensajeInscripcionPara(tipo: Exclude<TipoInscripcion, 'desconocido'>): string {
+function mensajeInscripcionPara(tipo: Exclude<TipoInscripcion, 'desconocido'>, curso?: string | null): string {
   switch (tipo) {
-    case 'verano': return INSCRIPCION_VERANO_MSG
+    case 'verano': return (curso || '').toLowerCase().includes('adulto') ? INSCRIPCION_VERANO_ADULTOS_MSG : INSCRIPCION_VERANO_NINOS_MSG
     case 'habilidades': return INSCRIPCION_HABILIDADES_MSG
     case 'bachillerato': return INSCRIPCION_BACHILLERATO_MSG
     case 'diplomado': return INSCRIPCION_DIPLOMADO_MSG
@@ -2214,12 +2238,13 @@ REGLAS:
 - "programa": nombre que usó el prospecto, o null.
 - "telefono": teléfono dado en este mensaje (en fase asesor), o null.
 - "necesitaRevision": pon true SOLO si el prospecto pregunta algo que no está en tus reglas ni en la BASE DE CONOCIMIENTO y no puedes responder con certeza. Ejemplos: políticas de reembolso, excepciones especiales, preguntas muy específicas sobre horarios o grupos que no conoces. Si tienes la información, respóndela tú — no uses necesitaRevision para preguntas que sí sabes responder.
-- CURSOS DE IDIOMAS (CRÍTICO): Los cursos regulares de idiomas (inglés para adultos, inglés para niños, francés, italiano) NO inician hasta septiembre 2026. Si alguien pregunta por cualquiera de estos cursos, debes informarle esto y redirigirlos al programa *My Best Summer* que inicia el 13 de julio. Ejemplo: "Los cursos regulares de [idioma] inician en septiembre 😊 Sin embargo, si quieres empezar antes, tenemos nuestro programa *My Best Summer* que inicia el 13 de julio — es una excelente opción para avanzar tu nivel en pocas semanas. ¿Te gustaría conocer los detalles?" Esto aplica a: inglés adultos, inglés niños, francés e italiano.
+- CURSOS DE IDIOMAS (CRÍTICO): Los cursos regulares de idiomas (inglés para adultos, inglés para niños, francés, italiano) NO inician hasta septiembre 2026. Si alguien pregunta por cualquiera de estos cursos, debes informarle esto y redirigirlos al programa *My Best Summer* que inicia el 20 de julio. Ejemplo: "Los cursos regulares de [idioma] inician en septiembre 😊 Sin embargo, si quieres empezar antes, tenemos nuestro programa *My Best Summer* que inicia el 20 de julio — es una excelente opción para avanzar tu nivel en pocas semanas. ¿Te gustaría conocer los detalles?" Esto aplica a: inglés adultos, inglés niños, francés e italiano.
 - HORARIOS MY BEST SUMMER ADULTOS (usa estos exactos): Inglés Beginner X Intensivo: 9:00 a.m. a 12:00 p.m. o 1:00 p.m. a 4:00 p.m. | Inglés Elementary/Pre-Intermediate X Intensivo: 1:00 p.m. a 4:00 p.m. | Francés Intensivo: 1:00 p.m. a 3:00 p.m. | Italiano Intensivo: 1:00 p.m. a 3:00 p.m. Si alguien pregunta el horario del curso de italiano o francés en My Best Summer, da este dato directamente sin redirigir a un asesor.
 - CAFETERÍA: Si preguntan por cafetería, desayuno o comida en el curso de verano, responde: "Las instalaciones cuentan con servicio de cafetería, el cual opera de manera independiente. Los paquetes y costos los podrás consultar directamente con ellos — lo que sí podemos confirmar es que ofrecen opciones especiales para los cursos de verano 😊"
 - PAGO VERANO: Si preguntan cómo pagar el curso de verano, si es de contado o si pueden apartar el lugar, responde que pueden pagar el 50% para apartar el espacio y el otro 50% al inicio del curso.
-- PRECIOS VERANO (usa estos exactos, nunca inventes otros): My Best Summer niños: $2,100 MXN + $400 materiales (apartar con $1,050 + $200). My Best Summer adultos: $2,200 MXN por curso + $150 manual inglés (apartar con $1,100). Si preguntan el costo, dalo directamente sin decir que no lo tienes.
+- PRECIOS VERANO (usa estos exactos, nunca inventes otros): My Best Summer niños: $1,650 MXN + $300 materiales (apartar con $825 + $150). My Best Summer adultos: $1,700 MXN por curso + $150 manual inglés (apartar con $850). Si preguntan el costo, dalo directamente sin decir que no lo tienes.
 - ACTIVIDADES VERANO: Si preguntan si los cursos/actividades se dan juntos, separados, o si tienen que elegir, responde que el costo incluye TODAS las actividades del programa para su grupo de edad — no tienen que elegir, el paquete lo incluye todo. Si preguntan por robótica, arte, kung fu, repostería, origami, diseño de videojuegos, idiomas o cualquier actividad que aparece en el programa, confirma que sí está incluida en el paquete.
+- CATÁLOGO KIDS NO ES UN CURSO DE IDIOMA SUELTO (CRÍTICO): Si el prospecto pega o describe el catálogo de *My Best Summer Kids/Juniors/Seniors* (menciona actividades como "Inglés y Francés", robótica, kung fu, repostería, origami, diseño de videojuegos, ritmo y movimiento musical, o dice "Kids"), el "programa" es SIEMPRE "Cursos de verano niños" — nunca extraigas "Francés", "Italiano" ni "Inglés" como programa suelto solo porque aparecen mencionados dentro de esa lista de actividades. Esas actividades de idioma son parte del paquete de niños, no cursos independientes.
 - DIPLOMA VERANO: Si preguntan si reciben certificado, diploma o constancia al final de My Best Summer, responde que sí: al concluir el nivel reciben un *Diploma avalado por la SEP*.
 - INCORPORACIÓN TARDÍA VERANO: Si preguntan si pueden inscribirse después de que inicie el curso, responde: "Por el momento My Best Summer se ofrece como curso completo. Sin embargo, si al inicio del curso aún hay espacios disponibles, con gusto puedes incorporarte. ¿Te gustaría apartar tu lugar desde ahora para asegurarlo?"
 - DIRECCIÓN: Si preguntan dónde queda la escuela, dónde está ubicada o cuál es la dirección, responde con ambos planteles: "Estamos en *Chilpancingo*: Calle *Sofía Tena #1, Col. Viguri* 📍 También tenemos plantel en *Iguala*: Ignacio Zaragoza 99, Col. Centro 📍". Nunca respondas solo "México" o "Guerrero" como dirección.
@@ -3121,7 +3146,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_DESCONOCIDA_MSG, 'seguimiento', leadId)
           return buildProviderResponse(provider, INSCRIPCION_DESCONOCIDA_MSG, waNumber)
         }
-        const botMsg = mensajeInscripcionPara(tipoIns)
+        const botMsg = mensajeInscripcionPara(tipoIns, leadSnapshot?.curso)
         const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
         // Asegurar que el stage del lead llegue a inscripcion_pendiente en Kanban
@@ -3144,7 +3169,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_DESCONOCIDA_MSG, 'seguimiento', leadId)
           return buildProviderResponse(provider, INSCRIPCION_DESCONOCIDA_MSG, waNumber)
         }
-        const botMsg = mensajeInscripcionPara(tipoIns)
+        const botMsg = mensajeInscripcionPara(tipoIns, leadSnapshot?.curso)
         const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
         if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
@@ -3279,7 +3304,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         }
         if (/^\s*b\s*$/.test(msgLProg) && /verano|summer/i.test(leadSnapshot?.curso || '')) {
           const pV = 'Cursos de verano adultos'
-          if (leadId) await supabase.from('leads').update({ curso: pV, valor: 2200 }).eq('id', leadId)
+          if (leadId) await supabase.from('leads').update({ curso: pV, valor: 1700 }).eq('id', leadId)
           leadSnapshot = { ...leadSnapshot, curso: pV } as LeadSnapshot
           const ackV = `¡Perfecto! ☀️ Para contarte todo sobre *My Best Summer* para adolescentes y adultos, ¿me compartes tu correo para darte seguimiento? 📧`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, ackV, 'correo')
@@ -3380,7 +3405,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
             await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_DESCONOCIDA_MSG, 'seguimiento', leadId)
             return buildProviderResponse(provider, INSCRIPCION_DESCONOCIDA_MSG, waNumber)
           }
-          const botMsgAccion = mensajeInscripcionPara(tipoIns)
+          const botMsgAccion = mensajeInscripcionPara(tipoIns, leadSnapshot?.curso)
           const nextFAccion = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsgAccion, nextFAccion, leadId)
           return buildProviderResponse(provider, botMsgAccion, waNumber)
@@ -3462,8 +3487,9 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         // Si es lead de verano, nunca debe estar en fase inscripcion — redirigir al proceso correcto
         const cursoLowerInsc = (leadSnapshot?.curso || '').toLowerCase()
         if (cursoLowerInsc.includes('verano') || cursoLowerInsc.includes('my best summer')) {
-          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_VERANO_MSG, 'inscripcion_pendiente', leadId)
-          return buildProviderResponse(provider, INSCRIPCION_VERANO_MSG, waNumber)
+          const msgVeranoInsc = cursoLowerInsc.includes('adulto') ? INSCRIPCION_VERANO_ADULTOS_MSG : INSCRIPCION_VERANO_NINOS_MSG
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgVeranoInsc, 'inscripcion_pendiente', leadId)
+          return buildProviderResponse(provider, msgVeranoInsc, waNumber)
         }
         // Habilidades para la práctica psicoterapéutica: no usa el flujo A/B de licenciaturas
         // (no pide acta de nacimiento ni certificado de bachillerato) — solo formulario + pago en efectivo
@@ -3890,7 +3916,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           botMessage = INSCRIPCION_DESCONOCIDA_MSG
           nextFase = 'seguimiento'
         } else {
-          botMessage = mensajeInscripcionPara(tipoInsGPT)
+          botMessage = mensajeInscripcionPara(tipoInsGPT, leadSnapshot?.curso)
           nextFase = tipoInsGPT === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         }
       } else if (nextFase === 'inscripcion_online') {
@@ -3908,7 +3934,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
             botMessage = INSCRIPCION_DESCONOCIDA_MSG
             nextFase = 'seguimiento'
           } else {
-            botMessage = mensajeInscripcionPara(tipoInsPres)
+            botMessage = mensajeInscripcionPara(tipoInsPres, leadSnapshot?.curso)
             nextFase = tipoInsPres === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
           }
         }

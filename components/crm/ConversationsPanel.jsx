@@ -81,7 +81,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Docente, traductor, asesor editorial, call centers, centros de investigación y organismos internacionales.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1M_K1sIqh-8LgZdTsiAmIRMOkVIiTw295/view
+📄 Plan de estudios: https://drive.google.com/file/d/1NZeL0KEroyx0eVFeAKSaxgr5bnjjKR_Z/view
 
 ¿Cómo te gustaría continuar?
 *A)* Tengo dudas 🤔
@@ -103,7 +103,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Salud, educación, medio ambiente, producción, consumo y convivencia social.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1mw16jhbwN3K2dBy3ajcb3qREOPVXZ9rb/view
+📄 Plan de estudios: https://drive.google.com/file/d/1CuvtEmWZ8TdrI48xYXBxUBPb2PyGveBw/view
 
 ¿Cómo te gustaría continuar?
 *A)* Tengo dudas 🤔
@@ -127,7 +127,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Agencias de publicidad, marketing, medios de comunicación, gobierno, tecnología, entretenimiento.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1tv2023m30ZVHJRryfwhNm6tT9wICHvnZ/view
+📄 Plan de estudios: https://drive.google.com/file/d/1GtQPIwHcopnkvfBh4oQpUNZw0ekkyayf/view
 
 ¿Cómo te gustaría continuar?
 *A)* Tengo dudas 🤔
@@ -163,7 +163,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Agencias de viajes, hoteles, resorts, operadores turísticos, eventos y convenciones.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1FMFbZ4pupnqkD_X1pBUcxlVo0HmRxUPb/view
+📄 Plan de estudios: https://drive.google.com/file/d/18QTS1qOE5DDJuI--RCqhuIv89hPv0DiK/view
 
 ¿Cómo te gustaría continuar?
 *A)* Tengo dudas 🤔
