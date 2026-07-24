@@ -202,56 +202,38 @@ export default function AgendarPage() {
       ].filter(Boolean).join("\n");
 
       const stage = isInscripcion ? "inscripcion_pendiente" : "clase_muestra";
+      const citaTipo = isInscripcion ? "inscripcion" : "clase_prueba";
+      const citaTitulo = isInscripcion
+        ? `Visita de inscripción (${cursoLabel}) - ${nombre.trim()}`
+        : `Clase de prueba (${cursoLabel}) - ${nombre.trim()}`;
 
-      const { data: leadData, error: leadError } = await supabase
-        .from("leads")
-        .insert([{
+      const res = await fetch("/api/agendar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vendedorEmail,
           nombre: nombre.trim(),
           email: email.trim(),
           whatsapp: whatsapp.trim(),
-          curso: cursoLabel,
-          valor: 0,
+          cursoLabel,
           notas: notasCompletas,
           stage,
-          fecha: fechaIso,
-          user_id: vendedor.id,
-          asignado_a: vendedor.id,
-        }])
-        .select()
-        .single();
-
-      if (leadError || !leadData) {
-        setError("No pudimos guardar tus datos. Intenta de nuevo.");
-        setSubmitting(false);
-        return;
-      }
-
-      const citaTipo = isInscripcion ? "inscripcion" : "clase_prueba";
-      const citaTitulo = isInscripcion
-        ? `Visita de inscripción (${cursoLabel}) - ${leadData.nombre}`
-        : `Clase de prueba (${cursoLabel}) - ${leadData.nombre}`;
-
-      const { data: citaData, error: citaError } = await supabase
-        .from("citas")
-        .insert([{
-          lead_id: leadData.id,
-          vendedor_id: vendedor.id,
-          titulo: citaTitulo,
-          fecha: fechaIso,
+          fechaIso,
           hora,
           duracion: isInscripcion ? 30 : 60,
-          tipo: citaTipo,
-          notas: notasCompletas,
-          status: "confirmada",
-        }])
-        .select()
-        .single();
+          citaTipo,
+          citaTitulo,
+        }),
+      });
+      const result = await res.json();
 
-      if (citaError || !citaData) {
-        setError("No pudimos registrar la cita. Intenta de nuevo.");
+      if (!res.ok || !result.lead || !result.cita) {
+        setError(result.error || "No pudimos guardar tu cita. Intenta de nuevo.");
         setSubmitting(false);
         return;
       }
+
+      const { lead: leadData, cita: citaData } = result;
 
       setConfirmed({ lead: leadData, cita: citaData });
 
