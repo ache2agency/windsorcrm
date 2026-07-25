@@ -8,6 +8,22 @@ import {
   type WhatsAppProvider,
 } from '@/lib/whatsapp/provider'
 import { enviarBienvenidaLeadManual } from '@/lib/whatsapp/bienvenida'
+import {
+  quitarAcentos,
+  matchOfertaEducativa,
+  canonicalizarPrograma,
+  esHabilidadesPsico,
+  esLicenciatura,
+  esVeranoOCorto,
+  esBachillerato,
+  esDiplomado,
+  esInglesIdioma,
+  tipoInscripcion,
+  detectarPrograma,
+  type TipoInscripcion,
+  type OfertaMatchResult,
+} from '@/lib/whatsapp/programas'
+import { REGLAS_NEGOCIO } from '@/lib/whatsapp/reglasNegocio'
 
 export const maxDuration = 60
 
@@ -998,56 +1014,6 @@ function normalizarWhatsappManual(num: string): string {
   return n
 }
 
-function quitarAcentos(s: string): string {
-  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '')
-}
-
-type OfertaMatchResult = { match: string | null; ambiguous: boolean }
-
-/** Reconoce la oferta educativa por palabras clave. Si reconoce la categoría pero falta
- * el calificador niños/adultos, marca ambiguous en vez de adivinar uno de los dos. */
-function matchOfertaEducativa(input: string): OfertaMatchResult {
-  const norm = quitarAcentos(input.trim().toLowerCase())
-  if (!norm) return { match: null, ambiguous: false }
-
-  const esNino = /nin|kids?|infantil/.test(norm)
-  const esAdulto = /adult/.test(norm)
-  const esOnline = /online|virtual|distancia/.test(norm)
-
-  if (/verano|summer/.test(norm)) {
-    if (esNino) return { match: 'Cursos de verano niños', ambiguous: false }
-    if (esAdulto) return { match: 'Cursos de verano adultos', ambiguous: false }
-    return { match: null, ambiguous: true }
-  }
-  if (/ingles|english/.test(norm)) {
-    if (/licenciatura|^lic\b/.test(norm)) return { match: esOnline ? 'Licenciatura en Inglés online' : 'Licenciatura en Inglés', ambiguous: false }
-    if (esNino) return { match: 'Inglés para niños', ambiguous: false }
-    if (esAdulto) return { match: 'Inglés para adultos', ambiguous: false }
-    return { match: null, ambiguous: true }
-  }
-  if (/psicoterap|habilidades.*(practica|clinic)/.test(norm)) return { match: 'Habilidades para la práctica psicoterapéutica', ambiguous: false }
-  if (/psicolog/.test(norm)) return { match: 'Psicología', ambiguous: false }
-  if (/turis/.test(norm)) return { match: esOnline ? 'Administración turística online' : 'Administración turística', ambiguous: false }
-  if (/relaciones publicas|mercadotecnia/.test(norm)) return { match: esOnline ? 'Relaciones públicas y mercadotecnia online' : 'Relaciones públicas y mercadotecnia', ambiguous: false }
-  if (/bachillerato|prepa/.test(norm)) return { match: 'Bachillerato', ambiguous: false }
-
-  return { match: null, ambiguous: false }
-}
-
-/** Canonicaliza el programa antes de guardarlo en leads.curso. GPT a veces normaliza
- * de más (ej. resume "habilidades para la práctica psicoterapéutica" como "psicología")
- * y pierde el matiz que decide a qué proceso de inscripción va el lead. Por eso se
- * prioriza el regex de matchOfertaEducativa() sobre el texto ORIGINAL del usuario —
- * más confiable que la extracción libre de GPT — y solo se usa gpt.programa tal cual
- * si el texto original no matchea nada conocido. */
-function canonicalizarPrograma(gptPrograma: string, textoOriginal: string): string {
-  const deTexto = matchOfertaEducativa(textoOriginal)
-  if (deTexto.match) return deTexto.match
-  const deGpt = matchOfertaEducativa(gptPrograma)
-  if (deGpt.match) return deGpt.match
-  return gptPrograma
-}
-
 const ASESOR_AUTOMATICO = '(automático según turno)'
 
 /** Busca un asesor por nombre (coincidencia parcial, igual criterio que getDefaultAssigneeId). */
@@ -1322,11 +1288,6 @@ async function handleRegistroCommand(
   return finalizarRegistro(supabase, waNumber, provider, originalText, recordatorio, 'registro_confirmar')
 }
 
-/** Programas de idiomas (Track A): después del info van a examen de ubicación */
-function esInglesIdioma(programa: string | null | undefined): boolean {
-  return /ingl[eé]s para (ni[ñn]os?|adultos?)/i.test(programa || '')
-}
-
 /** CTA siempre en código, nunca delegado a GPT */
 function buildCTA(programa: string | null | undefined): string {
   if (esInglesIdioma(programa)) {
@@ -1353,27 +1314,6 @@ function eligeExamenUbicacion(msg: string): boolean {
 }
 
 /** Detecta programa específico en el mensaje (igual que lab) — nunca retorna "inglés" genérico */
-function detectarPrograma(msg: string): string | null {
-  if (/ingl[eé]s para ni[ñn]os?|ni[ñn]os?.*ingl[eé]s|ingl[eé]s.*ni[ñn]os?/i.test(msg)) return 'Inglés para niños'
-  if (/ingl[eé]s para adultos?|adultos?.*ingl[eé]s|ingl[eé]s.*adultos?/i.test(msg)) return 'Inglés para adultos'
-  if (/licenciatura.*ingl[eé]s.*online|ingl[eé]s.*licenciatura.*online|\blic\b.*ingl[eé]s.*online/i.test(msg)) return 'Licenciatura en Inglés online'
-  if (/licenciatura.*ingl[eé]s|ingl[eé]s.*licenciatura|\blic\b.*ingl[eé]s|ingl[eé]s.*\blic\b/i.test(msg)) return 'Licenciatura en Inglés'
-  if (/psicoterap|habilidades.*(pr[aá]ctica|cl[ií]nica).*psic/i.test(msg)) return 'Habilidades para la práctica psicoterapéutica'
-  if (/psicolog|psico\b/i.test(msg)) return 'Psicología'
-  if (/tur[ií]s.*(online|en l[ií]nea)|(online|en l[ií]nea).*tur[ií]s/i.test(msg)) return 'Administración turística online'
-  if (/tur[ií]s|turism/i.test(msg)) return 'Administración turística'
-  if (/(relaciones p[uú]blicas|mercadotecnia|\bmkt\b|marketing).*(online|en l[ií]nea)/i.test(msg)) return 'Relaciones públicas y mercadotecnia online'
-  if (/relaciones p[uú]blicas|mercadotecnia|\bmkt\b|marketing/i.test(msg)) return 'Relaciones públicas y mercadotecnia'
-  if (/franc[eé]s/i.test(msg)) return 'Francés'
-  if (/italian/i.test(msg)) return 'Italiano'
-  if (/innovaci[oó]n empresarial/i.test(msg)) return 'Maestría en Innovación empresarial'
-  if (/multiculturalidad|pluriling/i.test(msg)) return 'Maestría en Multiculturalidad'
-  if (/bachillerato/i.test(msg)) return 'Bachillerato'
-  if (/verano|summer|my best summer/i.test(msg) && /ni[ñn]o|kid|infan|peque/i.test(msg)) return 'Cursos de verano niños'
-  if (/verano|summer|my best summer/i.test(msg) && /adult|adolescen|joven|teen/i.test(msg)) return 'Cursos de verano adultos'
-  return null
-}
-
 /** Detecta email en el mensaje */
 function detectarEmail(msg: string): string | null {
   const match = msg.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)
@@ -1729,53 +1669,6 @@ https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drive
 3️⃣ Confírmanos aquí por WhatsApp cuando hayas completado el formulario.
 4️⃣ Un asesor revisará todo y confirmará tu inscripción. 😊`
 
-const CURSO_HABILIDADES_PSICO = 'Habilidades para la práctica psicoterapéutica'
-
-function esHabilidadesPsico(curso: string | null | undefined): boolean {
-  return (curso || '') === CURSO_HABILIDADES_PSICO
-}
-
-// Lista cerrada de licenciaturas — únicas que piden Acta de Nacimiento,
-// Certificado de Bachillerato, CURP y fotografías. Todo lo que no esté
-// aquí NO debe recibir ese proceso solo por descarte.
-const PROGRAMAS_LICENCIATURA = [
-  'Psicología',
-  'Licenciatura en Inglés',
-  'Licenciatura en Inglés online',
-  'Administración turística',
-  'Administración turística online',
-  'Relaciones públicas y mercadotecnia',
-  'Relaciones públicas y mercadotecnia online',
-]
-
-function esLicenciatura(curso: string | null | undefined): boolean {
-  return PROGRAMAS_LICENCIATURA.includes(curso || '')
-}
-
-// Lista cerrada de cursos cortos/verano que NO son licenciatura y usan
-// el proceso simple de My Best Summer (acta + comprobante de pago).
-// Se mantiene explícita en vez de inferir "todo lo que no sea licenciatura"
-// para no arrastrar programas nuevos o no contemplados a un proceso incorrecto.
-const PROGRAMAS_VERANO_CORTO = [
-  'Cursos de verano niños',
-  'Cursos de verano adultos',
-  'Francés',
-  'Italiano',
-]
-
-function esVeranoOCorto(curso: string | null | undefined): boolean {
-  const c = curso || ''
-  if (PROGRAMAS_VERANO_CORTO.includes(c)) return true
-  const cLower = c.toLowerCase()
-  return cLower.includes('verano') || cLower.includes('my best summer')
-}
-
-const CURSO_BACHILLERATO = 'Bachillerato'
-
-function esBachillerato(curso: string | null | undefined): boolean {
-  return (curso || '') === CURSO_BACHILLERATO
-}
-
 const INSCRIPCION_BACHILLERATO_MSG = `🔴PROCESO DE INSCRIPCIÓN BACHILLERATO 🔴
 
 Antes que nada permítenos felicitarte por tomar acción en tu proceso de crecimiento profesional y personal, estamos seguros que has tomado la decisión correcta y nos dará mucho gusto acompañarte en este proceso.
@@ -1805,48 +1698,6 @@ Por favor, sigue las indicaciones para completar tu inscripción.
 Listo, ya eres parte de la familia Windsor 🎉🎉🎉
 
 ¡¡BIENVENID@!!`
-
-// Lista cerrada de los diplomados del catálogo (más el keyword "diplomado" como
-// señal explícita adicional, no un catch-all sobre curso genérico).
-const PROGRAMAS_DIPLOMADO = [
-  'Administración de Instituciones de la Salud',
-  'Administración de recursos humanos',
-  'Administración de restaurantes',
-  'Análisis y Evaluación de Políticas Públicas',
-  'Comunicación y Liderazgo en el Sector Público',
-  'Comunicación y Liderazgo empresarial',
-  'Competencias educativas',
-  'Comunicación y Gobierno Digital',
-  'Contabilidad',
-  'Creación y dirección de franquicias',
-  'Ciencias del deporte',
-  'Enfermería',
-  'Epidemiología',
-  'Equidad de genero y diversidad sexual',
-  'Farmacología',
-  'Gamificación educativa',
-  'Gerontología',
-  'Innovación y Gobierno Digital',
-  'Mindfulness',
-  'Nutrición deportiva',
-  'Nutrición y Dietética',
-  'Políticas y Procesos de Participación Ciudadana',
-  'Piscología criminológica',
-  'Psicología educativa',
-  'Realidad Virtual',
-  'Salud pública',
-  'Tecnología educativa',
-  'Terapia ocupacional',
-  'Tanatología',
-  'Enseñanza del idioma inglés',
-  'Enseñanza del idioma español',
-]
-
-function esDiplomado(curso: string | null | undefined): boolean {
-  const c = curso || ''
-  if (PROGRAMAS_DIPLOMADO.includes(c)) return true
-  return /diplomado/i.test(c)
-}
 
 const INSCRIPCION_DIPLOMADO_MSG = `🔴PROCESO DE INSCRIPCIÓN DIPLOMADOS🔴
 
@@ -1887,24 +1738,6 @@ Listo, ya eres parte de la familia Windsor 🎉🎉🎉
 
 ¡¡BIENVENID@!!`
 
-/**
- * Tipo de proceso de inscripción según el curso del lead.
- * 'desconocido' es intencional: ante un curso no contemplado en ninguna
- * lista, el bot NO debe adivinar (así se originó el bug de mandar
- * documentos de licenciatura a leads de cursos cortos) — debe escalar.
- */
-type TipoInscripcion = 'verano' | 'habilidades' | 'bachillerato' | 'diplomado' | 'idioma' | 'licenciatura' | 'desconocido'
-
-function tipoInscripcion(curso: string | null | undefined): TipoInscripcion {
-  if (esHabilidadesPsico(curso)) return 'habilidades'
-  if (esVeranoOCorto(curso)) return 'verano'
-  if (esBachillerato(curso)) return 'bachillerato'
-  if (esDiplomado(curso)) return 'diplomado'
-  if (esInglesIdioma(curso)) return 'idioma'
-  if (esLicenciatura(curso)) return 'licenciatura'
-  return 'desconocido'
-}
-
 const INSCRIPCION_DESCONOCIDA_MSG = `¡Perfecto! 🎉 Para darte el proceso de inscripción exacto de tu programa, permíteme confirmarlo un momento con un asesor. En breve te contactamos. 😊`
 
 /** Mensaje de inscripción para un tipo ya conocido (no llamar con 'desconocido': ese caso se maneja aparte, con alerta a Harold). */
@@ -1923,7 +1756,7 @@ async function alertarProgramaNoReconocido(nombreLead: string | null | undefined
   try {
     await sendMetaWhatsAppMessage({
       to: ADMIN_WA_ALERTA,
-      body: `⚠️ Programa no reconocido en flujo de inscripción: "${curso || '(vacío)'}"\nLead: ${nombreLead || waNumber} (${waNumber})\n\nAgrégalo a la lista correspondiente en webhook/route.ts (PROGRAMAS_LICENCIATURA, PROGRAMAS_VERANO_CORTO o PROGRAMAS_DIPLOMADO).`,
+      body: `⚠️ Programa no reconocido en flujo de inscripción: "${curso || '(vacío)'}"\nLead: ${nombreLead || waNumber} (${waNumber})\n\nAgrégalo a la lista correspondiente en lib/whatsapp/programas.ts (PROGRAMAS_LICENCIATURA, PROGRAMAS_VERANO_CORTO o PROGRAMAS_DIPLOMADO).`,
     })
   } catch (err) {
     console.error('[INSCRIPCION] Error alertando programa no reconocido:', err)
@@ -2229,40 +2062,7 @@ QUÉ HACER AHORA: ${faseInstruccion[params.fase] ?? 'Responde de forma natural y
 
 ${params.ragContext ? `BASE DE CONOCIMIENTO (úsala si es relevante):\n${params.ragContext}\n` : ''}
 REGLAS:
-- Formato WhatsApp únicamente: usa *negrita* (un asterisco), nunca **negrita** ni encabezados con #.
-- Mensajes cortos en fases de captura (saludo, correo). Más detallado en info_enviada y dudas.
-- No vuelvas a pedir datos que ya tienes.
-- Si da nombre + programa + correo juntos, captúralos todos.
-- Si pide hablar con una persona, pon requestedHuman: true y siguienteFase: asesor.
-- Si claramente no le interesa, pon noInterest: true.
-- "programa": nombre que usó el prospecto, o null.
-- "telefono": teléfono dado en este mensaje (en fase asesor), o null.
-- "necesitaRevision": pon true SOLO si el prospecto pregunta algo que no está en tus reglas ni en la BASE DE CONOCIMIENTO y no puedes responder con certeza. Ejemplos: políticas de reembolso, excepciones especiales, preguntas muy específicas sobre horarios o grupos que no conoces. Si tienes la información, respóndela tú — no uses necesitaRevision para preguntas que sí sabes responder.
-- NUNCA INVENTES DATOS (CRÍTICO — REGLA GENERAL): cualquier cifra, precio, fecha, número de cuenta, porcentaje o dato factual que des DEBE venir textual de una de estas tres fuentes: (1) las reglas de este prompt, (2) la BASE DE CONOCIMIENTO/RAG, o (3) el historial de esta conversación (ej. una ficha que ya se envió antes). Si necesitas un dato así y no aparece textual en ninguna de las tres, NUNCA lo inventes, calcules, redondees ni lo completes de memoria — aunque suene razonable o parecido a otro dato real. En ese caso di con honestidad que un asesor lo va a confirmar y pon necesitaRevision: true. Las reglas de abajo sobre precios y datos bancarios son ejemplos de este principio, no la lista completa de casos donde aplica — el principio cubre cualquier dato nuevo que no esté ya cubierto por una regla específica.
-- CURSOS DE IDIOMAS (CRÍTICO): Los cursos regulares de idiomas (inglés para adultos, inglés para niños, francés, italiano) NO inician hasta septiembre 2026. Si alguien pregunta por cualquiera de estos cursos, debes informarle esto y redirigirlos al programa *My Best Summer* que inicia el 20 de julio. Ejemplo: "Los cursos regulares de [idioma] inician en septiembre 😊 Sin embargo, si quieres empezar antes, tenemos nuestro programa *My Best Summer* que inicia el 20 de julio — es una excelente opción para avanzar tu nivel en pocas semanas. ¿Te gustaría conocer los detalles?" Esto aplica a: inglés adultos, inglés niños, francés e italiano.
-- HORARIOS MY BEST SUMMER ADULTOS (usa estos exactos): Inglés Beginner X Intensivo: 9:00 a.m. a 12:00 p.m. o 1:00 p.m. a 4:00 p.m. | Inglés Elementary/Pre-Intermediate X Intensivo: 1:00 p.m. a 4:00 p.m. | Francés Intensivo: 1:00 p.m. a 3:00 p.m. | Italiano Intensivo: 1:00 p.m. a 3:00 p.m. Si alguien pregunta el horario del curso de italiano o francés en My Best Summer, da este dato directamente sin redirigir a un asesor.
-- CAFETERÍA: Si preguntan por cafetería, desayuno o comida en el curso de verano, responde: "Las instalaciones cuentan con servicio de cafetería, el cual opera de manera independiente. Los paquetes y costos los podrás consultar directamente con ellos — lo que sí podemos confirmar es que ofrecen opciones especiales para los cursos de verano 😊"
-- PAGO VERANO: Si preguntan cómo pagar el curso de verano, si es de contado o si pueden apartar el lugar, responde que pueden pagar el 50% para apartar el espacio y el otro 50% al inicio del curso.
-- PRECIOS VERANO (usa estos exactos, nunca inventes otros): My Best Summer niños: $1,650 MXN + $300 materiales (apartar con $825 + $150). My Best Summer adultos: $1,700 MXN por curso + $150 manual inglés (apartar con $850). Si preguntan el costo, dalo directamente sin decir que no lo tienes.
-- ACTIVIDADES VERANO: Si preguntan si los cursos/actividades se dan juntos, separados, o si tienen que elegir, responde que el costo incluye TODAS las actividades del programa para su grupo de edad — no tienen que elegir, el paquete lo incluye todo. Si preguntan por robótica, arte, kung fu, repostería, origami, diseño de videojuegos, idiomas o cualquier actividad que aparece en el programa, confirma que sí está incluida en el paquete.
-- CATÁLOGO KIDS NO ES UN CURSO DE IDIOMA SUELTO (CRÍTICO): Si el prospecto pega o describe el catálogo de *My Best Summer Kids/Juniors/Seniors* (menciona actividades como "Inglés y Francés", robótica, kung fu, repostería, origami, diseño de videojuegos, ritmo y movimiento musical, o dice "Kids"), el "programa" es SIEMPRE "Cursos de verano niños" — nunca extraigas "Francés", "Italiano" ni "Inglés" como programa suelto solo porque aparecen mencionados dentro de esa lista de actividades. Esas actividades de idioma son parte del paquete de niños, no cursos independientes.
-- DIPLOMA VERANO: Si preguntan si reciben certificado, diploma o constancia al final de My Best Summer, responde que sí: al concluir el nivel reciben un *Diploma avalado por la SEP*.
-- INCORPORACIÓN TARDÍA VERANO: Si preguntan si pueden inscribirse después de que inicie el curso, responde: "Por el momento My Best Summer se ofrece como curso completo. Sin embargo, si al inicio del curso aún hay espacios disponibles, con gusto puedes incorporarte. ¿Te gustaría apartar tu lugar desde ahora para asegurarlo?"
-- DIRECCIÓN: Si preguntan dónde queda la escuela, dónde está ubicada o cuál es la dirección, responde con ambos planteles: "Estamos en *Chilpancingo*: Calle *Sofía Tena #1, Col. Viguri* 📍 También tenemos plantel en *Iguala*: Ignacio Zaragoza 99, Col. Centro 📍". Nunca respondas solo "México" o "Guerrero" como dirección.
-- TÍTULO/CERTIFICADO LICENCIATURAS: Si preguntan si reciben título, certificado, diploma, si el título vale o sirve, o si está avalado, responde directamente: "Sí, al concluir la licenciatura recibes un *Título de Licenciatura* con *RVOE SEG/00052/2002*, reconocido oficialmente por la SEP 🎓". No avances la fase a inscripción por esta pregunta — respóndela sin importar en qué fase esté.
-- CREDENCIAL DE ESTUDIANTE (solo LICENCIATURAS): La inscripción de licenciatura NO incluye la credencial de estudiante — se tramita por separado. Si preguntan, acláralo directamente. Esto NO aplica a cursos regulares de idiomas ni a My Best Summer (verano) — ahí ni siquiera menciones el tema de credencial a menos que pregunten específicamente.
-- INICIO CICLO ESCOLAR LICENCIATURAS: Las licenciaturas inician a *principios de septiembre* de cada año. Si preguntan cuándo empiezan las clases o el ciclo escolar de la licenciatura, responde eso directamente — no des una respuesta vaga como "el próximo ciclo escolar" sin fecha.
-- HORARIOS LICENCIATURAS (usa estos exactos, aplican a todas las licenciaturas, son aproximados y pueden cambiar cada cuatrimestre): *Matutino* 8:00 a.m. a 1:00 p.m. | *Vespertino* 2:00 p.m. a 8:00 p.m. (este turno solo se abre si hay suficientes interesados, no está garantizado que se ofrezca cada cuatrimestre) | *Sabatino* 8:00 a.m. a 5:30 p.m. Si preguntan por el horario de alguna licenciatura o específicamente por la modalidad sabatina, da este dato directamente — NUNCA derives a un asesor por esta pregunta, ya la sabes.
-- PRECIOS LICENCIATURAS (CRÍTICO — NUNCA INVENTES): Nunca inventes, redondees ni recuerdes de memoria los precios de inscripción o mensualidad de licenciaturas. Usa EXACTAMENTE los montos de la ficha del programa (revisa el historial de la conversación si ya se envió, o los datos de la BASE). Si no tienes el monto exacto a la mano, no des un precio aproximado — ofrece reenviar la ficha completa del programa en vez de arriesgarte a dar un dato incorrecto.
-- VIGENCIA DE PROMOCIÓN: El descuento de la "promoción del mes" (actualmente 30% en mensualidad) es el vigente este mes para nuevas inscripciones. Si el prospecto se inscribe mientras esta promoción está activa, el descuento se mantiene FIJO durante todo su primer año. A partir del segundo año, el descuento del 30% se puede conservar SI el estudiante mantiene un promedio mínimo de 9. Si preguntan si el precio es fijo o temporal, responde: "Esta es la promoción vigente este mes. Si te inscribes ahora, el descuento de tu mensualidad queda fijo durante todo tu primer año. A partir del segundo año, puedes seguir teniendo el 30% de descuento si mantienes un promedio de 9 o más." NUNCA digas que el descuento desaparece automáticamente al terminar el primer año sin mencionar la condición del promedio.
-- PROMOCIÓN VS. CONVENIO (CRÍTICO — NO SON ACUMULABLES): La "promoción del mes" (70% inscripción / 30% mensualidad) y los descuentos de CONVENIOS_DETALLE son dos beneficios distintos que NUNCA se suman ni se aplican uno sobre el otro. Si el prospecto ya tiene un convenio identificado Y pregunta por precio, preséntale AMBAS opciones por separado (la promoción vigente y el descuento de su convenio) con sus montos ya calculados a partir de la BASE, y aclara que aplica el que él elija, no los dos juntos. Además, son de distinta naturaleza: la promoción del mes aplica fija el primer año (revisable a partir del segundo con promedio ≥9, ver regla de arriba); el descuento de convenio aplica durante TODA la carrera mientras el convenio con esa institución siga vigente. Menciona esa diferencia cuando compares ambas opciones — no declares una como "mejor" sin explicar el trade-off (más descuento inicial vs. estabilidad todo el programa). NUNCA tomes el precio ya promocionado (ej. el de 30% de descuento) como si fuera el precio "normal" para después aplicarle el porcentaje del convenio encima.
-- RVOE: El RVOE de Instituto Windsor es *SEG/00052/2002*, avalado por la SEP. Cuando alguien pregunte por RVOE, reconocimiento oficial, o validez del título, da este número directamente.
-- CURSO HABILIDADES PARA LA PRÁCTICA PSICOTERAPÉUTICA (usa estos datos exactos, nunca inventes otros): Responsable: Psic. Carlos Manuel Palacios Pita. Duración: 4 módulos de 3 sesiones cada uno, repartidos en 4 semanas, lunes a miércoles de 3:00 p.m. a 4:30 p.m. Fechas: Módulo 1 "Introducción y habilidades básicas" 20-22 jul, Módulo 2 "Análisis funcional aplicado" 27-29 jul, Módulo 3 "Moldeamiento verbal" 3-5 ago, Módulo 4 "Autorregulación emocional" 10-12 ago. Costo (incluye constancia): alumnos Windsor $300, público en general $400 — pregunta si es alumno Windsor para dar el precio correcto. Cupo: mínimo 10, máximo 25 participantes.
-- CERTEZA: Si tienes la información, dala directa. NUNCA uses frases como "permíteme verificarlo", "déjame revisar", "lo confirmo en un momento" o similares en tu respuesta. Si genuinamente no sabes, usa necesitaRevision: true — no hedges.
-- PRECIOS: NUNCA calcules precios ni descuentos tú mismo. Copia los precios EXACTOS de la BASE DE CONOCIMIENTO tal como están escritos. Si la BASE no tiene el precio exacto, NO lo inventes — di que le darás el detalle cuando elija el programa específico.
-- DATOS BANCARIOS (CRÍTICO — NUNCA INVENTES NI ESCRIBAS NÚMEROS): Jamás escribas un número de cuenta, CLABE, tarjeta o banco de memoria — no existen en tu BASE DE CONOCIMIENTO y cualquier dígito que generes es una alucinación. La única forma válida de dar datos bancarios es el link de Drive que ya está en el proceso de inscripción del programa (se envía en su propio paso). Si el prospecto pide la cuenta/CLABE antes de llegar a ese paso, o pregunta algo de pago que no reconoces con certeza, responde amablemente que se lo confirma un asesor y pon necesitaRevision: true — NUNCA generes tú el dato.
-- LICENCIATURAS DISPONIBLES (lista completa, usa siempre estas 4 — nunca omitas ninguna): *Licenciatura en Inglés* (presencial u online), *Administración Turística* (presencial u online), *Relaciones Públicas y Mercadotecnia* (presencial u online), *Psicología* (presencial). Si preguntan "qué licenciaturas tienen" o piden la lista general, menciona las 4 por nombre — no te bases solo en lo que traiga la BASE DE CONOCIMIENTO para esta lista, ya la tienes aquí completa.
-- Si el prospecto pregunta por varias licenciaturas o programas en general (sin elegir uno), da solo una vista general muy breve (mención de programas, duración, existencia de promociones) y pide que elija uno específico para darle el detalle completo y exacto. No intentes resumir precios de múltiples programas.
+${REGLAS_NEGOCIO}
 - "siguienteFase": saludo, programa, correo, info_enviada, dudas, accion, asesor, inscripcion, clase_prueba, cerrado, perdido, seguimiento.
 
 Responde ÚNICAMENTE con JSON válido:

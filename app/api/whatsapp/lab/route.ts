@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { detectarPrograma, canonicalizarPrograma } from '@/lib/whatsapp/programas'
+import { REGLAS_NEGOCIO } from '@/lib/whatsapp/reglasNegocio'
 
 export const maxDuration = 60
 
@@ -376,24 +378,6 @@ function esIngles(programa: string | null | undefined): boolean {
   return /ingl[eé]s para (ni[ñn]os?|adultos?)|ingl[eé]s (ni[ñn]os?|adultos?)/i.test(programa || '')
 }
 
-function detectarPrograma(msg: string): string | null {
-  if (/ingl[eé]s para ni[ñn]os?|ni[ñn]os?.*ingl[eé]s|ingl[eé]s.*ni[ñn]os?/i.test(msg)) return 'Inglés para niños'
-  if (/ingl[eé]s para adultos?|adultos?.*ingl[eé]s|ingl[eé]s.*adultos?/i.test(msg)) return 'Inglés para adultos'
-  if (/licenciatura.*ingl[eé]s.*online|ingl[eé]s.*licenciatura.*online|\blic\b.*ingl[eé]s.*online|ingl[eé]s.*\blic\b.*online/i.test(msg)) return 'Licenciatura en Inglés online'
-  if (/licenciatura.*ingl[eé]s|ingl[eé]s.*licenciatura|\blic\b.*ingl[eé]s|ingl[eé]s.*\blic\b/i.test(msg)) return 'Licenciatura en Inglés'
-  if (/psicolog|psico\b/i.test(msg)) return 'Psicología'
-  if (/turism.*(online|en l[ií]nea|virtual)|(online|en l[ií]nea|virtual).*turism/i.test(msg)) return 'Administración turística online'
-  if (/turism/i.test(msg)) return 'Administración turística'
-  if (/(relaciones p[uú]blicas|mercadotecnia).*(online|en l[ií]nea)|(online|en l[ií]nea).*(relaciones p[uú]blicas|mercadotecnia)/i.test(msg)) return 'Relaciones públicas y mercadotecnia online'
-  if (/relaciones p[uú]blicas|mercadotecnia/i.test(msg)) return 'Relaciones públicas y mercadotecnia'
-  if (/franc[eé]s/i.test(msg)) return 'Francés'
-  if (/italian/i.test(msg)) return 'Italiano'
-  if (/innovaci[oó]n empresarial/i.test(msg)) return 'Maestría en Innovación empresarial'
-  if (/multiculturalidad|pluriling/i.test(msg)) return 'Maestría en Multiculturalidad'
-  if (/bachillerato/i.test(msg)) return 'Bachillerato'
-  return null
-}
-
 function esInglesAmbiguo(msg: string): boolean {
   return /ingl[eé]s/i.test(msg) && !/ni[ñn]o|adulto|licenciatura|lic\b/i.test(msg)
 }
@@ -502,7 +486,7 @@ REGLAS:
 - NUNCA uses links que no provengan de la BASE DE CONOCIMIENTO.
 - Para promociones, reproduce EXACTAMENTE lo que dice la BASE, sin modificar ni agregar nada.
 - Si la BASE no menciona promociones para un programa, no las inventes ni las menciones.
-- NUNCA INVENTES DATOS (CRÍTICO — REGLA GENERAL): cualquier cifra, precio, fecha, número de cuenta, porcentaje o dato factual que des DEBE venir textual de la BASE DE CONOCIMIENTO o del historial de esta conversación. Si necesitas un dato así y no aparece textual ahí, NUNCA lo inventes, calcules, redondees ni lo completes de memoria — di con honestidad que un asesor lo va a confirmar.
+${REGLAS_NEGOCIO}
 - Responde ÚNICAMENTE con JSON válido:
 {"texto":"mensaje al prospecto","nombre":null,"email":null,"programa":null}
 - "nombre": si el prospecto mencionó su nombre en este mensaje, sino null
@@ -533,7 +517,7 @@ REGLAS:
     texto: result.texto || '',
     nombre: result.nombre || null,
     email: result.email || null,
-    programa: result.programa || null,
+    programa: result.programa ? canonicalizarPrograma(result.programa, params.userMessage) : null,
   }
 }
 
