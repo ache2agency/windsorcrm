@@ -635,7 +635,7 @@ export async function POST(request: Request) {
         let programaIngles: string | null = null
         if (/\ba\b|adulto/i.test(msgL)) programaIngles = 'Inglés para adultos'
         else if (/\bb\b|ni[ñn]o/i.test(msgL)) programaIngles = 'Inglés para niños'
-        else if (/\bc\b|licenciatura/i.test(msgL)) programaIngles = 'Licenciatura en Inglés'
+        else if (/\bc\b|licenciatura/i.test(msgL)) programaIngles = /online|en l[ií]nea|virtual|distancia/i.test(msgL) ? 'Licenciatura en Inglés online' : 'Licenciatura en Inglés'
         const progFinal = programaIngles || programaActual
         if (progFinal) {
           const msg = `¡Excelente elección! Para contarte todo sobre *${progFinal}*, ¿me compartes tu correo electrónico para darte seguimiento personalizado? 📧`

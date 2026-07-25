@@ -17,7 +17,7 @@ export function matchOfertaEducativa(input: string): OfertaMatchResult {
 
   const esNino = /nin|kids?|infantil/.test(norm)
   const esAdulto = /adult/.test(norm)
-  const esOnline = /online|virtual|distancia/.test(norm)
+  const esOnline = /online|virtual|distancia|en linea/.test(norm)
 
   if (/verano|summer/.test(norm)) {
     if (esNino) return { match: 'Cursos de verano niños', ambiguous: false }
@@ -171,7 +171,7 @@ export function tipoInscripcion(curso: string | null | undefined): TipoInscripci
 export function detectarPrograma(msg: string): string | null {
   if (/ingl[eé]s para ni[ñn]os?|ni[ñn]os?.*ingl[eé]s|ingl[eé]s.*ni[ñn]os?/i.test(msg)) return 'Inglés para niños'
   if (/ingl[eé]s para adultos?|adultos?.*ingl[eé]s|ingl[eé]s.*adultos?/i.test(msg)) return 'Inglés para adultos'
-  if (/licenciatura.*ingl[eé]s.*online|ingl[eé]s.*licenciatura.*online|\blic\b.*ingl[eé]s.*online/i.test(msg)) return 'Licenciatura en Inglés online'
+  if (/licenciatura.*ingl[eé]s.*(online|en l[ií]nea)|ingl[eé]s.*licenciatura.*(online|en l[ií]nea)|\blic\b.*ingl[eé]s.*(online|en l[ií]nea)/i.test(msg)) return 'Licenciatura en Inglés online'
   if (/licenciatura.*ingl[eé]s|ingl[eé]s.*licenciatura|\blic\b.*ingl[eé]s|ingl[eé]s.*\blic\b/i.test(msg)) return 'Licenciatura en Inglés'
   if (/psicoterap|habilidades.*(pr[aá]ctica|cl[ií]nica).*psic/i.test(msg)) return 'Habilidades para la práctica psicoterapéutica'
   if (/psicolog|psico\b/i.test(msg)) return 'Psicología'
