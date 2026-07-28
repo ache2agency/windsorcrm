@@ -21,60 +21,9 @@ function buildAgendarLink(tipo: string, baseUrl: string, nombre?: string | null,
 // ─── MENSAJES DE INFO POR PROGRAMA ───────────────────────────────────────────
 
 const INFO_MSGS: Record<string, string> = {
-  'Inglés para adultos': `¡Excelente elección! 😊 Te comparto la información de nuestro Curso de Inglés:
+  'Inglés para adultos': `😊 Los cursos regulares de inglés para adultos inician en *septiembre 2026*. ¿Te gustaría que te contactemos cuando abran las inscripciones?`,
 
-*📚 Curso de Inglés para Adultos*
-Dirigido a personas de 13 años en adelante
-
-*🎓 Modalidad:* Presencial y Online
-
-*🕐 Horarios presenciales:*
-• Matutino: 10:00 - 12:00 hrs
-• Vespertino: 17:00 - 19:00 hrs
-• Sabatino: 09:00 - 13:00 hrs
-
-*🛜 Horarios online:*
-• Vespertino: 17:00 - 19:00 hrs
-• Sabatino: 09:00 - 13:00 hrs
-
-*⏳ Duración:* 5 meses (10 meses sabatino)
-
-*💰 Inversión:*
-• Inscripción: $750
-• Mensualidad desde $990
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$750~ → $375 (50% de descuento)
-• ¡Primer mes gratis!
-
-Al terminar obtienes un Diploma con validez oficial.`,
-
-  'Inglés para niños': `¡Qué gran decisión para el futuro de tu hij@! 😊 Te comparto la información de nuestro Curso de Inglés para Niños:
-
-*📚 Curso de Inglés para Niños*
-Dirigido a niños de 4 a 12 años
-
-*🎓 Modalidad:* Presencial y Online
-
-*🕐 Horarios presenciales:*
-• Martes a jueves: 13:00 - 14:00 hrs o 17:00 - 18:00 hrs
-• Sabatino: 09:00 - 13:00 hrs
-
-*🛜 Horarios online:*
-• Lunes a jueves: 17:00 - 18:00 hrs
-• Sabatino: 09:00 - 13:00 hrs
-
-*⏳ Duración:* 5 meses
-
-*💰 Inversión:*
-• Inscripción: $800
-• Mensualidad: $780
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$800~ → $400 (50% de descuento)
-• ¡Primer mes gratis!
-
-Al terminar obtiene un Diploma con validez oficial.`,
+  'Inglés para niños': `😊 Los cursos regulares de inglés para niños inician en *septiembre 2026*. ¿Te gustaría que te contactemos cuando abran las inscripciones?`,
 
   'Psicología': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Psicología:
 
@@ -86,6 +35,7 @@ Modalidad: Presencial | Duración: 3 años
 *💰 Inversión:*
 • Inscripción semestral: $2,300
 • Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$2,300~ → $690 (70% de descuento)
@@ -103,12 +53,13 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,150
-• Mensualidad: $2,650
+• Inscripción semestral: $2,300
+• Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,150~ → $645 (70% de descuento)
-• Mensualidad: ~$2,650~ → $1,855 (30% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
+• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Docente, traductor, asesor editorial, call centers, centros de investigación y organismos internacionales.
 
@@ -122,12 +73,13 @@ Modalidad: Online | Duración: 3 años
 *🕐 Horarios:* Online
 
 *💰 Inversión:*
-• Inscripción semestral: $2,150
-• Mensualidad: $2,650
+• Inscripción semestral: $2,300
+• Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,150~ → $645 (70% de descuento)
-• Mensualidad: ~$2,650~ → $1,855 (30% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
+• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Docente, traductor, asesor editorial, call centers, centros de investigación y organismos internacionales.
 
@@ -141,12 +93,13 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,200
-• Mensualidad: $2,650
+• Inscripción semestral: $2,300
+• Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,200~ → $660 (70% de descuento)
-• Mensualidad: ~$2,650~ → $1,855 (30% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
+• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Agencias de viajes, hoteles, resorts, operadores turísticos, eventos y convenciones, emprendimiento propio.
 
@@ -160,12 +113,13 @@ Modalidad: Online | Duración: 3 años
 *🕐 Horarios:* Online
 
 *💰 Inversión:*
-• Inscripción semestral: $2,200
-• Mensualidad: $2,650
+• Inscripción semestral: $2,300
+• Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,200~ → $660 (70% de descuento)
-• Mensualidad: ~$2,650~ → $1,855 (30% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
+• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Agencias de viajes, hoteles, resorts, operadores turísticos, eventos y convenciones, emprendimiento propio.
 
@@ -181,6 +135,7 @@ Modalidad: Presencial | Duración: 3 años
 *💰 Inversión:*
 • Inscripción semestral: $2,300
 • Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$2,300~ → $690 (70% de descuento)
@@ -202,6 +157,7 @@ Modalidad: Online | Duración: 3 años
 *💰 Inversión:*
 • Inscripción semestral: $2,300
 • Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$2,300~ → $690 (70% de descuento)
@@ -223,6 +179,7 @@ Modalidad: Presencial | Duración: 2 años
 *💰 Inversión:*
 • Inscripción cuatrimestral: $1,100
 • Mensualidad: $1,800
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$1,100~ → $550 (50% de descuento)

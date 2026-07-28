@@ -56,8 +56,13 @@ export async function POST(request: Request) {
 
     const normalizedTo = esMessenger ? to : normalizePhoneNumber(to)
 
-    // Fases iniciales que deben avanzar a 'accion' cuando se envía info manualmente
-    const FASES_INICIALES = ['saludo', 'programa', 'correo', 'verano_disambig']
+    // Nota: antes había una lista de "fases iniciales" que se avanzaban automáticamente a
+    // 'accion' al mandar un mensaje manual, asumiendo que ya se había enviado la info completa
+    // del programa. Se quitó ese salto automático porque la caja de "responder como agente" del
+    // CRM no manda `fase` y se usa para cualquier tipo de respuesta manual (no solo para mandar
+    // la ficha completa) — el salto ciego a 'accion' rompía la captura de nombre en fase 'saludo'
+    // cuando el lead simplemente respondía su nombre después. Ahora, si no se pasa `fase`
+    // explícita, la conversación se queda en la fase en la que ya estaba.
 
     if (provider === 'messenger') {
       if (!body) {
@@ -76,7 +81,7 @@ export async function POST(request: Request) {
         .maybeSingle()
 
       const faseActual = (existingConv as { fase?: string } | null)?.fase || 'saludo'
-      const nuevaFase = fase || (FASES_INICIALES.includes(faseActual) ? 'accion' : faseActual)
+      const nuevaFase = fase || faseActual
       let conversacionId = (existingConv as { id?: string } | null)?.id || null
 
       if (!conversacionId) {
@@ -143,7 +148,7 @@ export async function POST(request: Request) {
 
       // Si la fase actual es inicial y no se pasó fase explícita, avanzar a 'accion'
       const faseActual = (existingConv as { fase?: string } | null)?.fase || 'saludo'
-      const nuevaFase = fase || (FASES_INICIALES.includes(faseActual) ? 'accion' : faseActual)
+      const nuevaFase = fase || faseActual
 
       let conversacionId = (existingConv as { id?: string } | null)?.id || null
 

@@ -687,17 +687,9 @@ async function buildProviderResponse(
 // para garantizar que siempre incluya promo y sea consistente.
 
 const INFO_MSGS: Record<string, string> = {
-  'Inglés para adultos': `😊 Los cursos regulares de inglés para adultos inician en *septiembre 2026*.
+  'Inglés para adultos': `😊 Los cursos regulares de inglés para adultos inician en *septiembre 2026*. ¿Te gustaría que te contactemos cuando abran las inscripciones?`,
 
-Sin embargo, si quieres empezar antes, tenemos nuestro programa *My Best Summer* que inicia el *20 de julio* ☀️ — cursos Extra Intensivos de inglés, francés e italiano ideales para avanzar tu nivel en pocas semanas.
-
-¿Te gustaría conocer los detalles de My Best Summer o prefieres que te contactemos cuando abran inscripciones de septiembre?`,
-
-  'Inglés para niños': `😊 Los cursos regulares de inglés para niños inician en *septiembre 2026*.
-
-Sin embargo, si quieres que tu hij@ empiece antes, tenemos *My Best Summer 2026* que inicia el *20 de julio* ☀️ — un verano lleno de actividades: idiomas, robótica, arte, kung fu, repostería y más, organizado por grupos de edad (4-6, 7-9 y 10-12 años).
-
-¿Te gustaría conocer los detalles de My Best Summer o prefieres que te contactemos cuando abran inscripciones de septiembre?`,
+  'Inglés para niños': `😊 Los cursos regulares de inglés para niños inician en *septiembre 2026*. ¿Te gustaría que te contactemos cuando abran las inscripciones?`,
 
   'Psicología': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Psicología:
 
@@ -847,6 +839,7 @@ Modalidad: Presencial | Duración: 2 años
 *💰 Inversión:*
 • Inscripción cuatrimestral: $1,100
 • Mensualidad: $1,800
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$1,100~ → $550 (50% de descuento)
@@ -1142,6 +1135,51 @@ async function finalizarRegistro(
   }
 
   return buildProviderResponse(provider, mensaje, waNumber)
+}
+
+/** Comando "memoria" — el mensaje es una nota de Harold para el asistente de IA (no una
+ * pregunta de cliente que el bot deba responder). Bypassea todo el flujo normal: no llama
+ * a GPT, no crea/actualiza leads, solo registra el mensaje y confirma brevemente para que
+ * quede disponible para consultarlo después. */
+async function handleMemoriaCommand(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  provider: WhatsAppProvider,
+  waNumber: string,
+  originalText: string
+): Promise<Response | null> {
+  const trimmed = originalText.trim()
+  if (!/^memoria\b/i.test(trimmed)) return null
+
+  const now = new Date().toISOString()
+  const { data: conv } = await supabase
+    .from('whatsapp_conversaciones')
+    .select('id')
+    .eq('whatsapp', waNumber)
+    .order('ultimo_mensaje_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  let conversacionId = (conv as { id?: string } | null)?.id
+  if (!conversacionId) {
+    const { data: nueva } = await supabase
+      .from('whatsapp_conversaciones')
+      .insert([{ whatsapp: waNumber, lead_id: null, estado: 'cerrada', fase: 'nota', provider, ultimo_mensaje_at: now }])
+      .select('id')
+      .single()
+    conversacionId = (nueva as { id?: string } | null)?.id
+  } else {
+    await supabase.from('whatsapp_conversaciones').update({ ultimo_mensaje_at: now }).eq('id', conversacionId)
+  }
+
+  const ack = '📝 Guardado — no lo voy a responder, queda registrado.'
+  if (conversacionId) {
+    await supabase.from('whatsapp_mensajes').insert([
+      { conversacion_id: conversacionId, rol: 'usuario', contenido: trimmed },
+      { conversacion_id: conversacionId, rol: 'bot', contenido: ack },
+    ])
+  }
+
+  return buildProviderResponse(provider, ack, waNumber)
 }
 
 const REGISTRO_AFIRMATIVO = /^(s[ií]|confirmar|correcto|ok|dale|exacto)\b/i
@@ -1546,8 +1584,6 @@ const CATALOGO_OFERTA = `¿Cuál de nuestras ofertas educativas te interesa?
 •Inglés para niños
 •Francés
 •Italiano
-•Verano adultos
-•Verano niños
 
 🔵CURSOS Y TALLERES
 
@@ -2187,6 +2223,13 @@ export async function POST(request: Request) {
     waNumber = incoming.waNumber || ''
     const profileName = incoming.profileName || ''
     const referral = incoming.referral
+
+    // ── Comando "memoria" — nota para el asistente de IA, el bot no debe responder como si fuera cliente ──
+    if (waNumber) {
+      const supabaseMemoria = createServiceRoleClient()
+      const memoriaResponse = await handleMemoriaCommand(supabaseMemoria, provider, waNumber, originalText)
+      if (memoriaResponse) return memoriaResponse
+    }
 
     // ── Comando "registro" — alta rápida de leads, bypassea el flujo normal de prospecto ──
     if (waNumber) {
@@ -3214,6 +3257,32 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         if (eligeA(originalText)) {
           // Deja que GPT maneje la duda con RAG — sigue al bloque principal
         } else {
+          // Todavía no tenemos un nombre válido del lead — un mensaje corto tipo "Berenice Lopez"
+          // no debe caer en el heurístico de "parece pregunta" (>12 caracteres) de más abajo,
+          // que lo mandaría a GPT+RAG en vez de capturarlo como nombre. Se llega aquí sobre todo
+          // cuando un mensaje manual salta la conversación directo a fase 'accion' sin haber
+          // pasado por la captura de nombre normal de fase 'saludo'.
+          const nombrePendiente = !hasLeadName(leadSnapshot?.nombre, waNumber)
+          const words = originalText.trim().split(/\s+/)
+          const isGreeting = /^\s*(hola|hey|ola|buenas|buenos|buen[oa])\b/i.test(originalText.trim())
+          const hasProgramKeyword = /ingl[eé]s|psicolog|turism|relaciones|bachillerato|maestr[ií]a|diplomado|administraci[oó]n|idiom|franc[eé]s|italian|verano|summer/i.test(originalText)
+          const hasQuestion = /\?/.test(originalText) || /\b(costo|precio|hora|horario|d[ií]a|cu[aá]n|qu[eé]|ubicaci[oó]n|direcci[oó]n|diploma|certificado|descuento|duraci[oó]n|materia|document|requisito|uniforme|nivel|becas?|mensualidad|inscripci[oó]n)\b/i.test(originalText)
+          const looksLikeName = nombrePendiente && !isGreeting && !hasProgramKeyword && !hasQuestion && words.length <= 4 && hasLeadName(originalText.trim(), waNumber)
+
+          if (looksLikeName) {
+            const nombreCapturado = originalText.trim()
+              .replace(/^\s*(con\s+|soy\s+|me\s+llamo\s+|es\s+)/i, '')
+              .replace(/^\s*(la\s+se[ñn]or[ai]\s+|el\s+se[ñn]or\s+|don\s+|do[ñn]a\s+|la\s+se[ñn]orita\s+)/i, '')
+              .trim()
+            if (leadId) {
+              await supabase.from('leads').update({ nombre: nombreCapturado }).eq('id', leadId)
+              leadSnapshot = { ...leadSnapshot, nombre: nombreCapturado } as LeadSnapshot
+            }
+            const ctaConNombre = `¡Gracias, ${nombreCapturado}! 😊 ¿Cuál de estas opciones te interesa?${buildCTA(leadSnapshot?.curso)}`
+            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, ctaConNombre, 'accion', leadId)
+            return buildProviderResponse(provider, ctaConNombre, waNumber)
+          }
+
           // Si parece pregunta o mensaje largo → GPT con RAG (no repetir CTA ciegamente)
           const esRespuestaCorta = /^\s*[aAbBsSnNyY][iIoO]?\s*$/.test(originalText.trim())
           const parecePregunta = originalText.trim().endsWith('?')
