@@ -358,6 +358,7 @@ type NotifyEvent =
   | 'examen_confirmado'
   | 'cita_agendada'
   | 'nuevo_lead'
+  | 'lead_perdido_reescribio'
 
 const NOTIFY_LABELS: Record<NotifyEvent, string> = {
   lead_pide_humano:      '🙋 Lead pide hablar con un asesor',
@@ -365,6 +366,7 @@ const NOTIFY_LABELS: Record<NotifyEvent, string> = {
   examen_confirmado:     '📝 Lead confirmó que realizó el examen de ubicación',
   cita_agendada:         '📅 Lead agendó una cita',
   nuevo_lead:            '👋 Nuevo lead por WhatsApp',
+  lead_perdido_reescribio: '⚠️ Lead marcado como perdido/cerrado volvió a escribir',
 }
 
 async function notifyAsesor(
@@ -578,6 +580,29 @@ async function parseIncomingWhatsAppMessage(
           })
         : null
 
+    // Webhooks de estado de entrega (delivered/read/failed) de Meta — antes se
+    // ignoraban por completo (ni se registraban ni se avisaba de fallos). Un
+    // mensaje "aceptado" por nuestro endpoint /send puede fallar después en
+    // silencio (ej. fuera de la ventana de 24h) y nunca nos enterábamos.
+    if (Array.isArray(value?.statuses) && value.statuses.length > 0) {
+      for (const raw of value.statuses) {
+        const s = raw as { status?: string; recipient_id?: string; id?: string; errors?: Array<{ code?: number; title?: string; message?: string }> }
+        if (s?.status === 'failed') {
+          const errDetail = s.errors?.map(e => `[${e.code}] ${e.title || e.message || ''}`).join(' | ') || 'sin detalle'
+          console.error(`[WhatsApp status] Falló la entrega a ${s.recipient_id} (wamid ${s.id}): ${errDetail}`)
+          try {
+            await sendMetaWhatsAppMessage({
+              to: ADMIN_WA_ALERTA,
+              body: `⚠️ Un mensaje de WhatsApp NO se entregó a ${s.recipient_id || 'desconocido'}.\nMotivo: ${errDetail}`,
+            })
+          } catch (alertErr) {
+            console.error('[WhatsApp status] Error avisando fallo de entrega:', alertErr)
+          }
+        }
+      }
+      return null
+    }
+
     const message = Array.isArray(value?.messages) ? value?.messages?.[0] : null
     if (!message || !message.from) return null
 
@@ -687,9 +712,42 @@ async function buildProviderResponse(
 // para garantizar que siempre incluya promo y sea consistente.
 
 const INFO_MSGS: Record<string, string> = {
-  'Inglés para adultos': `😊 Los cursos regulares de inglés para adultos inician en *septiembre 2026*. ¿Te gustaría que te contactemos cuando abran las inscripciones?`,
+  'Inglés para adultos': `¡Con gusto! 😊 Te comparto la información de nuestro curso de *Inglés para adultos*:
 
-  'Inglés para niños': `😊 Los cursos regulares de inglés para niños inician en *septiembre 2026*. ¿Te gustaría que te contactemos cuando abran las inscripciones?`,
+*🎓 Inglés para adultos*
+Dirigido a: 13 años en adelante | Modalidad: Presencial y Online
+Duración: 5 meses (10 meses en sabatino)
+
+*🕐 Horarios presenciales:* Matutino 10-12h, Vespertino 17-19h, Sabatino 9-13h
+*🕐 Horarios online:* Vespertino 17-19h, Sabatino 9-13h
+
+*💰 Inversión:*
+• Inscripción: $750 → *$375 con promo* (50% de descuento)
+• Mensualidad matutino/vespertino: $1,070 (Básico a Pre-Intermedio) o $1,190 (Intermedio Avanzado en adelante)
+• Mensualidad sabatino: $990 o $1,010
+• Material (libros): aprox. $900 aparte
+
+🎓 Obtienes diploma con validez oficial.
+
+Las clases inician en *septiembre*, pero *puedes inscribirte desde ahora* para asegurar tu lugar 😊`,
+
+  'Inglés para niños': `¡Con gusto! 😊 Te comparto la información de nuestro curso de *Inglés para niños*:
+
+*🎓 Inglés para niños*
+Dirigido a: 4 a 12 años | Modalidad: Presencial y Online
+Duración: 5 meses (10 meses en sabatino)
+
+*🕐 Horarios presenciales:* Martes a jueves 13-14h o 17-18h, Sabatino 9-13h
+*🕐 Horarios online:* Lunes a jueves 17-18h, Sabatino 9-13h
+
+*💰 Inversión:*
+• Inscripción: $800 → *$400 con promo* (50% de descuento)
+• Mensualidad: $780
+• Material: aprox. $700 aparte
+
+🎓 Obtienes diploma con validez oficial.
+
+Las clases inician en *septiembre*, pero *puedes inscribirte desde ahora* para asegurar tu lugar 😊`,
 
   'Psicología': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Psicología:
 
@@ -1335,20 +1393,27 @@ function buildCTA(programa: string | null | undefined): string {
   return `\n\n¿Cómo te gustaría continuar?\n*A)* Tengo dudas 🤔\n*B)* Quiero inscribirme ✍️`
 }
 
+/** Detecta si el mensaje es SOLO la letra de opción (con puntuación simple opcional) —
+ * evita falsos positivos de \bx\b contra palabras sueltas comunes en español (ej. la
+ * preposición "a" dentro de una frase normal como "voy a dejar mis documentos"). */
+function esSoloLetra(msg: string, letra: string): boolean {
+  return new RegExp(`^\\s*${letra}[).,!:]?\\s*$`, 'i').test(msg)
+}
+
 function eligeB(msg: string): boolean {
   const m = msg.toLowerCase()
-  return /\bb\b|opci[oó]n.*b|\b2\b|quiero inscrib|inscribirme/.test(m)
+  return esSoloLetra(msg, 'b') || /opci[oó]n.*b|\b2\b|quiero inscrib|inscribirme/.test(m)
 }
 
 function eligeA(msg: string): boolean {
   const m = msg.toLowerCase()
-  return /\ba\b|opci[oó]n.*a|\b1\b|tengo duda|más duda|tengo preguntas/.test(m)
+  return esSoloLetra(msg, 'a') || /opci[oó]n.*a|\b1\b|tengo duda|más duda|tengo preguntas/.test(m)
 }
 
 /** Examen de ubicación — solo aplica a cursos de idiomas y es opcional, nunca sustituye a "quiero inscribirme" */
 function eligeExamenUbicacion(msg: string): boolean {
   const m = msg.toLowerCase()
-  return /\bc\b|opci[oó]n.*c|\b3\b|quiero.*clase|clase.*prueba|agendar.*examen|examen.*ubicaci[oó]n|quiero.*agendar|prueba.*gratuita/.test(m)
+  return esSoloLetra(msg, 'c') || /opci[oó]n.*c|\b3\b|quiero.*clase|clase.*prueba|agendar.*examen|examen.*ubicaci[oó]n|quiero.*agendar|prueba.*gratuita/.test(m)
 }
 
 /** Detecta programa específico en el mensaje (igual que lab) — nunca retorna "inglés" genérico */
@@ -1519,6 +1584,20 @@ Beneficiarios: Alumnos
 🎓 *Maestría:* No aplica
 ☀️ *Verano 2026:* No aplica`,
 }
+
+/** Detecta si el mensaje es alguien buscando trabajo/vacante docente, NO un prospecto de inscripción */
+function detectarConsultaVacante(msg: string): boolean {
+  return /vacante|plaza docente|buscan\s+(maestros?|profesor(a)?|docentes?)|solicit(o|an|ud)\s+.*(empleo|trabajo|maestro|profesor|docente)|trabajar\s+como\s+(maestro|profesor|docente)|dar\s+clases\s+(en|para)\s+(su|la)\s+(instituci|escuela|colegio)|postularme|contratando\s+(personal|maestros?|docentes?)|env[ií]o\s+.*(cv|curr[ií]culum)|curr[ií]culum\s+vitae|reclutamiento|recursos\s+humanos/i.test(msg)
+}
+
+const VACANTE_DOCENTE_MSG = `¡Hola! Para el tema de la vacante docente, te invitamos a visitarnos directamente en nuestras instalaciones:
+
+📍 *Chilpancingo:* Sofía Tena #1, Col. Viguri
+📍 *Iguala:* Ignacio Zaragoza 99, Col. Centro
+
+🕐 *Horarios:* Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
+
+Con gusto te atendemos ahí.`
 
 /** Detecta si el mensaje pregunta sobre convenios */
 function detectarPreguntaConvenio(msg: string): boolean {
@@ -2461,6 +2540,19 @@ export async function POST(request: Request) {
         : new Response('', { status: 200 })
     }
 
+    // Si la conversación quedó marcada como perdida/cerrada (ej. el lead pidió
+    // cancelar o el bot dio por concluido el caso) y el lead vuelve a escribir,
+    // NO seguir con el flujo automático de ventas — solo notificar a un asesor
+    // para que decida cómo retomarla (puede ser sensible, ej. cancelaciones/reembolsos).
+    if ((currentFase === 'perdido' || currentFase === 'cerrado') && leadId) {
+      const supabasePerdido = createServiceRoleClient()
+      await notifyAsesor(supabasePerdido, leadId, 'lead_perdido_reescribio',
+        leadSnapshot?.nombre, waNumber, leadSnapshot?.curso, originalText).catch(() => {})
+      return provider === 'meta'
+        ? Response.json({ ok: true, perdidoReescribio: true })
+        : new Response('', { status: 200 })
+    }
+
     // ── Respuesta de Harold al bot (human-in-the-loop) ───────────────────────────
     const HAROLD_NUMBER = ADMIN_WA_ALERTA
     if (waNumber === HAROLD_NUMBER || waNumber === '+' + HAROLD_NUMBER) {
@@ -3042,6 +3134,14 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         return buildProviderResponse(provider, reask, waNumber)
       }
 
+      // En cualquier fase: si busca trabajo/vacante docente, NO es un prospecto de
+      // inscripción — se confunde fácil con las preguntas de convenio/descuento
+      // ("soy maestro") si no se revisa primero. Ver bug de vacante mal enrutada.
+      if (detectarConsultaVacante(originalText)) {
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, VACANTE_DOCENTE_MSG, 'seguimiento')
+        return buildProviderResponse(provider, VACANTE_DOCENTE_MSG, waNumber)
+      }
+
       // En cualquier fase: si pregunta por convenios → mostrar lista
       if (detectarPreguntaConvenio(originalText)) {
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, CONVENIOS_LISTA_MSG, 'convenios')
@@ -3171,14 +3271,19 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         const nombreP = leadSnapshot?.nombre
         const msgTrimP = originalText.trim()
 
-        // Caso 1: el usuario pidió una categoría genérica (ej: "licenciaturas", "maestrías")
-        const categoriaGenerica = msgTrimP.match(/^licenciaturas?$/i)
+        // Caso 1: el usuario pidió una categoría genérica (ej: "licenciaturas", "maestrías").
+        // Antes exigía que el mensaje fuera EXACTAMENTE esa palabra (^...$) — una pregunta
+        // normal como "¿me da info de las licenciaturas?" no matcheaba y caía al catálogo
+        // completo genérico (bug de pérdida de contexto). Ahora basta con que la mencione,
+        // normalizando acentos igual que detectarPrograma().
+        const msgNormP = quitarAcentos(msgTrimP).toLowerCase()
+        const categoriaGenerica = /licenciaturas?/.test(msgNormP)
           ? `Tenemos las siguientes licenciaturas:\n\n• Licenciatura en Inglés\n• Relaciones públicas y mercadotecnia\n• Administración turística\n• Psicología\n\n¿Cuál te interesa? 😊`
-          : msgTrimP.match(/^maestr[ií]as?$/i)
+          : /maestrias?/.test(msgNormP)
           ? `Tenemos dos maestrías:\n\n• Maestría en Innovación empresarial\n• Maestría en Multiculturalidad y Plurilingüismo\n\n¿Cuál te interesa? 😊`
-          : msgTrimP.match(/^diplomados?$/i)
+          : /diplomados?/.test(msgNormP)
           ? `Contamos con más de 30 diplomados en distintas áreas. ¿Me puedes decir cuál tema te interesa? Por ejemplo: salud, educación, negocios, tecnología... 😊`
-          : msgTrimP.match(/^(cursos?|idiomas?)$/i)
+          : /\b(cursos?|idiomas?)\b/.test(msgNormP)
           ? `Ofrecemos cursos de:\n\n• Inglés para adultos\n• Inglés para niños\n• Francés\n• Italiano\n\n¿Cuál te interesa? 😊`
           : null
 
@@ -3392,11 +3497,11 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           return buildProviderResponse(provider, INSCRIPCION_DESCONOCIDA_MSG, waNumber)
         }
         const msgI = originalText.toLowerCase()
-        if (/\ba\b|en l[ií]nea|online|desde aqu[ií]|digital|virtual/i.test(msgI)) {
+        if (esSoloLetra(originalText, 'a') || /en l[ií]nea|online|desde aqu[ií]|digital|virtual/i.test(msgI)) {
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_ONLINE_MSG, 'inscripcion')
           return buildProviderResponse(provider, INSCRIPCION_ONLINE_MSG, waNumber)
         }
-        if (/\bb\b|mejor b|presencial|instalaci[oó]n|ir a|plantel|visitar/i.test(msgI)) {
+        if (esSoloLetra(originalText, 'b') || /presencial|instalaci[oó]n|\bir a\b|plantel|visitar/i.test(msgI)) {
           const msgP = buildInscripcionPresencialMsg(leadSnapshot?.nombre, leadSnapshot?.email, leadSnapshot?.curso, leadSnapshot?.whatsapp)
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgP, 'inscripcion')
           return buildProviderResponse(provider, msgP, waNumber)

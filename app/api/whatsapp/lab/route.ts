@@ -21,9 +21,42 @@ function buildAgendarLink(tipo: string, baseUrl: string, nombre?: string | null,
 // ─── MENSAJES DE INFO POR PROGRAMA ───────────────────────────────────────────
 
 const INFO_MSGS: Record<string, string> = {
-  'Inglés para adultos': `😊 Los cursos regulares de inglés para adultos inician en *septiembre 2026*. ¿Te gustaría que te contactemos cuando abran las inscripciones?`,
+  'Inglés para adultos': `¡Con gusto! 😊 Te comparto la información de nuestro curso de *Inglés para adultos*:
 
-  'Inglés para niños': `😊 Los cursos regulares de inglés para niños inician en *septiembre 2026*. ¿Te gustaría que te contactemos cuando abran las inscripciones?`,
+*🎓 Inglés para adultos*
+Dirigido a: 13 años en adelante | Modalidad: Presencial y Online
+Duración: 5 meses (10 meses en sabatino)
+
+*🕐 Horarios presenciales:* Matutino 10-12h, Vespertino 17-19h, Sabatino 9-13h
+*🕐 Horarios online:* Vespertino 17-19h, Sabatino 9-13h
+
+*💰 Inversión:*
+• Inscripción: $750 → *$375 con promo* (50% de descuento)
+• Mensualidad matutino/vespertino: $1,070 (Básico a Pre-Intermedio) o $1,190 (Intermedio Avanzado en adelante)
+• Mensualidad sabatino: $990 o $1,010
+• Material (libros): aprox. $900 aparte
+
+🎓 Obtienes diploma con validez oficial.
+
+Las clases inician en *septiembre*, pero *puedes inscribirte desde ahora* para asegurar tu lugar 😊`,
+
+  'Inglés para niños': `¡Con gusto! 😊 Te comparto la información de nuestro curso de *Inglés para niños*:
+
+*🎓 Inglés para niños*
+Dirigido a: 4 a 12 años | Modalidad: Presencial y Online
+Duración: 5 meses (10 meses en sabatino)
+
+*🕐 Horarios presenciales:* Martes a jueves 13-14h o 17-18h, Sabatino 9-13h
+*🕐 Horarios online:* Lunes a jueves 17-18h, Sabatino 9-13h
+
+*💰 Inversión:*
+• Inscripción: $800 → *$400 con promo* (50% de descuento)
+• Mensualidad: $780
+• Material: aprox. $700 aparte
+
+🎓 Obtienes diploma con validez oficial.
+
+Las clases inician en *septiembre*, pero *puedes inscribirte desde ahora* para asegurar tu lugar 😊`,
 
   'Psicología': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Psicología:
 

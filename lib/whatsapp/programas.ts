@@ -169,22 +169,30 @@ export function tipoInscripcion(curso: string | null | undefined): TipoInscripci
  * detectar cambios de tema a media conversación. Antes vivía duplicada en
  * webhook y lab con listas de regex que ya habían divergido entre sí. */
 export function detectarPrograma(msg: string): string | null {
-  if (/ingl[eé]s para ni[ñn]os?|ni[ñn]os?.*ingl[eé]s|ingl[eé]s.*ni[ñn]os?/i.test(msg)) return 'Inglés para niños'
-  if (/ingl[eé]s para adultos?|adultos?.*ingl[eé]s|ingl[eé]s.*adultos?/i.test(msg)) return 'Inglés para adultos'
-  if (/licenciatura.*ingl[eé]s.*(online|en l[ií]nea)|ingl[eé]s.*licenciatura.*(online|en l[ií]nea)|\blic\b.*ingl[eé]s.*(online|en l[ií]nea)/i.test(msg)) return 'Licenciatura en Inglés online'
-  if (/licenciatura.*ingl[eé]s|ingl[eé]s.*licenciatura|\blic\b.*ingl[eé]s|ingl[eé]s.*\blic\b/i.test(msg)) return 'Licenciatura en Inglés'
-  if (/psicoterap|habilidades.*(pr[aá]ctica|cl[ií]nica).*psic/i.test(msg)) return 'Habilidades para la práctica psicoterapéutica'
-  if (/psicolog|psico\b/i.test(msg)) return 'Psicología'
-  if (/tur[ií]s.*(online|en l[ií]nea)|(online|en l[ií]nea).*tur[ií]s/i.test(msg)) return 'Administración turística online'
-  if (/tur[ií]s|turism/i.test(msg)) return 'Administración turística'
-  if (/(relaciones p[uú]blicas|mercadotecnia|\bmkt\b|marketing).*(online|en l[ií]nea)/i.test(msg)) return 'Relaciones públicas y mercadotecnia online'
-  if (/relaciones p[uú]blicas|mercadotecnia|\bmkt\b|marketing/i.test(msg)) return 'Relaciones públicas y mercadotecnia'
-  if (/franc[eé]s/i.test(msg)) return 'Francés'
-  if (/italian/i.test(msg)) return 'Italiano'
-  if (/innovaci[oó]n empresarial/i.test(msg)) return 'Maestría en Innovación empresarial'
-  if (/multiculturalidad|pluriling/i.test(msg)) return 'Maestría en Multiculturalidad'
-  if (/bachillerato/i.test(msg)) return 'Bachillerato'
-  if (/verano|summer|my best summer/i.test(msg) && /ni[ñn]o|kid|infan|peque/i.test(msg)) return 'Cursos de verano niños'
-  if (/verano|summer|my best summer/i.test(msg) && /adult|adolescen|joven|teen/i.test(msg)) return 'Cursos de verano adultos'
+  // Normaliza acentos igual que matchOfertaEducativa() — antes esta función comparaba
+  // contra el texto crudo y un typo de acento (ej. "psicólogia" en vez de "psicología",
+  // acento en la letra equivocada) rompía el match con regex tipo psicolog|psico\b,
+  // causando que el bot no reconociera el programa que el lead ya había especificado
+  // y reiniciara con el catálogo genérico completo.
+  const norm = quitarAcentos(msg).toLowerCase()
+  // esOnline se evalúa aparte (igual que matchOfertaEducativa) en vez de exigir que
+  // "online"/"en línea" aparezca DESPUÉS del nombre del programa en el texto — un
+  // mensaje como "En línea: licenciatura en inglés" (el calificador va primero) no
+  // matcheaba ningún regex de "programa...online" y perdía la modalidad online.
+  const esOnline = /online|virtual|distancia|en linea/.test(norm)
+  if (/ingles para nin|nin.*ingles|ingles.*nin/.test(norm)) return 'Inglés para niños'
+  if (/ingles para adult|adult.*ingles|ingles.*adult/.test(norm)) return 'Inglés para adultos'
+  if (/licenciatura.*ingles|ingles.*licenciatura|\blic\b.*ingles|ingles.*\blic\b/.test(norm)) return esOnline ? 'Licenciatura en Inglés online' : 'Licenciatura en Inglés'
+  if (/psicoterap|habilidades.*(practica|clinica).*psic/.test(norm)) return 'Habilidades para la práctica psicoterapéutica'
+  if (/psicolog|psico\b/.test(norm)) return 'Psicología'
+  if (/turis|turism/.test(norm)) return esOnline ? 'Administración turística online' : 'Administración turística'
+  if (/relaciones publicas|mercadotecnia|\bmkt\b|marketing/.test(norm)) return esOnline ? 'Relaciones públicas y mercadotecnia online' : 'Relaciones públicas y mercadotecnia'
+  if (/frances/.test(norm)) return 'Francés'
+  if (/italian/.test(norm)) return 'Italiano'
+  if (/innovacion empresarial/.test(norm)) return 'Maestría en Innovación empresarial'
+  if (/multiculturalidad|pluriling/.test(norm)) return 'Maestría en Multiculturalidad'
+  if (/bachillerato/.test(norm)) return 'Bachillerato'
+  if (/verano|summer|my best summer/.test(norm) && /nino|kid|infan|peque/.test(norm)) return 'Cursos de verano niños'
+  if (/verano|summer|my best summer/.test(norm) && /adult|adolescen|joven|teen/.test(norm)) return 'Cursos de verano adultos'
   return null
 }
