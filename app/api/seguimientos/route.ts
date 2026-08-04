@@ -207,6 +207,13 @@ function decidirSeguimiento(lead: Lead, horas: number, ultimoTier: number): Deci
 
 const CHUNK_SIZE = 200
 
+// Tope de nuevos seguimientos generados por corrida — evita que un backlog
+// grande (ej. tras un tiempo sin correr) inunde a los asesores de golpe.
+// Los que se pasan del tope quedan "diferidos" (no se escribe nada), y se
+// vuelven a evaluar en la siguiente corrida — como se ordena por urgencia real,
+// no pierden su lugar, solo se atienden en orden a lo largo de varios días.
+const LIMITE_DIARIO_GENERADOS = 80
+
 // ─── POST — Generar seguimientos (cron) ──────────────────────────────────────
 
 export async function POST(request: Request) {
@@ -222,6 +229,7 @@ export async function POST(request: Request) {
   const generados: string[] = []
   const saltados: string[] = []
   const cerrados: string[] = []
+  const diferidos: string[] = []
   const decisionesDetalle: Array<{ leadId: string; accion: string; tier?: number; tipo?: string; templateName?: string | null }> = []
 
   // 1. Obtener todos los leads activos con su conversación y asesor
@@ -350,6 +358,10 @@ export async function POST(request: Request) {
           cerrados.push(lead.id)
           continue
         case 'generado':
+          if (generados.length >= LIMITE_DIARIO_GENERADOS) {
+            diferidos.push(lead.id)
+            continue
+          }
           filasAInsertar.push({
             lead_id: lead.id,
             conversacion_id: conv.id,
@@ -427,6 +439,7 @@ export async function POST(request: Request) {
     generados: generados.length,
     saltados: saltados.length,
     cerrados: cerrados.length,
+    diferidos: diferidos.length,
     ...(dryRun ? { decisiones: decisionesDetalle } : {}),
   })
 }
