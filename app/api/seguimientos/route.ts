@@ -32,8 +32,11 @@ const UMBRALES_INSCRIPCION = [24,  48,  72, 120, 168]  // inscripcion_pendiente
 const TIPOS_POR_TIER = ['mensaje_wa', 'llamada', 'template', 'llamada', 'template'] as const
 
 function selectTemplate(tier: number, stage: string): string {
-  if (stage === 'inscripcion_pendiente') return 'windsor_inscripcion_pendiente'
-  if (tier === 5) return 'windsor_promocion'
+  // Nombres deben coincidir EXACTO con los templates aprobados en Meta Business Manager
+  // (verificado 2026-08-04: windsor_inscripcion_pendiente_ lleva guión bajo final,
+  // windsor_promo NO lleva "cion" — ambos difieren de como se habían nombrado aquí)
+  if (stage === 'inscripcion_pendiente') return 'windsor_inscripcion_pendiente_'
+  if (tier === 5) return 'windsor_promo'
   return 'seguimiento_general'
 }
 
@@ -195,11 +198,13 @@ function decidirSeguimiento(lead: Lead, horas: number, ultimoTier: number): Deci
     contenidoSugerido = `Hola${nombre} 👋 ¿Pudiste revisar la información sobre Instituto Windsor? Si tienes alguna duda, con gusto te ayudo 😊`
   } else if (tipo === 'template') {
     templateName = selectTemplate(nextTier, lead.stage)
+    // Textos de vista previa copiados literal de los templates aprobados en Meta
+    // (verificado 2026-08-04) — mantener en sync si se edita el template en Meta
     contenidoSugerido = templateName === 'seguimiento_general'
       ? `Hola {{nombre}} 👋 ¿Pudiste revisar la información que te compartimos sobre Instituto Windsor? Si tienes alguna duda, con gusto te ayudamos. 😊`
-      : templateName === 'windsor_promocion'
-        ? `¡Hola {{nombre}}! 🎉 Tenemos una promoción especial activa para ti. ¿Te gustaría que un asesor te llame para darte los detalles?`
-        : `Hola {{nombre}}, notamos que tu inscripción quedó pendiente. ¿Te ayudamos a completarla hoy? 😊`
+      : templateName === 'windsor_promo'
+        ? `Hola {{nombre}} 😊. Tenemos una promoción vigente en Instituto Windsor y nos encantaría que la aprovecharas. ¿Te compartimos los detalles?`
+        : `Hola {{nombre}}, tu lugar en Instituto Windsor está casi apartado. Solo falta completar el proceso de inscripción. ¿Necesitas ayuda con algún documento o los datos de pago? 😊`
   }
 
   return { accion: 'generado', tier: nextTier, tipo, contenidoSugerido, templateName }
