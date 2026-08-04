@@ -103,6 +103,54 @@ export async function sendMetaWhatsAppTemplate({
   return { id: data?.messages?.[0]?.id || null, raw: data }
 }
 
+const _templateBodyCache = new Map<string, string | null>()
+
+/**
+ * Trae el texto BODY real de un template aprobado directo de Meta (no una copia
+ * hardcodeada en el código, que se puede desincronizar si el template se edita
+ * en Meta Business Manager). Cachea en memoria por invocación del proceso —
+ * suficiente para una sola corrida del cron, que puede repetir el mismo template
+ * para varios leads. Devuelve null si falla (llamador debe tener un texto de
+ * respaldo, nunca debe romper el flujo por esto).
+ */
+export async function fetchApprovedTemplateBody(templateName: string): Promise<string | null> {
+  if (_templateBodyCache.has(templateName)) return _templateBodyCache.get(templateName) ?? null
+
+  const { accessToken, businessAccountId } = getMetaConfig()
+  if (!accessToken || !businessAccountId) {
+    console.error('[fetchApprovedTemplateBody] faltan META_WHATSAPP_TOKEN / META_WHATSAPP_BUSINESS_ACCOUNT_ID')
+    _templateBodyCache.set(templateName, null)
+    return null
+  }
+
+  try {
+    const url = `https://graph.facebook.com/v23.0/${businessAccountId}/message_templates?name=${encodeURIComponent(templateName)}&fields=name,status,language,components`
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) {
+      console.error('[fetchApprovedTemplateBody] error HTTP', res.status, await res.text().catch(() => ''))
+      _templateBodyCache.set(templateName, null)
+      return null
+    }
+    const data = await res.json()
+    const match = (data?.data || []).find((t: { name: string; language?: string }) =>
+      t.name === templateName && (!t.language || t.language.startsWith('es'))
+    ) || (data?.data || [])[0]
+
+    const bodyComponent = match?.components?.find((c: { type: string }) => c.type === 'BODY')
+    const texto = bodyComponent?.text || null
+
+    _templateBodyCache.set(templateName, texto)
+    return texto
+  } catch (e) {
+    console.error('[fetchApprovedTemplateBody]', e)
+    _templateBodyCache.set(templateName, null)
+    return null
+  }
+}
+
 /** Intenta enviar y si falla con #133010 reintenta con formato +521 (México legacy) */
 async function metaPostWithRetry(phoneNumberId: string, accessToken: string, toNormalized: string, payload: object): Promise<Response> {
   const toFormatted = toNormalized.replace(/^\+/, '')
