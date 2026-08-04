@@ -6,7 +6,9 @@ import {
   getTwilioConfig,
   getWhatsAppProvider,
   normalizePhoneNumber,
+  sendMessengerMessage,
   sendMetaWhatsAppMessage,
+  sendMetaWhatsAppTemplate,
 } from '@/lib/whatsapp/provider'
 
 export async function POST(request: Request) {
@@ -15,43 +17,75 @@ export async function POST(request: Request) {
   let leadId: string | undefined
   let agentUserId: string | undefined
   let fase: string | undefined
+  let templateName: string | undefined
+  let templateParams: string[] | undefined
+  let modoHumano: boolean = true
   try {
-    ;({ to, body, leadId, agentUserId, fase } = (await request.json()) as {
+    ;({ to, body, leadId, agentUserId, fase, templateName, templateParams, modoHumano = true } = (await request.json()) as {
       to?: string
       body?: string
       leadId?: string
       agentUserId?: string
       fase?: string
+      templateName?: string
+      templateParams?: string[]
+      modoHumano?: boolean
     })
 
-    if (!to || !body) {
+    if (!to || (!body && !templateName)) {
       return NextResponse.json(
-        { error: 'Parámetros to y body son obligatorios' },
+        { error: 'Parámetros to y body (o templateName) son obligatorios' },
         { status: 400 }
       )
     }
 
-    const provider = getWhatsAppProvider()
+    // Detectar si "to" corresponde a una conversación de Messenger (el identificador
+    // ahí es un PSID, no un teléfono) consultando el canal real de la conversación —
+    // así los call sites que ya mandan selectedConv.whatsapp no necesitan cambiar.
+    const detectSupabase = await createServiceRoleClient()
+    const { data: convLookup } = await detectSupabase
+      .from('whatsapp_conversaciones')
+      .select('provider')
+      .eq('whatsapp', to)
+      .order('ultimo_mensaje_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const esMessenger = (convLookup as { provider?: string } | null)?.provider === 'messenger'
 
-    const normalizedTo = normalizePhoneNumber(to)
+    const provider = esMessenger ? ('messenger' as const) : getWhatsAppProvider()
 
-    if (provider === 'meta') {
-      const message = await sendMetaWhatsAppMessage({ to, body })
+    const normalizedTo = esMessenger ? to : normalizePhoneNumber(to)
 
-      if (leadId) {
-        const supabase = await createServiceRoleClient()
-        const now = new Date().toISOString()
-        const { data: existingConv } = await supabase
-          .from('whatsapp_conversaciones')
-          .select('id')
-          .eq('whatsapp', normalizedTo)
-          .order('ultimo_mensaje_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
+    // Nota: antes había una lista de "fases iniciales" que se avanzaban automáticamente a
+    // 'accion' al mandar un mensaje manual, asumiendo que ya se había enviado la info completa
+    // del programa. Se quitó ese salto automático porque la caja de "responder como agente" del
+    // CRM no manda `fase` y se usa para cualquier tipo de respuesta manual (no solo para mandar
+    // la ficha completa) — el salto ciego a 'accion' rompía la captura de nombre en fase 'saludo'
+    // cuando el lead simplemente respondía su nombre después. Ahora, si no se pasa `fase`
+    // explícita, la conversación se queda en la fase en la que ya estaba.
 
-        let conversacionId = existingConv?.id || null
+    if (provider === 'messenger') {
+      if (!body) {
+        return NextResponse.json({ error: 'Falta body — Messenger no soporta templates de WhatsApp' }, { status: 400 })
+      }
+      const result = await sendMessengerMessage({ to: normalizedTo, body })
 
-        if (!conversacionId) {
+      const supabase = await createServiceRoleClient()
+      const now = new Date().toISOString()
+      const { data: existingConv } = await supabase
+        .from('whatsapp_conversaciones')
+        .select('id, fase')
+        .eq('whatsapp', normalizedTo)
+        .order('ultimo_mensaje_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const faseActual = (existingConv as { fase?: string } | null)?.fase || 'saludo'
+      const nuevaFase = fase || faseActual
+      let conversacionId = (existingConv as { id?: string } | null)?.id || null
+
+      if (!conversacionId) {
+        if (leadId) {
           const { data: createdConv } = await supabase
             .from('whatsapp_conversaciones')
             .insert([
@@ -60,42 +94,111 @@ export async function POST(request: Request) {
                 lead_id: leadId,
                 estado: 'abierta',
                 ultimo_mensaje_at: now,
-                fase: fase || 'seguimiento',
-                modo_humano: true,
+                fase: nuevaFase,
+                modo_humano: modoHumano,
+                tomado_por: agentUserId || null,
+                provider: 'messenger',
+              },
+            ])
+            .select('id')
+            .single()
+          conversacionId = (createdConv as { id?: string } | null)?.id || null
+        }
+      } else {
+        const updateData: Record<string, unknown> = {
+          estado: 'abierta',
+          ultimo_mensaje_at: now,
+          fase: nuevaFase,
+          modo_humano: modoHumano,
+          tomado_por: agentUserId || null,
+        }
+        if (leadId) updateData.lead_id = leadId
+        await supabase.from('whatsapp_conversaciones').update(updateData).eq('id', conversacionId)
+      }
+
+      if (conversacionId) {
+        await supabase.from('whatsapp_mensajes').insert([
+          { conversacion_id: conversacionId, rol: 'agente', contenido: body },
+        ])
+      }
+
+      return NextResponse.json({ provider, id: result.id, to: normalizedTo, status: 'accepted' })
+    }
+
+    if (provider === 'meta') {
+      let messageId: string | null = null
+      if (templateName) {
+        const result = await sendMetaWhatsAppTemplate({ to, templateName, parameters: templateParams || [] })
+        messageId = result.id
+      } else {
+        const result = await sendMetaWhatsAppMessage({ to, body: body! })
+        messageId = result.id
+      }
+
+      // Siempre actualizar la conversación (con o sin leadId)
+      const supabase = await createServiceRoleClient()
+      const now = new Date().toISOString()
+      const { data: existingConv } = await supabase
+        .from('whatsapp_conversaciones')
+        .select('id, fase')
+        .eq('whatsapp', normalizedTo)
+        .order('ultimo_mensaje_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      // Si la fase actual es inicial y no se pasó fase explícita, avanzar a 'accion'
+      const faseActual = (existingConv as { fase?: string } | null)?.fase || 'saludo'
+      const nuevaFase = fase || faseActual
+
+      let conversacionId = (existingConv as { id?: string } | null)?.id || null
+
+      if (!conversacionId) {
+        if (leadId) {
+          const { data: createdConv } = await supabase
+            .from('whatsapp_conversaciones')
+            .insert([
+              {
+                whatsapp: normalizedTo,
+                lead_id: leadId,
+                estado: 'abierta',
+                ultimo_mensaje_at: now,
+                fase: nuevaFase,
+                modo_humano: modoHumano,
                 tomado_por: agentUserId || null,
               },
             ])
             .select('id')
             .single()
-          conversacionId = createdConv?.id || null
-        } else {
-          await supabase
-            .from('whatsapp_conversaciones')
-            .update({
-              lead_id: leadId,
-              estado: 'abierta',
-              ultimo_mensaje_at: now,
-              fase: fase || 'seguimiento',
-              modo_humano: true,
-              tomado_por: agentUserId || null,
-            })
-            .eq('id', conversacionId)
+          conversacionId = (createdConv as { id?: string } | null)?.id || null
         }
+      } else {
+        const updateData: Record<string, unknown> = {
+          estado: 'abierta',
+          ultimo_mensaje_at: now,
+          fase: nuevaFase,
+          modo_humano: modoHumano,
+          tomado_por: agentUserId || null,
+        }
+        if (leadId) updateData.lead_id = leadId
+        await supabase
+          .from('whatsapp_conversaciones')
+          .update(updateData)
+          .eq('id', conversacionId)
+      }
 
-        if (conversacionId) {
-          await supabase.from('whatsapp_mensajes').insert([
-            {
-              conversacion_id: conversacionId,
-              rol: 'agente',
-              contenido: body,
-            },
-          ])
-        }
+      if (conversacionId) {
+        await supabase.from('whatsapp_mensajes').insert([
+          {
+            conversacion_id: conversacionId,
+            rol: 'agente',
+            contenido: body || `[Template: ${templateName}]`,
+          },
+        ])
       }
 
       return NextResponse.json({
         provider,
-        id: message.id,
+        id: messageId,
         to: normalizedTo,
         status: 'accepted',
       })
@@ -151,7 +254,7 @@ export async function POST(request: Request) {
               estado: 'abierta',
               ultimo_mensaje_at: now,
               fase: fase || 'seguimiento',
-              modo_humano: true,
+              modo_humano: modoHumano,
               tomado_por: agentUserId || null,
             },
           ])

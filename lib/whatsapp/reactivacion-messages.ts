@@ -19,16 +19,16 @@ export const DIAS_SILENCIO_POR_ETAPA: Record<ReactivationStageKey, number> = {
   clase_muestra: 2,
   segundo_contacto: 3,
   promocion_enviada: 2,
-  inscripcion_pendiente: 1,
+  inscripcion_pendiente: 3,
 }
 
 /** Mínimo de horas entre intento 1 y 2 (evita doble envío en el mismo día). */
-export const HORAS_MIN_ENTRE_INTENTOS = 48
+export const HORAS_MIN_ENTRE_INTENTOS = 96
 
 /** Heurística Track A (idiomas / examen / clase muestra). */
 export function esTrackA(curso: string | null | undefined): boolean {
   const c = String(curso || '').toLowerCase()
-  if (!c || c.includes('whatsapp - instituto')) return true
+  if (!c || c.includes('whatsapp - instituto')) return false
   return (
     /idioma|ingl[eé]s|inglés|franc[eé]s|italiano|niño|adulto|examen|clase de prueba|clase muestra|ubicaci[oó]n/.test(
       c

@@ -1,5 +1,5 @@
 {
-  "name": "salescrm",
+  "name": "windsorcrm",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "whatsapp:check": "bash scripts/check-whatsapp-dev.sh",
-    "crm:check": "bash scripts/check-crm-quality.sh"
+    "crm:check": "bash scripts/check-crm-quality.sh",
+    "test:clasificacion": "tsx scripts/test-clasificacion.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
@@ -30,6 +31,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }

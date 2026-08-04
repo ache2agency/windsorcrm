@@ -1,8 +1,16 @@
 {
   "crons": [
     {
+      "path": "/api/whatsapp/reporte-diario",
+      "schedule": "0 8 * * *"
+    },
+    {
       "path": "/api/whatsapp/reactivacion",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/seguimientos",
+      "schedule": "0 9 * * *"
     }
   ]
 }

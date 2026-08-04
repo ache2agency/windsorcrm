@@ -1,4 +1,4 @@
-export type WhatsAppProvider = 'twilio' | 'meta'
+export type WhatsAppProvider = 'twilio' | 'meta' | 'messenger'
 
 export function getWhatsAppProvider(): WhatsAppProvider {
   return process.env.WHATSAPP_PROVIDER === 'meta' ? 'meta' : 'twilio'
@@ -28,6 +28,45 @@ export function getMetaConfig() {
     verifyToken: process.env.META_WHATSAPP_VERIFY_TOKEN,
     appSecret: process.env.META_APP_SECRET,
   }
+}
+
+export function getMessengerConfig() {
+  return {
+    pageAccessToken: process.env.META_MESSENGER_PAGE_TOKEN,
+  }
+}
+
+export async function sendMessengerMessage({
+  to,
+  body,
+}: {
+  to: string
+  body: string
+}) {
+  const { pageAccessToken } = getMessengerConfig()
+  if (!pageAccessToken) {
+    throw new Error('Falta variable de entorno META_MESSENGER_PAGE_TOKEN')
+  }
+
+  const response = await fetch(
+    `https://graph.facebook.com/v23.0/me/messages?access_token=${encodeURIComponent(pageAccessToken)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipient: { id: to },
+        message: { text: body },
+      }),
+    }
+  )
+
+  const data = await response.json().catch(() => null)
+  if (!response.ok) {
+    const code = data?.error?.code ? `#${data.error.code} ` : ''
+    const detail = `${code}${data?.error?.message || `HTTP ${response.status}`}`
+    throw new Error(detail)
+  }
+  return { id: data?.message_id || null, raw: data }
 }
 
 export async function sendMetaWhatsAppTemplate({

@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { detectarPrograma, canonicalizarPrograma } from '@/lib/whatsapp/programas'
+import { REGLAS_NEGOCIO } from '@/lib/whatsapp/reglasNegocio'
 
 export const maxDuration = 60
 
@@ -19,60 +21,42 @@ function buildAgendarLink(tipo: string, baseUrl: string, nombre?: string | null,
 // ─── MENSAJES DE INFO POR PROGRAMA ───────────────────────────────────────────
 
 const INFO_MSGS: Record<string, string> = {
-  'Inglés para adultos': `¡Excelente elección! 😊 Te comparto la información de nuestro Curso de Inglés:
+  'Inglés para adultos': `¡Con gusto! 😊 Te comparto la información de nuestro curso de *Inglés para adultos*:
 
-*📚 Curso de Inglés para Adultos*
-Dirigido a personas de 13 años en adelante
+*🎓 Inglés para adultos*
+Dirigido a: 13 años en adelante | Modalidad: Presencial y Online
+Duración: 5 meses (10 meses en sabatino)
 
-*🎓 Modalidad:* Presencial y Online
-
-*🕐 Horarios presenciales:*
-• Matutino: 10:00 - 12:00 hrs
-• Vespertino: 17:00 - 19:00 hrs
-• Sabatino: 09:00 - 13:00 hrs
-
-*🛜 Horarios online:*
-• Vespertino: 17:00 - 19:00 hrs
-• Sabatino: 09:00 - 13:00 hrs
-
-*⏳ Duración:* 5 meses (10 meses sabatino)
+*🕐 Horarios presenciales:* Matutino 10-12h, Vespertino 17-19h, Sabatino 9-13h
+*🕐 Horarios online:* Vespertino 17-19h, Sabatino 9-13h
 
 *💰 Inversión:*
-• Inscripción: $750
-• Mensualidad desde $990
+• Inscripción: $750 → *$375 con promo* (50% de descuento)
+• Mensualidad matutino/vespertino: $1,070 (Básico a Pre-Intermedio) o $1,190 (Intermedio Avanzado en adelante)
+• Mensualidad sabatino: $990 o $1,010
+• Material (libros): aprox. $900 aparte
 
-*🎉 Promoción del mes:*
-• Inscripción: ~$750~ → $375 (50% de descuento)
-• ¡Primer mes gratis!
+🎓 Obtienes diploma con validez oficial.
 
-Al terminar obtienes un Diploma con validez oficial.`,
+Las clases inician en *septiembre*, pero *puedes inscribirte desde ahora* para asegurar tu lugar 😊`,
 
-  'Inglés para niños': `¡Qué gran decisión para el futuro de tu hij@! 😊 Te comparto la información de nuestro Curso de Inglés para Niños:
+  'Inglés para niños': `¡Con gusto! 😊 Te comparto la información de nuestro curso de *Inglés para niños*:
 
-*📚 Curso de Inglés para Niños*
-Dirigido a niños de 4 a 12 años
+*🎓 Inglés para niños*
+Dirigido a: 4 a 12 años | Modalidad: Presencial y Online
+Duración: 5 meses (10 meses en sabatino)
 
-*🎓 Modalidad:* Presencial y Online
-
-*🕐 Horarios presenciales:*
-• Martes a jueves: 13:00 - 14:00 hrs o 17:00 - 18:00 hrs
-• Sabatino: 09:00 - 13:00 hrs
-
-*🛜 Horarios online:*
-• Lunes a jueves: 17:00 - 18:00 hrs
-• Sabatino: 09:00 - 13:00 hrs
-
-*⏳ Duración:* 5 meses
+*🕐 Horarios presenciales:* Martes a jueves 13-14h o 17-18h, Sabatino 9-13h
+*🕐 Horarios online:* Lunes a jueves 17-18h, Sabatino 9-13h
 
 *💰 Inversión:*
-• Inscripción: $800
+• Inscripción: $800 → *$400 con promo* (50% de descuento)
 • Mensualidad: $780
+• Material: aprox. $700 aparte
 
-*🎉 Promoción del mes:*
-• Inscripción: ~$800~ → $400 (50% de descuento)
-• ¡Primer mes gratis!
+🎓 Obtienes diploma con validez oficial.
 
-Al terminar obtiene un Diploma con validez oficial.`,
+Las clases inician en *septiembre*, pero *puedes inscribirte desde ahora* para asegurar tu lugar 😊`,
 
   'Psicología': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Psicología:
 
@@ -82,8 +66,9 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,300 (incluye credencial)
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$2,300~ → $690 (70% de descuento)
@@ -91,7 +76,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Salud, educación, medio ambiente, producción, consumo y convivencia social.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1mw16jhbwN3K2dBy3ajcb3qREOPVXZ9rb/view`,
+📄 Plan de estudios: https://drive.google.com/file/d/1CuvtEmWZ8TdrI48xYXBxUBPb2PyGveBw/view`,
 
   'Licenciatura en Inglés': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Inglés:
 
@@ -101,16 +86,17 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,150 (incluye credencial)
-• Mensualidad: $2,650
+• Inscripción semestral: $2,300
+• Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,150~ → $645 (70% de descuento)
-• Mensualidad: ~$2,650~ → $1,855 (30% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
+• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Docente, traductor, asesor editorial, call centers, centros de investigación y organismos internacionales.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1M_K1sIqh-8LgZdTsiAmIRMOkVIiTw295/view`,
+📄 Plan de estudios: https://drive.google.com/file/d/1NZeL0KEroyx0eVFeAKSaxgr5bnjjKR_Z/view`,
 
   'Licenciatura en Inglés online': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Inglés Online:
 
@@ -120,12 +106,13 @@ Modalidad: Online | Duración: 3 años
 *🕐 Horarios:* Online
 
 *💰 Inversión:*
-• Inscripción semestral: $2,150 (incluye credencial)
-• Mensualidad: $2,650
+• Inscripción semestral: $2,300
+• Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,150~ → $645 (70% de descuento)
-• Mensualidad: ~$2,650~ → $1,855 (30% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
+• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Docente, traductor, asesor editorial, call centers, centros de investigación y organismos internacionales.
 
@@ -139,16 +126,17 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,200 (incluye credencial)
-• Mensualidad: $2,650
+• Inscripción semestral: $2,300
+• Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,200~ → $660 (70% de descuento)
-• Mensualidad: ~$2,650~ → $1,855 (30% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
+• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Agencias de viajes, hoteles, resorts, operadores turísticos, eventos y convenciones, emprendimiento propio.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1FMFbZ4pupnqkD_X1pBUcxlVo0HmRxUPb/view`,
+📄 Plan de estudios: https://drive.google.com/file/d/18QTS1qOE5DDJuI--RCqhuIv89hPv0DiK/view`,
 
   'Administración turística online': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Administración Turística Online:
 
@@ -158,12 +146,13 @@ Modalidad: Online | Duración: 3 años
 *🕐 Horarios:* Online
 
 *💰 Inversión:*
-• Inscripción semestral: $2,200 (incluye credencial)
-• Mensualidad: $2,650
+• Inscripción semestral: $2,300
+• Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,200~ → $660 (70% de descuento)
-• Mensualidad: ~$2,650~ → $1,855 (30% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
+• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Agencias de viajes, hoteles, resorts, operadores turísticos, eventos y convenciones, emprendimiento propio.
 
@@ -177,8 +166,9 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,300 (incluye credencial)
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$2,300~ → $690 (70% de descuento)
@@ -188,7 +178,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Agencias de publicidad, marketing, medios de comunicación, gobierno, tecnología, entretenimiento, emprendimiento propio.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1tv2023m30ZVHJRryfwhNm6tT9wICHvnZ/view`,
+📄 Plan de estudios: https://drive.google.com/file/d/1GtQPIwHcopnkvfBh4oQpUNZw0ekkyayf/view`,
 
   'Relaciones públicas y mercadotecnia online': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Relaciones Públicas y Mercadotecnia Online:
 
@@ -198,8 +188,9 @@ Modalidad: Online | Duración: 3 años
 *🕐 Horarios:* Online
 
 *💰 Inversión:*
-• Inscripción semestral: $2,300 (incluye credencial)
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$2,300~ → $690 (70% de descuento)
@@ -219,8 +210,9 @@ Modalidad: Presencial | Duración: 2 años
 *🕐 Horarios:* Matutino y Vespertino
 
 *💰 Inversión:*
-• Inscripción cuatrimestral: $1,100 (incluye credencial)
+• Inscripción cuatrimestral: $1,100
 • Mensualidad: $1,800
+📌 No incluye credencial de estudiante (trámite por separado)
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$1,100~ → $550 (50% de descuento)
@@ -376,24 +368,6 @@ function esIngles(programa: string | null | undefined): boolean {
   return /ingl[eé]s para (ni[ñn]os?|adultos?)|ingl[eé]s (ni[ñn]os?|adultos?)/i.test(programa || '')
 }
 
-function detectarPrograma(msg: string): string | null {
-  if (/ingl[eé]s para ni[ñn]os?|ni[ñn]os?.*ingl[eé]s|ingl[eé]s.*ni[ñn]os?/i.test(msg)) return 'Inglés para niños'
-  if (/ingl[eé]s para adultos?|adultos?.*ingl[eé]s|ingl[eé]s.*adultos?/i.test(msg)) return 'Inglés para adultos'
-  if (/licenciatura.*ingl[eé]s.*online|ingl[eé]s.*licenciatura.*online|\blic\b.*ingl[eé]s.*online|ingl[eé]s.*\blic\b.*online/i.test(msg)) return 'Licenciatura en Inglés online'
-  if (/licenciatura.*ingl[eé]s|ingl[eé]s.*licenciatura|\blic\b.*ingl[eé]s|ingl[eé]s.*\blic\b/i.test(msg)) return 'Licenciatura en Inglés'
-  if (/psicolog|psico\b/i.test(msg)) return 'Psicología'
-  if (/turism.*(online|en l[ií]nea|virtual)|(online|en l[ií]nea|virtual).*turism/i.test(msg)) return 'Administración turística online'
-  if (/turism/i.test(msg)) return 'Administración turística'
-  if (/(relaciones p[uú]blicas|mercadotecnia).*(online|en l[ií]nea)|(online|en l[ií]nea).*(relaciones p[uú]blicas|mercadotecnia)/i.test(msg)) return 'Relaciones públicas y mercadotecnia online'
-  if (/relaciones p[uú]blicas|mercadotecnia/i.test(msg)) return 'Relaciones públicas y mercadotecnia'
-  if (/franc[eé]s/i.test(msg)) return 'Francés'
-  if (/italian/i.test(msg)) return 'Italiano'
-  if (/innovaci[oó]n empresarial/i.test(msg)) return 'Maestría en Innovación empresarial'
-  if (/multiculturalidad|pluriling/i.test(msg)) return 'Maestría en Multiculturalidad'
-  if (/bachillerato/i.test(msg)) return 'Bachillerato'
-  return null
-}
-
 function esInglesAmbiguo(msg: string): boolean {
   return /ingl[eé]s/i.test(msg) && !/ni[ñn]o|adulto|licenciatura|lic\b/i.test(msg)
 }
@@ -502,6 +476,7 @@ REGLAS:
 - NUNCA uses links que no provengan de la BASE DE CONOCIMIENTO.
 - Para promociones, reproduce EXACTAMENTE lo que dice la BASE, sin modificar ni agregar nada.
 - Si la BASE no menciona promociones para un programa, no las inventes ni las menciones.
+${REGLAS_NEGOCIO}
 - Responde ÚNICAMENTE con JSON válido:
 {"texto":"mensaje al prospecto","nombre":null,"email":null,"programa":null}
 - "nombre": si el prospecto mencionó su nombre en este mensaje, sino null
@@ -532,7 +507,7 @@ REGLAS:
     texto: result.texto || '',
     nombre: result.nombre || null,
     email: result.email || null,
-    programa: result.programa || null,
+    programa: result.programa ? canonicalizarPrograma(result.programa, params.userMessage) : null,
   }
 }
 
@@ -650,7 +625,7 @@ export async function POST(request: Request) {
         let programaIngles: string | null = null
         if (/\ba\b|adulto/i.test(msgL)) programaIngles = 'Inglés para adultos'
         else if (/\bb\b|ni[ñn]o/i.test(msgL)) programaIngles = 'Inglés para niños'
-        else if (/\bc\b|licenciatura/i.test(msgL)) programaIngles = 'Licenciatura en Inglés'
+        else if (/\bc\b|licenciatura/i.test(msgL)) programaIngles = /online|en l[ií]nea|virtual|distancia/i.test(msgL) ? 'Licenciatura en Inglés online' : 'Licenciatura en Inglés'
         const progFinal = programaIngles || programaActual
         if (progFinal) {
           const msg = `¡Excelente elección! Para contarte todo sobre *${progFinal}*, ¿me compartes tu correo electrónico para darte seguimiento personalizado? 📧`

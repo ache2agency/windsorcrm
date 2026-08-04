@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Fragment } from "react";
 
 const RESPUESTAS_RAPIDAS = [
   { grupo: "Idiomas", items: [
@@ -22,12 +22,10 @@ Dirigido a personas de 13 años en adelante
 *⏳ Duración:* 5 meses (10 meses sabatino)
 
 *💰 Inversión:*
-• Inscripción: $750
-• Mensualidad desde $990
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$750~ → $375 (50% de descuento)
-• ¡Primer mes gratis!
+• Inscripción: $800
+• Mensualidad mat/vesp (Básico - Pre-Intermedio): $1,220
+• Mensualidad mat/vesp (Intermedio en adelante): $1,250
+• Mensualidad sabatino: $1,040
 
 Al terminar obtienes un Diploma con validez oficial.
 
@@ -74,7 +72,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,150 (incluye credencial)
+• Inscripción semestral: $2,150
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -83,7 +81,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Docente, traductor, asesor editorial, call centers, centros de investigación y organismos internacionales.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1M_K1sIqh-8LgZdTsiAmIRMOkVIiTw295/view
+📄 Plan de estudios: https://drive.google.com/file/d/1NZeL0KEroyx0eVFeAKSaxgr5bnjjKR_Z/view
 
 ¿Cómo te gustaría continuar?
 *A)* Tengo dudas 🤔
@@ -96,7 +94,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,300 (incluye credencial)
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -105,7 +103,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Salud, educación, medio ambiente, producción, consumo y convivencia social.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1mw16jhbwN3K2dBy3ajcb3qREOPVXZ9rb/view
+📄 Plan de estudios: https://drive.google.com/file/d/1CuvtEmWZ8TdrI48xYXBxUBPb2PyGveBw/view
 
 ¿Cómo te gustaría continuar?
 *A)* Tengo dudas 🤔
@@ -118,7 +116,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,300 (incluye credencial)
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -129,7 +127,21 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Agencias de publicidad, marketing, medios de comunicación, gobierno, tecnología, entretenimiento.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1tv2023m30ZVHJRryfwhNm6tT9wICHvnZ/view
+📄 Plan de estudios: https://drive.google.com/file/d/1GtQPIwHcopnkvfBh4oQpUNZw0ekkyayf/view
+
+¿Cómo te gustaría continuar?
+*A)* Tengo dudas 🤔
+*B)* Quiero inscribirme ✍️` },
+    { label: "Promo", texto: `🎉 *¡Promoción especial del mes!*
+
+• *70% de descuento* en inscripción semestral
+• *30% de descuento* en mensualidad
+
+*💰 Precios con promoción:*
+• Inscripción: ~$2,150~ → *$645*
+• Mensualidad: ~$2,750~ → *$1,925*
+
+¡Cupo limitado! 😊
 
 ¿Cómo te gustaría continuar?
 *A)* Tengo dudas 🤔
@@ -142,7 +154,7 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,200 (incluye credencial)
+• Inscripción semestral: $2,200
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
@@ -151,7 +163,95 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Agencias de viajes, hoteles, resorts, operadores turísticos, eventos y convenciones.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1FMFbZ4pupnqkD_X1pBUcxlVo0HmRxUPb/view
+📄 Plan de estudios: https://drive.google.com/file/d/18QTS1qOE5DDJuI--RCqhuIv89hPv0DiK/view
+
+¿Cómo te gustaría continuar?
+*A)* Tengo dudas 🤔
+*B)* Quiero inscribirme ✍️` },
+  ]},
+  { grupo: "Cursos de Verano", items: [
+    { label: "Verano niños", texto: `👋 ¡Hola! Gracias por tu interés en *My Best Summer 2026* de Instituto Windsor. ☀️
+
+📅 *Fechas:* Del 13 de julio al 07 de agosto.
+
+👧🧒 Contamos con grupos por edades:
+
+🔹 *Kids* (4 a 6 años)
+• Idiomas (Inglés y Francés)
+• Origami
+• Arte y pintura
+• Ritmo y movimiento musical
+• Repostería
+• Kung Fu
+
+🔹 *Juniors* (7 a 9 años)
+• Idiomas
+• Repostería
+• Robótica
+• Origami
+• Arte y pintura
+• Diseño de videojuegos
+• Ritmo y movimiento musical
+• Kung Fu
+
+🔹 *Seniors* (10 a 12 años)
+• Arte y pintura
+• Robótica
+• Idiomas
+• Kung Fu
+• Origami
+• Repostería
+• Diseño de videojuegos
+
+🕘 *Horario:* De 9:00 a.m. a 1:30 p.m.
+
+🍽️ *Cafetería:* Las instalaciones cuentan con servicio de cafetería, el cual opera de manera independiente. Los paquetes y costos los podrás consultar directamente con ellos — lo que sí podemos confirmar es que ofrecen opciones especiales para los cursos de verano.
+
+🚌 Los viernes realizamos salidas especiales al Zoológico, Museo La Avispa y Bomberos.
+
+📍 *Ubicación:* Calle Sofía Tena #1, Col. Viguri.
+
+📄 Programa completo: https://drive.google.com/file/d/1I7kD2vtkRsJ_XlYa1ZaLijuRfUUgkW6j/view?usp=sharing
+
+💰 *Inversión:* $2,100 MXN + $400 materiales.
+💳 *Pago:* Puedes apartar tu lugar con el 50% y cubrir el resto al inicio del curso.
+
+🚨 *Inscripciones abiertas | Cupo limitado*
+
+¿Cómo te gustaría continuar?
+*A)* Tengo dudas 🤔
+*B)* Quiero inscribir a mi hij@ ✍️` },
+    { label: "Verano adultos", texto: `👋 ¡Hola! Gracias por tu interés en *My Best Summer* para Adolescentes y Adultos de Instituto Windsor. 🌟
+
+📅 *Fechas:* Del 13 de julio al 07 de agosto.
+
+Ofrecemos cursos Extra Intensivos de Idiomas para que avances tu nivel en pocas semanas.
+
+🇬🇧 *Inglés*
+
+🔹 Beginner X Intensivo
+🕘 9:00 a.m. a 12:00 p.m. o 1:00 p.m. a 4:00 p.m.
+
+🔹 Elementary X Intensivo
+🕐 1:00 p.m. a 4:00 p.m.
+
+🔹 Pre-Intermediate X Intensivo
+🕐 1:00 p.m. a 4:00 p.m.
+
+🇫🇷 *Francés Intensivo*
+🕐 1:00 p.m. a 3:00 p.m.
+
+🇮🇹 *Italiano Intensivo*
+🕐 1:00 p.m. a 3:00 p.m.
+
+💰 *Inversión:* $2,200 MXN por curso.
+📚 Manual para cursos de inglés: $150 MXN adicionales.
+
+📍 *Ubicación:* Calle Sofía Tena #1, Col. Viguri.
+
+📄 Programa completo: https://drive.google.com/file/d/17H3avjLp_BDilOsaqSbs6gXBIlH5BcAz/view?usp=sharing
+
+🚨 *Inscripciones abiertas | Cupo limitado*
 
 ¿Cómo te gustaría continuar?
 *A)* Tengo dudas 🤔
@@ -166,7 +266,7 @@ Modalidad: Presencial | Duración: 2 años
 *🕐 Horarios:* Matutino y Vespertino
 
 *💰 Inversión:*
-• Inscripción cuatrimestral: $1,100 (incluye credencial)
+• Inscripción cuatrimestral: $1,100
 • Mensualidad: $1,800
 
 *🎉 Promoción del mes:*
@@ -202,6 +302,35 @@ function avatarColor(name) {
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
+function dayKeyMx(date) {
+  return date.toLocaleDateString("en-CA", { timeZone: "America/Mexico_City" });
+}
+
+function formatDateSep(dateStr) {
+  const d = new Date(dateStr);
+  const key = dayKeyMx(d);
+  const now = new Date();
+  if (key === dayKeyMx(now)) return "Hoy";
+  if (key === dayKeyMx(new Date(now.getTime() - 86400000))) return "Ayer";
+  const sameYear = d.getFullYear() === now.getFullYear();
+  return d.toLocaleDateString("es-MX", sameYear
+    ? { day: "2-digit", month: "short", timeZone: "America/Mexico_City" }
+    : { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Mexico_City" });
+}
+
+function formatListTime(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const key = dayKeyMx(d);
+  const now = new Date();
+  if (key === dayKeyMx(now)) return d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" });
+  if (key === dayKeyMx(new Date(now.getTime() - 86400000))) return "Ayer";
+  const sameYear = d.getFullYear() === now.getFullYear();
+  return d.toLocaleDateString("es-MX", sameYear
+    ? { day: "2-digit", month: "2-digit", timeZone: "America/Mexico_City" }
+    : { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "America/Mexico_City" });
+}
+
 export default function ConversationsPanel({
   filteredWhatsConvs,
   convSearch,
@@ -212,6 +341,16 @@ export default function ConversationsPanel({
   setConvPhaseFilter,
   conversationPhaseOptions,
   getPhaseLabel,
+  convVentanaFilter,
+  setConvVentanaFilter,
+  convAtoradaFilter,
+  setConvAtoradaFilter,
+  atoradasCount,
+  esAtorada,
+  selectedAtoradaIds,
+  setSelectedAtoradaIds,
+  marcarPerdidasBulk,
+  marcandoPerdidas,
   selectedConv,
   setSelectedConv,
   confirmReturnToBotIfNeeded,
@@ -261,7 +400,8 @@ export default function ConversationsPanel({
 
   const getDisplayName = (c) => {
     const lead = leads.find((l) => l.id === c.lead_id);
-    return lead?.nombre || c.whatsapp;
+    if (lead?.nombre) return lead.nombre;
+    return c.provider === "messenger" ? "Lead de Messenger" : c.whatsapp;
   };
 
   const getModeColor = (c) => c.modo_humano ? "#A8263C" : WA_TEAL;
@@ -329,6 +469,7 @@ export default function ConversationsPanel({
         .wa-msg-role { font-size: 10px; font-weight: 700; margin-bottom: 3px; }
         .wa-msg-time { position:absolute; bottom:4px; right:8px; font-size:10px; color:#8696a0; }
         .wa-msg.out .wa-msg-time { color: #6a9e7a; }
+        .wa-date-sep { align-self: center; background: rgba(255,255,255,0.9); color: #54656f; font-size: 11.5px; font-weight: 500; padding: 4px 10px; border-radius: 6px; box-shadow: 0 1px 1px rgba(0,0,0,0.1); margin: 6px 0; }
 
         /* input */
         .wa-input-bar { padding: 8px 12px; background: #f0f2f5; display: flex; align-items: flex-end; gap: 8px; flex-shrink: 0; z-index: 1; }
@@ -344,7 +485,7 @@ export default function ConversationsPanel({
         /* mobile */
         @media (max-width: 768px) {
           .wa-root { flex-direction: column; width: 100vw; max-width: 100vw; border-radius: 0; overflow: hidden; }
-          .wa-list { display: ${mobileView === "list" ? "flex" : "none"}; width: 100%; max-width: 100%; overflow-x: hidden; }
+          .wa-list { display: ${mobileView === "list" ? "flex" : "none"}; width: 100%; max-width: 100%; overflow-x: hidden; flex: 1; min-height: 0; }
           .wa-chat { display: ${mobileView === "chat" ? "flex" : "none"}; width: 100%; max-width: 100%; overflow-x: hidden; }
           .wa-chat-header { padding: 8px 10px; gap: 6px; overflow: hidden; }
           .wa-chat-actions { gap: 4px; }
@@ -432,6 +573,62 @@ export default function ConversationsPanel({
               ))}
             </select>
           </div>
+          {setConvVentanaFilter && (
+            <div style={{ padding: "4px 12px 6px" }}>
+              <button
+                onClick={() => setConvVentanaFilter(!convVentanaFilter)}
+                style={{
+                  width: "100%", fontSize: 11, padding: "5px 0", borderRadius: 12, border: "none", cursor: "pointer", fontWeight: 600,
+                  background: convVentanaFilter ? "#25D366" : "#f0f2f5",
+                  color: convVentanaFilter ? "#fff" : "#54656f",
+                }}
+                title="Mostrar solo conversaciones con actividad en las últimas 24h"
+              >
+                ⚡ Ventana activa (24h)
+              </button>
+            </div>
+          )}
+          {setConvAtoradaFilter && atoradasCount > 0 && (
+            <div style={{ padding: "0 12px 6px" }}>
+              <button
+                onClick={() => setConvAtoradaFilter(v => !v)}
+                style={{
+                  width: "100%", fontSize: 11, padding: "5px 0", borderRadius: 12, border: "none", cursor: "pointer", fontWeight: 600,
+                  background: convAtoradaFilter ? "#A8263C" : "#fde8ec",
+                  color: convAtoradaFilter ? "#fff" : "#A8263C",
+                }}
+                title="Conversaciones abiertas en fase temprana (saludo/programa/correo) sin actividad hace más de 3 horas"
+              >
+                ⚠️ {atoradasCount} atorada{atoradasCount === 1 ? "" : "s"}
+              </button>
+            </div>
+          )}
+
+          {convAtoradaFilter && setSelectedAtoradaIds && (
+            <div style={{ padding: "0 12px 6px", display: "flex", alignItems: "center", gap: 8 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#54656f", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={filteredWhatsConvs.length > 0 && selectedAtoradaIds.length === filteredWhatsConvs.length}
+                  onChange={(e) => setSelectedAtoradaIds(e.target.checked ? filteredWhatsConvs.map((c) => c.id) : [])}
+                />
+                Seleccionar todas ({filteredWhatsConvs.length})
+              </label>
+              {selectedAtoradaIds.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (window.confirm(`¿Marcar ${selectedAtoradaIds.length} conversación(es) como perdidas? Esto las cierra y no se puede deshacer desde aquí.`)) {
+                      marcarPerdidasBulk(selectedAtoradaIds);
+                    }
+                  }}
+                  disabled={marcandoPerdidas}
+                  style={{ fontSize: 11, padding: "4px 10px", borderRadius: 10, border: "none", background: "#A8263C", color: "#fff", fontWeight: 600, cursor: marcandoPerdidas ? "default" : "pointer", opacity: marcandoPerdidas ? 0.6 : 1 }}
+                >
+                  {marcandoPerdidas ? "Marcando..." : `Marcar ${selectedAtoradaIds.length} como perdidas`}
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="wa-convs-count">{filteredWhatsConvs.length} conversaciones</div>
 
@@ -442,25 +639,39 @@ export default function ConversationsPanel({
               filteredWhatsConvs.map((c) => {
                 const name = getDisplayName(c);
                 const owner = vendedores.find((v) => v.id === c.tomado_por);
-                const time = c.ultimo_mensaje_at
-                  ? new Date(c.ultimo_mensaje_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" })
-                  : "";
+                const time = formatListTime(c.ultimo_mensaje_at);
                 return (
                   <div
                     key={c.id}
                     className={`wa-item${selectedConv?.id === c.id ? " active" : ""}`}
                     onClick={() => handleSelectConv(c)}
                   >
+                    {convAtoradaFilter && setSelectedAtoradaIds && (
+                      <input
+                        type="checkbox"
+                        checked={selectedAtoradaIds.includes(c.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          setSelectedAtoradaIds((prev) =>
+                            e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id)
+                          );
+                        }}
+                        style={{ marginRight: 8, flexShrink: 0 }}
+                      />
+                    )}
                     <div className="wa-avatar" style={{ background: avatarColor(name) }}>
                       {getInitials(name)}
                     </div>
                     <div className="wa-item-body">
                       <div className="wa-item-row1">
-                        <span className="wa-item-name">{name}</span>
+                        <span className="wa-item-name">
+                          {esAtorada?.(c) && <span title="Atorada: sin avanzar hace más de 3h" style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#A8263C", marginRight: 6 }} />}
+                          {name}
+                        </span>
                         <span className="wa-item-time">{time}</span>
                       </div>
                       <div className="wa-item-row2">
-                        <span className="wa-item-preview">{getModeIcon(c)} {c.whatsapp}</span>
+                        <span className="wa-item-preview">{c.provider === "messenger" ? `💬 Messenger` : `${getModeIcon(c)} ${c.whatsapp}`}</span>
                         <span className="wa-badge" style={{ background: getModeColor(c) + "22", color: getModeColor(c) }}>
                           {getPhaseLabel(c.fase)}
                         </span>
@@ -551,6 +762,11 @@ export default function ConversationsPanel({
                   <div style={{ color: "#667781", fontSize: 11, marginTop: 2 }}>{selectedConvLead?.email || "Sin email"}</div>
                   <div style={{ color: "#667781", fontSize: 11 }}>{selectedConvLead?.curso || "—"}</div>
                   <div style={{ color: "#667781", fontSize: 11 }}>Stage: {selectedConvLead?.stage || "—"}</div>
+                  {selectedConvLead?.created_at && (
+                    <div style={{ color: "#667781", fontSize: 11, marginTop: 2 }}>
+                      Entró: {new Date(selectedConvLead.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Mexico_City" })}
+                    </div>
+                  )}
                 </div>
                 <div className="wa-info-card">
                   <div className="wa-info-card-title">Responsable</div>
@@ -564,16 +780,24 @@ export default function ConversationsPanel({
                 {convMessages.length === 0 ? (
                   <div className="wa-empty">Sin mensajes registrados</div>
                 ) : (
-                  convMessages.map((m) => {
+                  convMessages.map((m, i) => {
                     const isOut = m.rol === "bot" || m.rol === "agente";
                     const time = m.created_at ? new Date(m.created_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" }) : "";
+                    const prevDay = i > 0 && convMessages[i - 1].created_at ? dayKeyMx(new Date(convMessages[i - 1].created_at)) : null;
+                    const thisDay = m.created_at ? dayKeyMx(new Date(m.created_at)) : null;
+                    const showDateSep = thisDay && thisDay !== prevDay;
                     return (
-                      <div key={m.id} className={`wa-msg ${isOut ? "out" : "in"}`}>
-                        {m.rol === "agente" && <div className="wa-msg-role" style={{ color: "#A8263C" }}>Vendedor</div>}
-                        {m.rol === "bot" && <div className="wa-msg-role" style={{ color: WA_TEAL }}>Bot</div>}
-                        {m.contenido}
-                        <div className="wa-msg-time">{time}</div>
-                      </div>
+                      <Fragment key={m.id}>
+                        {showDateSep && (
+                          <div className="wa-date-sep"><span>{formatDateSep(m.created_at)}</span></div>
+                        )}
+                        <div className={`wa-msg ${isOut ? "out" : "in"}`}>
+                          {m.rol === "agente" && <div className="wa-msg-role" style={{ color: "#A8263C" }}>Vendedor</div>}
+                          {m.rol === "bot" && <div className="wa-msg-role" style={{ color: WA_TEAL }}>Bot</div>}
+                          {m.contenido}
+                          <div className="wa-msg-time">{time}</div>
+                        </div>
+                      </Fragment>
                     );
                   })
                 )}

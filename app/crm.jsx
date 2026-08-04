@@ -8,6 +8,7 @@ import LeadsTable from "@/components/crm/LeadsTable";
 import LeadDetailModal from "@/components/crm/LeadDetailModal";
 import NewAppointmentModal from "@/components/crm/NewAppointmentModal";
 import NewLeadModal from "@/components/crm/NewLeadModal";
+import SeguimientosPanel from "@/components/crm/SeguimientosPanel";
 const supabase = createClient();
 
 const STAGES = [
@@ -82,6 +83,7 @@ export default function CRM() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("kanban");
+  const [pendientesCount, setPendientesCount] = useState(0);
   const [selectedLead, setSelectedLead] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [showCitaForm, setShowCitaForm] = useState(false);
@@ -127,6 +129,10 @@ export default function CRM() {
   const [convSearch, setConvSearch] = useState("");
   const [convModeFilter, setConvModeFilter] = useState("todos");
   const [convPhaseFilter, setConvPhaseFilter] = useState("todas");
+  const [convVentanaFilter, setConvVentanaFilter] = useState(false);
+  const [convAtoradaFilter, setConvAtoradaFilter] = useState(false);
+  const [selectedAtoradaIds, setSelectedAtoradaIds] = useState([]);
+  const [marcandoPerdidas, setMarcandoPerdidas] = useState(false);
   const [editTitulo, setEditTitulo] = useState("");
   const [flowRules, setFlowRules] = useState([]);
   const [flowLoading, setFlowLoading] = useState(false);
@@ -312,6 +318,10 @@ export default function CRM() {
 
   useEffect(() => {
     loadUser();
+    fetch("/api/seguimientos")
+      .then(r => r.json())
+      .then(d => setPendientesCount((d.seguimientos || []).length))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -768,6 +778,45 @@ export default function CRM() {
     showToast(stage === "inscrito" ? "Lead marcado como inscrito" : "Lead marcado como perdido");
   };
 
+  /** Marca en bulk como "perdidas" las conversaciones seleccionadas (limpieza de atoradas viejas sin caso). */
+  const marcarPerdidasBulk = async (convIds) => {
+    if (!convIds.length) return;
+    setMarcandoPerdidas(true);
+    try {
+      const leadIds = whatsConvs
+        .filter((c) => convIds.includes(c.id) && c.lead_id)
+        .map((c) => c.lead_id);
+
+      const { error: convError } = await supabase
+        .from("whatsapp_conversaciones")
+        .update({ estado: "cerrada", fase: "perdido" })
+        .in("id", convIds);
+      if (convError) { showToast("Error cerrando conversaciones", "error"); return; }
+
+      if (leadIds.length) {
+        await supabase.from("leads").update({ stage: "perdido" }).in("id", leadIds);
+        await supabase.from("lead_activities").insert(
+          leadIds.map((leadId) => ({
+            lead_id: leadId,
+            actor_id: currentUser?.id || null,
+            event_type: "stage_changed",
+            title: "Lead perdido",
+            detail: "Marcado en bulk desde limpieza de conversaciones atoradas",
+          }))
+        );
+      }
+
+      setWhatsConvs((prev) =>
+        prev.map((c) => (convIds.includes(c.id) ? { ...c, estado: "cerrada", fase: "perdido" } : c))
+      );
+      setLeads((prev) => prev.map((l) => (leadIds.includes(l.id) ? { ...l, stage: "perdido" } : l)));
+      setSelectedAtoradaIds([]);
+      showToast(`${convIds.length} conversaciones marcadas como perdidas`);
+    } finally {
+      setMarcandoPerdidas(false);
+    }
+  };
+
   /** Si estamos en una conv en modo humano y el usuario va a salir, pide confirmar. Aceptar = pasar a BOT y ejecutar callback; Cancelar = no hacer nada. */
   const confirmReturnToBotIfNeeded = async (thenDo) => {
     if (view !== "convs" || !selectedConv?.modo_humano) {
@@ -788,7 +837,12 @@ export default function CRM() {
       const res = await fetch("/api/whatsapp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: selectedConv.whatsapp, body: agentMessage }),
+        body: JSON.stringify({
+          to: selectedConv.whatsapp,
+          body: agentMessage,
+          leadId: selectedConv.lead_id,
+          agentUserId: currentUser?.id || null,
+        }),
       });
       if (!res.ok) {
         let errMsg = "Error enviando mensaje de WhatsApp";
@@ -804,7 +858,8 @@ export default function CRM() {
       const now = new Date().toISOString();
       const msgToShow = { id: `local-${now}`, rol: "agente", contenido: agentMessage, created_at: now };
 
-      // Siempre mostrar el mensaje en el chat cuando Twilio acepta el envío
+      // El insert y update reales ya los hace /api/whatsapp/send del lado del servidor.
+      // Aquí solo reflejamos el envío en la UI de forma optimista, sin volver a escribir en la base.
       setConvMessages((prev) => [...prev, msgToShow]);
       setSelectedConv((prev) =>
         prev ? { ...prev, ultimo_mensaje_at: now, modo_humano: true, tomado_por: currentUser?.id || null } : prev
@@ -819,29 +874,13 @@ export default function CRM() {
       setAgentMessage("");
       showToast("Mensaje enviado. Si no llega a WhatsApp, el número debe haber iniciado chat con el bot (sandbox).");
 
-      // Guardar en historial (no bloquea la UI)
-      const { error } = await supabase.from("whatsapp_mensajes").insert([
-        {
-          conversacion_id: selectedConv.id,
-          rol: "agente",
-          contenido: agentMessage,
-        },
-      ]);
-      if (error) {
-        showToast("No se pudo guardar en el historial", "error");
-      } else {
-        await supabase
-          .from("whatsapp_conversaciones")
-          .update({ ultimo_mensaje_at: now, modo_humano: true, tomado_por: currentUser?.id || null })
-          .eq("id", selectedConv.id);
-        await logLeadActivity({
-          leadId: selectedConv.lead_id,
-          eventType: "agent_reply_sent",
-          title: "Respuesta enviada por vendedor",
-          detail: agentMessage,
-          meta: { conversacion_id: selectedConv.id, whatsapp: selectedConv.whatsapp },
-        });
-      }
+      await logLeadActivity({
+        leadId: selectedConv.lead_id,
+        eventType: "agent_reply_sent",
+        title: "Respuesta enviada por vendedor",
+        detail: agentMessage,
+        meta: { conversacion_id: selectedConv.id, whatsapp: selectedConv.whatsapp },
+      });
     } catch (e) {
       showToast(e?.message || "Error enviando mensaje de WhatsApp", "error");
     } finally {
@@ -875,13 +914,13 @@ export default function CRM() {
   };
 
   const sendLeadInformation = async (lead) => {
-    if (!lead?.id || !lead?.whatsapp) {
-      showToast("Este lead no tiene un WhatsApp registrado", "error");
+    if (!lead?.id || (!lead?.whatsapp && !lead?.messenger_psid)) {
+      showToast("Este lead no tiene WhatsApp ni Messenger registrado", "error");
       return;
     }
 
     const existingConversation = whatsConvs.find(
-      (conv) => conv.lead_id === lead.id || conv.whatsapp === lead.whatsapp
+      (conv) => conv.lead_id === lead.id || conv.whatsapp === (lead.whatsapp || lead.messenger_psid)
     );
 
     if (!existingConversation) {
@@ -901,7 +940,7 @@ export default function CRM() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          to: lead.whatsapp,
+          to: lead.whatsapp || lead.messenger_psid,
           body: message,
           leadId: lead.id,
           agentUserId: currentUser?.id || null,
@@ -972,6 +1011,15 @@ export default function CRM() {
     return matchV && matchS;
   });
 
+  // Conversaciones "atoradas": abiertas, en fase temprana sin resolver, sin actividad hace +3h.
+  const FASES_ATORABLES = ["saludo", "programa", "correo", "verano_disambig"];
+  const esAtorada = (conv) =>
+    conv.estado !== "cerrada" &&
+    FASES_ATORABLES.includes(conv.fase) &&
+    !!conv.ultimo_mensaje_at &&
+    (Date.now() - new Date(conv.ultimo_mensaje_at).getTime()) > 3 * 60 * 60 * 1000;
+  const atoradasCount = whatsConvs.filter(esAtorada).length;
+
   const conversationPhaseOptions = ["todas", ...Array.from(new Set(whatsConvs.map((c) => c.fase).filter(Boolean)))];
   const filteredWhatsConvs = whatsConvs.filter((conv) => {
     // Asesores solo ven conversaciones de sus leads
@@ -990,7 +1038,10 @@ export default function CRM() {
       (convModeFilter === "humano" ? !!conv.modo_humano : !conv.modo_humano);
     const matchesPhase =
       convPhaseFilter === "todas" || (conv.fase || "—") === convPhaseFilter;
-    return matchesSearch && matchesMode && matchesPhase;
+    const matchesVentana = !convVentanaFilter ||
+      (conv.ultimo_mensaje_at && (Date.now() - new Date(conv.ultimo_mensaje_at).getTime()) < 24 * 60 * 60 * 1000);
+    const matchesAtorada = !convAtoradaFilter || esAtorada(conv);
+    return matchesSearch && matchesMode && matchesPhase && matchesVentana && matchesAtorada;
   });
 
   const selectedConvLead = leads.find((lead) => lead.id === selectedConv?.lead_id) || null;
@@ -1163,9 +1214,13 @@ export default function CRM() {
       valor: Number(newLead.valor) || 0,
       user_id: currentUser.id,
       asignado_a: newLead.asignado_a || currentUser.id,
+      origen: "manual",
     };
     const { data, error } = await supabase.from("leads").insert([lead]).select();
-    if (error) return showToast("Error agregando lead", "error");
+    if (error) {
+      const detalle = error.message || error.code || "desconocido";
+      return showToast(`Error al guardar lead: ${detalle}`, "error");
+    }
     setLeads(prev => [data[0], ...prev]);
     await logLeadActivity({
       leadId: data[0].id,
@@ -1176,7 +1231,7 @@ export default function CRM() {
     });
     setShowForm(false);
     setNewLead({ nombre: "", email: "", whatsapp: "", curso: CURSOS[0], valor: "", notas: "", asignado_a: currentUser.id });
-    showToast("Lead agregado ✓");
+    showToast("Lead guardado ✓");
     if (data[0].whatsapp) {
       fetch("/api/whatsapp/bienvenida", {
         method: "POST",
@@ -1184,13 +1239,14 @@ export default function CRM() {
         body: JSON.stringify({ lead_id: data[0].id }),
       }).then(async (res) => {
         if (res.ok) {
-          showToast("Mensaje de bienvenida enviado por WhatsApp ✓");
+          showToast("WhatsApp de bienvenida enviado ✓");
           fetchWhatsConvs();
         } else {
           const err = await res.json().catch(() => ({}));
-          showToast((err.error || "Error") + (err.numero_intentado ? ` → ${err.numero_intentado}` : ""), "error");
+          const motivo = err.error || "Error Meta";
+          showToast(`Lead guardado ✓ — WhatsApp no enviado: ${motivo}`, "error");
         }
-      }).catch((e) => showToast("WhatsApp fetch error: " + e.message, "error"));
+      }).catch(() => {});
     }
   };
 
@@ -1241,6 +1297,9 @@ export default function CRM() {
   const convRate = leads.length ? Math.round((leads.filter((l) => normalizeStage(l.stage) === "inscrito").length / leads.length) * 100) : 0;
 
   const openWA = (lead) => {
+    if (!lead.whatsapp) {
+      return showToast("Este lead llegó por Messenger, no tiene número de WhatsApp", "error");
+    }
     const template = WA_TEMPLATES[normalizeStage(lead.stage)] || WA_TEMPLATES["primer_contacto"];
     const msg = encodeURIComponent(template((lead.nombre || '').split(" ")[0] || 'estimado/a', lead.curso));
     const num = lead.whatsapp.replace(/\D/g, "");
@@ -1572,6 +1631,18 @@ export default function CRM() {
               className={`nav-btn ${view === "convs" ? "active" : ""}`}
               onClick={() => confirmReturnToBotIfNeeded(() => { setView("convs"); fetchWhatsConvs(); setSelectedConv(null); setConvMessages([]); })}
             >CONVERSACIONES</button>
+            <button
+              className={`nav-btn ${view === "seguimientos" ? "active" : ""}`}
+              onClick={() => confirmReturnToBotIfNeeded(() => { setView("seguimientos"); setPendientesCount(0); })}
+              style={{ position: "relative" }}
+            >
+              SEGUIMIENTOS
+              {pendientesCount > 0 && (
+                <span style={{ position: "absolute", top: 2, right: 2, background: "#A8263C", color: "#fff", borderRadius: 99, fontSize: 10, padding: "1px 5px", fontWeight: 700, lineHeight: 1.4 }}>
+                  {pendientesCount}
+                </span>
+              )}
+            </button>
             {isAdmin && (
               <>
                 <button className={`nav-btn ${view === "base" ? "active" : ""}`} onClick={() => confirmReturnToBotIfNeeded(() => { setView("base"); loadDocumentos(); })}>BASE</button>
@@ -1609,6 +1680,7 @@ export default function CRM() {
               { label: "LISTA", v: "lista", action: () => setView("lista") },
               { label: "AGENDA", v: "agenda", action: () => setView("agenda") },
               { label: "CONVERSACIONES", v: "convs", action: () => { setView("convs"); fetchWhatsConvs(); setSelectedConv(null); setConvMessages([]); } },
+              { label: `SEGUIMIENTOS${pendientesCount > 0 ? ` (${pendientesCount})` : ""}`, v: "seguimientos", action: () => { setView("seguimientos"); setPendientesCount(0); } },
               ...(isAdmin ? [
                 { label: "BASE", v: "base", action: () => { setView("base"); loadDocumentos(); } },
                 { label: "BOT", v: "bot", action: () => { setView("bot"); loadBotConfig(); } },
@@ -2204,6 +2276,16 @@ export default function CRM() {
             convPhaseFilter={convPhaseFilter}
             setConvPhaseFilter={setConvPhaseFilter}
             conversationPhaseOptions={conversationPhaseOptions}
+            convVentanaFilter={convVentanaFilter}
+            setConvVentanaFilter={setConvVentanaFilter}
+            convAtoradaFilter={convAtoradaFilter}
+            setConvAtoradaFilter={setConvAtoradaFilter}
+            atoradasCount={atoradasCount}
+            esAtorada={esAtorada}
+            selectedAtoradaIds={selectedAtoradaIds}
+            setSelectedAtoradaIds={setSelectedAtoradaIds}
+            marcarPerdidasBulk={marcarPerdidasBulk}
+            marcandoPerdidas={marcandoPerdidas}
             getPhaseLabel={getPhaseLabel}
             selectedConv={selectedConv}
             setSelectedConv={setSelectedConv}
@@ -2227,6 +2309,27 @@ export default function CRM() {
             sendReactivacion={sendReactivacion}
             sendingReactivacion={sendingReactivacion}
             closeLead={closeLead}
+          />
+        )}
+
+        {/* SEGUIMIENTOS */}
+        {view === "seguimientos" && (
+          <SeguimientosPanel
+            goToKanban={(leadId) => {
+              const lead = leads.find(l => l.id === leadId);
+              setSelectedLead(lead || null);
+              confirmReturnToBotIfNeeded(() => setView("kanban"));
+            }}
+            goToConversation={(leadId, whatsapp) => {
+              const conv = whatsConvs.find(c => c.lead_id === leadId || c.whatsapp === whatsapp);
+              fetchWhatsConvs().then(() => {
+                setView("convs");
+                if (conv) {
+                  setSelectedConv(conv);
+                  fetchConvMessages(conv.id);
+                }
+              });
+            }}
           />
         )}
 
@@ -2322,6 +2425,14 @@ export default function CRM() {
             setNuevaCita={setNuevaCita}
             deleteLead={deleteLead}
             updateLeadField={updateLeadField}
+            goToConversation={(l) => {
+              const conv = whatsConvs.find(c => c.lead_id === l.id || c.whatsapp === l.whatsapp);
+              setSelectedLead(null);
+              fetchWhatsConvs().then(() => {
+                setView("convs");
+                if (conv) { setSelectedConv(conv); fetchConvMessages(conv.id); }
+              });
+            }}
           />
         );
       })()}
