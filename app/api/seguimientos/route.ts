@@ -1,5 +1,5 @@
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server'
-import { normalizePhoneNumber } from '@/lib/whatsapp/provider'
+import { normalizePhoneNumber, fetchApprovedTemplateBody } from '@/lib/whatsapp/provider'
 import { chunkArray } from '@/lib/db-utils'
 
 export const dynamic = 'force-dynamic'
@@ -367,6 +367,14 @@ export async function POST(request: Request) {
             diferidos.push(lead.id)
             continue
           }
+          // Si es template, intentar traer el texto REAL aprobado en Meta en vez del
+          // texto hardcodeado — así la vista previa nunca queda desactualizada si el
+          // template se edita en Meta Business Manager. Si falla, usa el fallback.
+          let contenidoFinal = decision.contenidoSugerido
+          if (decision.tipo === 'template' && decision.templateName) {
+            const textoReal = await fetchApprovedTemplateBody(decision.templateName)
+            if (textoReal) contenidoFinal = textoReal
+          }
           filasAInsertar.push({
             lead_id: lead.id,
             conversacion_id: conv.id,
@@ -376,7 +384,7 @@ export async function POST(request: Request) {
             lead_stage: lead.stage,
             tier: decision.tier,
             tipo: decision.tipo,
-            contenido_sugerido: decision.contenidoSugerido,
+            contenido_sugerido: contenidoFinal,
             template_name: decision.templateName,
             fecha_programada: new Date().toISOString(),
           })
