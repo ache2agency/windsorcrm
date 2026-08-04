@@ -235,7 +235,7 @@ export async function POST(request: Request) {
   const saltados: string[] = []
   const cerrados: string[] = []
   const diferidos: string[] = []
-  const decisionesDetalle: Array<{ leadId: string; accion: string; tier?: number; tipo?: string; templateName?: string | null }> = []
+  const decisionesDetalle: Array<{ leadId: string; accion: string; tier?: number; tipo?: string; templateName?: string | null; contenidoSugerido?: string | null }> = []
 
   // 1. Obtener todos los leads activos con su conversación y asesor
   // (paginado explícito: sin .range(), Supabase/PostgREST tope en 1000 filas
@@ -350,17 +350,18 @@ export async function POST(request: Request) {
       const ultimoTier = tierMaxPorLead.get(lead.id) ?? 0
       const decision = decidirSeguimiento(lead, horas, ultimoTier)
 
-      if (dryRun) decisionesDetalle.push({ leadId: lead.id, ...decision })
-
       switch (decision.accion) {
         case 'ignorado':
+          if (dryRun) decisionesDetalle.push({ leadId: lead.id, ...decision })
           continue
         case 'saltado':
           saltados.push(lead.id)
+          if (dryRun) decisionesDetalle.push({ leadId: lead.id, ...decision })
           continue
         case 'cerrado':
           idsACerrar.push(lead.id)
           cerrados.push(lead.id)
+          if (dryRun) decisionesDetalle.push({ leadId: lead.id, ...decision })
           continue
         case 'generado':
           if (generados.length >= LIMITE_DIARIO_GENERADOS) {
@@ -374,6 +375,9 @@ export async function POST(request: Request) {
           if (decision.tipo === 'template' && decision.templateName) {
             const textoReal = await fetchApprovedTemplateBody(decision.templateName)
             if (textoReal) contenidoFinal = textoReal
+          }
+          if (dryRun) {
+            decisionesDetalle.push({ leadId: lead.id, ...decision, contenidoSugerido: contenidoFinal })
           }
           filasAInsertar.push({
             lead_id: lead.id,
