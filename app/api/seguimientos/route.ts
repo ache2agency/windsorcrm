@@ -1,5 +1,6 @@
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server'
 import { normalizePhoneNumber } from '@/lib/whatsapp/provider'
+import { chunkArray } from '@/lib/db-utils'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -157,6 +158,55 @@ export async function GET() {
   return Response.json({ seguimientos: enriquecidos })
 }
 
+// ─── Decisión pura por lead (sin I/O) ─────────────────────────────────────────
+
+type Lead = { id: string; nombre: string | null; whatsapp: string; curso: string | null; stage: string; asignado_a: string | null }
+
+type Decision =
+  | { accion: 'ignorado' }
+  | { accion: 'saltado' }
+  | { accion: 'cerrado' }
+  | { accion: 'generado'; tier: number; tipo: string; contenidoSugerido: string | null; templateName: string | null }
+
+function decidirSeguimiento(lead: Lead, horas: number, ultimoTier: number): Decision {
+  const nextTier = ultimoTier + 1
+
+  // ¿Se agotaron todos los tiers? → cerrar como perdido tras 264h (11 días), si no, ignorar (no cuenta como saltado)
+  if (nextTier > 5) {
+    return horas > 264 ? { accion: 'cerrado' } : { accion: 'ignorado' }
+  }
+
+  // ¿Cumple el umbral de horas?
+  const esInscripcion = lead.stage === 'inscripcion_pendiente'
+  const umbrales = esInscripcion ? UMBRALES_INSCRIPCION : UMBRALES_ESTANDAR
+  if (horas < umbrales[nextTier - 1]) return { accion: 'saltado' }
+
+  // Determinar tipo y contenido — tier 1 es mensaje_wa solo si la ventana de 24h sigue abierta
+  let tipo: string = TIPOS_POR_TIER[nextTier - 1]
+  let contenidoSugerido: string | null = null
+  let templateName: string | null = null
+
+  if (tipo === 'mensaje_wa' && horas > 24) {
+    tipo = 'template'
+  }
+
+  if (tipo === 'mensaje_wa') {
+    const nombre = lead.nombre ? ` ${lead.nombre.split(' ')[0]}` : ''
+    contenidoSugerido = `Hola${nombre} 👋 ¿Pudiste revisar la información sobre Instituto Windsor? Si tienes alguna duda, con gusto te ayudo 😊`
+  } else if (tipo === 'template') {
+    templateName = selectTemplate(nextTier, lead.stage)
+    contenidoSugerido = templateName === 'seguimiento_general'
+      ? `Hola {{nombre}} 👋 ¿Pudiste revisar la información que te compartimos sobre Instituto Windsor? Si tienes alguna duda, con gusto te ayudamos. 😊`
+      : templateName === 'windsor_promocion'
+        ? `¡Hola {{nombre}}! 🎉 Tenemos una promoción especial activa para ti. ¿Te gustaría que un asesor te llame para darte los detalles?`
+        : `Hola {{nombre}}, notamos que tu inscripción quedó pendiente. ¿Te ayudamos a completarla hoy? 😊`
+  }
+
+  return { accion: 'generado', tier: nextTier, tipo, contenidoSugerido, templateName }
+}
+
+const CHUNK_SIZE = 200
+
 // ─── POST — Generar seguimientos (cron) ──────────────────────────────────────
 
 export async function POST(request: Request) {
@@ -164,175 +214,219 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const url = new URL(request.url)
+  const dryRun = url.searchParams.get('dryRun') === '1' || request.headers.get('x-dry-run') === '1'
+  if (dryRun) console.log('[seguimientos/generar] DRY RUN — sin escrituras')
+
   const supabase = createServiceRoleClient()
   const generados: string[] = []
   const saltados: string[] = []
   const cerrados: string[] = []
+  const decisionesDetalle: Array<{ leadId: string; accion: string; tier?: number; tipo?: string; templateName?: string | null }> = []
 
   // 1. Obtener todos los leads activos con su conversación y asesor
-  const { data: leads } = await supabase
-    .from('leads')
-    .select('id, nombre, whatsapp, curso, stage, asignado_a')
-    .in('stage', STAGES_ACTIVOS)
-    .not('whatsapp', 'is', null)
+  // (paginado explícito: sin .range(), Supabase/PostgREST tope en 1000 filas
+  // silenciosamente — con >1000 leads activos se perdían de vista sin este loop)
+  const leads: Lead[] = []
+  {
+    const PAGE = 1000
+    let from = 0
+    while (true) {
+      const { data: page } = await supabase
+        .from('leads')
+        .select('id, nombre, whatsapp, curso, stage, asignado_a')
+        .in('stage', STAGES_ACTIVOS)
+        .not('whatsapp', 'is', null)
+        .order('created_at', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (!page || page.length === 0) break
+      leads.push(...page)
+      if (page.length < PAGE) break
+      from += PAGE
+    }
+  }
+  const leadIds = leads.map((l) => l.id)
 
-  for (const lead of leads || []) {
-    try {
-      // 2. ¿Ya tiene un seguimiento pendiente? → saltar
-      const { data: pendiente } = await supabase
-        .from('seguimientos')
-        .select('id')
-        .eq('lead_id', lead.id)
-        .eq('estado', 'pendiente')
-        .maybeSingle()
+  // 2-5. Batch: pendientes, conversaciones, tiers previos (en paralelo), luego últimos mensajes de usuario
+  const pendientesPorLead = new Set<string>()
+  const conversacionesPorLead = new Map<string, { id: string; ultimo_mensaje_at: string | null; fase: string }>()
+  const tierMaxPorLead = new Map<string, number>()
 
-      if (pendiente) { saltados.push(lead.id); continue }
-
-      // 3. Obtener conversación activa
-      const { data: conv } = await supabase
-        .from('whatsapp_conversaciones')
-        .select('id, ultimo_mensaje_at, fase')
-        .eq('lead_id', lead.id)
-        .order('ultimo_mensaje_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (!conv) { saltados.push(lead.id); continue }
-
-      // 4. Último mensaje del usuario
-      const { data: lastUserMsg } = await supabase
-        .from('whatsapp_mensajes')
-        .select('created_at')
-        .eq('conversacion_id', conv.id)
-        .eq('rol', 'usuario')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      // Fecha de referencia: último mensaje del usuario, o último mensaje de la conv
-      const refDate = lastUserMsg?.created_at
-        ? new Date(lastUserMsg.created_at)
-        : conv.ultimo_mensaje_at
-          ? new Date(conv.ultimo_mensaje_at)
-          : null
-
-      if (!refDate) { saltados.push(lead.id); continue }
-
-      const horas = horasDesde(refDate)
-
-      // 5. Máximo tier completado/saltado para este lead
-      const { data: anteriores } = await supabase
-        .from('seguimientos')
-        .select('tier')
-        .eq('lead_id', lead.id)
-        .in('estado', ['completado', 'saltado'])
-        .order('tier', { ascending: false })
-        .limit(1)
-
-      const ultimoTier = (anteriores?.[0] as { tier?: number } | undefined)?.tier ?? 0
-      const nextTier = ultimoTier + 1
-
-      // 6. ¿Se agotaron todos los tiers? → cerrar como perdido
-      if (nextTier > 5) {
-        if (horas > 264) { // 11 días
-          await supabase.from('leads').update({ stage: 'perdido' }).eq('id', lead.id)
-          cerrados.push(lead.id)
+  await Promise.all([
+    (async () => {
+      for (const chunk of chunkArray(leadIds, CHUNK_SIZE)) {
+        const { data } = await supabase
+          .from('seguimientos')
+          .select('lead_id')
+          .in('lead_id', chunk)
+          .eq('estado', 'pendiente')
+        for (const row of data || []) pendientesPorLead.add(row.lead_id)
+      }
+    })(),
+    (async () => {
+      for (const chunk of chunkArray(leadIds, CHUNK_SIZE)) {
+        const { data } = await supabase
+          .from('whatsapp_conversaciones')
+          .select('id, lead_id, ultimo_mensaje_at, fase')
+          .in('lead_id', chunk)
+          .order('ultimo_mensaje_at', { ascending: false })
+        for (const conv of data || []) {
+          if (!conversacionesPorLead.has(conv.lead_id)) conversacionesPorLead.set(conv.lead_id, conv)
         }
-        continue
       }
-
-      // 7. ¿Cumple el umbral de horas?
-      const esInscripcion = lead.stage === 'inscripcion_pendiente'
-      const umbrales = esInscripcion ? UMBRALES_INSCRIPCION : UMBRALES_ESTANDAR
-      if (horas < umbrales[nextTier - 1]) { saltados.push(lead.id); continue }
-
-      // 8. Determinar tipo y contenido
-      // Tier 1 es mensaje_wa solo si la ventana de 24h sigue abierta; si no, degradar a template
-      let tipo: string = TIPOS_POR_TIER[nextTier - 1]
-      let contenidoSugerido: string | null = null
-      let templateName: string | null = null
-
-      if (tipo === 'mensaje_wa' && horas > 24) {
-        tipo = 'template'
+    })(),
+    (async () => {
+      for (const chunk of chunkArray(leadIds, CHUNK_SIZE)) {
+        const { data } = await supabase
+          .from('seguimientos')
+          .select('lead_id, tier')
+          .in('lead_id', chunk)
+          .in('estado', ['completado', 'saltado'])
+        for (const row of data || []) {
+          const actual = tierMaxPorLead.get(row.lead_id)
+          if (actual === undefined || row.tier > actual) tierMaxPorLead.set(row.lead_id, row.tier)
+        }
       }
+    })(),
+  ])
 
-      if (tipo === 'mensaje_wa') {
-        const nombre = lead.nombre ? ` ${lead.nombre.split(' ')[0]}` : ''
-        contenidoSugerido = `Hola${nombre} 👋 ¿Pudiste revisar la información sobre Instituto Windsor? Si tienes alguna duda, con gusto te ayudo 😊`
-      } else if (tipo === 'template') {
-        templateName = selectTemplate(nextTier, lead.stage)
-        contenidoSugerido = templateName === 'seguimiento_general'
-          ? `Hola {{nombre}} 👋 ¿Pudiste revisar la información que te compartimos sobre Instituto Windsor? Si tienes alguna duda, con gusto te ayudamos. 😊`
-          : templateName === 'windsor_promocion'
-            ? `¡Hola {{nombre}}! 🎉 Tenemos una promoción especial activa para ti. ¿Te gustaría que un asesor te llame para darte los detalles?`
-            : `Hola {{nombre}}, notamos que tu inscripción quedó pendiente. ¿Te ayudamos a completarla hoy? 😊`
+  const convIds = [...conversacionesPorLead.values()].map((c) => c.id)
+  const ultimoUsuarioPorConv = new Map<string, string>()
+  for (const chunk of chunkArray(convIds, CHUNK_SIZE)) {
+    const { data } = await supabase
+      .from('whatsapp_mensajes')
+      .select('conversacion_id, created_at')
+      .in('conversacion_id', chunk)
+      .eq('rol', 'usuario')
+      .order('created_at', { ascending: false })
+    for (const m of data || []) {
+      if (!ultimoUsuarioPorConv.has(m.conversacion_id)) ultimoUsuarioPorConv.set(m.conversacion_id, m.created_at)
+    }
+  }
+
+  // 6. Armar candidatos con su urgencia real (horas sin respuesta)
+  const candidatos: Array<{ lead: Lead; conv: { id: string; ultimo_mensaje_at: string | null; fase: string }; horas: number }> = []
+
+  for (const lead of leads) {
+    if (pendientesPorLead.has(lead.id)) { saltados.push(lead.id); continue }
+
+    const conv = conversacionesPorLead.get(lead.id)
+    if (!conv) { saltados.push(lead.id); continue }
+
+    const lastUserAt = ultimoUsuarioPorConv.get(conv.id)
+    const refDate = lastUserAt
+      ? new Date(lastUserAt)
+      : conv.ultimo_mensaje_at
+        ? new Date(conv.ultimo_mensaje_at)
+        : null
+
+    if (!refDate) { saltados.push(lead.id); continue }
+
+    candidatos.push({ lead, conv, horas: horasDesde(refDate) })
+  }
+
+  // Priorizar a los más atrasados primero, por si el tiempo se agota antes de terminar
+  candidatos.sort((a, b) => b.horas - a.horas)
+
+  // 7. Decidir y acumular escrituras (batch al final, no una por una)
+  const filasAInsertar: Record<string, unknown>[] = []
+  const idsACerrar: string[] = []
+
+  for (const { lead, conv, horas } of candidatos) {
+    try {
+      const ultimoTier = tierMaxPorLead.get(lead.id) ?? 0
+      const decision = decidirSeguimiento(lead, horas, ultimoTier)
+
+      if (dryRun) decisionesDetalle.push({ leadId: lead.id, ...decision })
+
+      switch (decision.accion) {
+        case 'ignorado':
+          continue
+        case 'saltado':
+          saltados.push(lead.id)
+          continue
+        case 'cerrado':
+          idsACerrar.push(lead.id)
+          cerrados.push(lead.id)
+          continue
+        case 'generado':
+          filasAInsertar.push({
+            lead_id: lead.id,
+            conversacion_id: conv.id,
+            lead_nombre: lead.nombre,
+            lead_whatsapp: normalizePhoneNumber(lead.whatsapp),
+            lead_curso: lead.curso,
+            lead_stage: lead.stage,
+            tier: decision.tier,
+            tipo: decision.tipo,
+            contenido_sugerido: decision.contenidoSugerido,
+            template_name: decision.templateName,
+            fecha_programada: new Date().toISOString(),
+          })
+          generados.push(lead.id)
       }
-
-      // 9. Crear el seguimiento
-      await supabase.from('seguimientos').insert([{
-        lead_id: lead.id,
-        conversacion_id: conv.id,
-        lead_nombre: lead.nombre,
-        lead_whatsapp: normalizePhoneNumber(lead.whatsapp),
-        lead_curso: lead.curso,
-        lead_stage: lead.stage,
-        tier: nextTier,
-        tipo,
-        contenido_sugerido: contenidoSugerido,
-        template_name: templateName,
-        fecha_programada: new Date().toISOString(),
-      }])
-
-      generados.push(lead.id)
     } catch (e) {
       console.error('[seguimientos/generar] lead', lead.id, e)
     }
   }
 
-  // Notificar a cada asesor si tiene pendientes nuevos
-  try {
-    const { data: asesores } = await supabase
-      .from('profiles')
-      .select('id, nombre, whatsapp')
-      .not('whatsapp', 'is', null)
-
-    for (const asesor of asesores || []) {
-      const { data: misLeads } = await supabase
-        .from('leads')
-        .select('id')
-        .eq('asignado_a', asesor.id)
-      const misIds = (misLeads || []).map((l: { id: string }) => l.id)
-      if (!misIds.length) continue
-
-      const { data: misPendientes } = await supabase
-        .from('seguimientos')
-        .select('id, tier, tipo')
-        .in('lead_id', misIds)
-        .eq('estado', 'pendiente')
-
-      if (!misPendientes?.length) continue
-
-      const mensajes = misPendientes.filter((s: { tipo: string }) => s.tipo === 'mensaje_wa').length
-      const llamadas = misPendientes.filter((s: { tipo: string }) => s.tipo === 'llamada').length
-      const templates = misPendientes.filter((s: { tipo: string }) => s.tipo === 'template').length
-
-      const lineas = [`📋 *Hola ${asesor.nombre?.split(' ')[0] || 'asesor'}*, tienes seguimientos pendientes hoy:\n`]
-      if (mensajes) lineas.push(`💬 ${mensajes} mensaje${mensajes > 1 ? 's' : ''} por aprobar`)
-      if (llamadas) lineas.push(`📞 ${llamadas} llamada${llamadas > 1 ? 's' : ''} por realizar`)
-      if (templates) lineas.push(`📋 ${templates} template${templates > 1 ? 's' : ''} por enviar`)
-      lineas.push(`\nEntra al CRM → pestaña SEGUIMIENTOS`)
-
-      const { sendMetaWhatsAppMessage } = await import('@/lib/whatsapp/provider')
-      await sendMetaWhatsAppMessage({ to: asesor.whatsapp, body: lineas.join('\n') }).catch(() => {})
+  if (!dryRun) {
+    for (const chunk of chunkArray(filasAInsertar, CHUNK_SIZE)) {
+      await supabase.from('seguimientos').insert(chunk)
     }
-  } catch (e) {
-    console.error('[seguimientos/generar] notificaciones error:', e)
+    for (const chunk of chunkArray(idsACerrar, CHUNK_SIZE)) {
+      await supabase.from('leads').update({ stage: 'perdido' }).in('id', chunk)
+    }
+  }
+
+  // Notificar a cada asesor si tiene pendientes nuevos (se salta en dryRun)
+  if (!dryRun) {
+    try {
+      const { data: asesores } = await supabase
+        .from('profiles')
+        .select('id, nombre, whatsapp')
+        .not('whatsapp', 'is', null)
+
+      for (const asesor of asesores || []) {
+        const { data: misLeads } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('asignado_a', asesor.id)
+        const misIds = (misLeads || []).map((l: { id: string }) => l.id)
+        if (!misIds.length) continue
+
+        const { data: misPendientes } = await supabase
+          .from('seguimientos')
+          .select('id, tier, tipo')
+          .in('lead_id', misIds)
+          .eq('estado', 'pendiente')
+
+        if (!misPendientes?.length) continue
+
+        const mensajes = misPendientes.filter((s: { tipo: string }) => s.tipo === 'mensaje_wa').length
+        const llamadas = misPendientes.filter((s: { tipo: string }) => s.tipo === 'llamada').length
+        const templates = misPendientes.filter((s: { tipo: string }) => s.tipo === 'template').length
+
+        const lineas = [`📋 *Hola ${asesor.nombre?.split(' ')[0] || 'asesor'}*, tienes seguimientos pendientes hoy:\n`]
+        if (mensajes) lineas.push(`💬 ${mensajes} mensaje${mensajes > 1 ? 's' : ''} por aprobar`)
+        if (llamadas) lineas.push(`📞 ${llamadas} llamada${llamadas > 1 ? 's' : ''} por realizar`)
+        if (templates) lineas.push(`📋 ${templates} template${templates > 1 ? 's' : ''} por enviar`)
+        lineas.push(`\nEntra al CRM → pestaña SEGUIMIENTOS`)
+
+        const { sendMetaWhatsAppMessage } = await import('@/lib/whatsapp/provider')
+        await sendMetaWhatsAppMessage({ to: asesor.whatsapp, body: lineas.join('\n') }).catch(() => {})
+      }
+    } catch (e) {
+      console.error('[seguimientos/generar] notificaciones error:', e)
+    }
   }
 
   return Response.json({
     ok: true,
+    dryRun,
     generados: generados.length,
     saltados: saltados.length,
     cerrados: cerrados.length,
+    ...(dryRun ? { decisiones: decisionesDetalle } : {}),
   })
 }
