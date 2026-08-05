@@ -772,7 +772,7 @@ Modalidad: Presencial | Duración: 3 años
   'Licenciatura en Inglés': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Inglés:
 
 *🎓 Licenciatura en Inglés*
-Modalidad: Presencial | Duración: 3 años
+Modalidad: Presencial | Duración: 3 años (9 cuatrimestres)
 
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
@@ -792,7 +792,9 @@ Modalidad: Presencial | Duración: 3 años
   'Licenciatura en Inglés online': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Inglés Online:
 
 *🎓 Licenciatura en Inglés*
-Modalidad: Online | Duración: 3 años
+Modalidad: Online | Duración: 3 años (9 cuatrimestres)
+
+*🕐 Horarios:* La materia de inglés se cursa en línea lunes y martes de 7:00pm a 9:00pm. Las materias complementarias se cursan en sesiones sabatinas, con horario por materia de aprox. 8:30am a 3:30pm.
 
 *💰 Inversión:*
 • Inscripción semestral: $2,300
