@@ -2491,8 +2491,12 @@ export async function POST(request: Request) {
               .eq('estado', 'pendiente')
           }
 
-          // Anti-duplicados: esperar y verificar que no llegó un mensaje más reciente
-          await new Promise(r => setTimeout(r, 1500))
+          // Anti-duplicados / debounce: esperar y verificar que no llegó un mensaje más
+          // reciente. Antes eran 1.5s, insuficientes para agrupar mensajes seguidos del
+          // lead (ej. dos preguntas con 8s de diferencia se procesaban por separado y
+          // una podía escalar mientras la otra contestaba directo — ver caso reportado
+          // 2026-08-06, +527472532394). Subido a 8s por decisión de Harold.
+          await new Promise(r => setTimeout(r, 8000))
           const { data: latestUserMsg } = await supabase
             .from('whatsapp_mensajes')
             .select('id')
