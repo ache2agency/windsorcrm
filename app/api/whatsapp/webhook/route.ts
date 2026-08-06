@@ -2491,8 +2491,12 @@ export async function POST(request: Request) {
               .eq('estado', 'pendiente')
           }
 
-          // Anti-duplicados: esperar y verificar que no llegó un mensaje más reciente
-          await new Promise(r => setTimeout(r, 1500))
+          // Anti-duplicados / debounce: esperar y verificar que no llegó un mensaje más
+          // reciente. Antes eran 1.5s, insuficientes para agrupar mensajes seguidos del
+          // lead (ej. dos preguntas con 8s de diferencia se procesaban por separado y
+          // una podía escalar mientras la otra contestaba directo — ver caso reportado
+          // 2026-08-06, +527472532394). Subido a 8s por decisión de Harold.
+          await new Promise(r => setTimeout(r, 8000))
           const { data: latestUserMsg } = await supabase
             .from('whatsapp_mensajes')
             .select('id')
@@ -2580,7 +2584,7 @@ export async function POST(request: Request) {
             contenido: draft,
           }])
           await supabaseHL.from('whatsapp_conversaciones')
-            .update({ revision_codigo: null, revision_draft: null, ultimo_mensaje_at: new Date().toISOString() })
+            .update({ revision_codigo: null, revision_draft: null, modo_humano: false, ultimo_mensaje_at: new Date().toISOString() })
             .eq('id', (convAprobacion as any).id)
           await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: `✅ [${codigo.toUpperCase()}] Enviado.` })
         } else {
@@ -3672,24 +3676,13 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         const ragUrl = new URL('/api/rag/query', new URL(request.url).origin)
         const isInfoPhase = ['info_enviada', 'dudas', 'correo', 'seguimiento'].includes(phase)
         const matchCount = isInfoPhase ? 15 : 5
-        const detectPrograma = (msg: string, fallback: string | null | undefined): string => {
-          const m = msg.toLowerCase()
-          if (/ni[ñn]o/i.test(m)) return 'Inglés para niños'
-          if (/adulto/i.test(m)) return 'Inglés para adultos'
-          if (/licenciatura.*ingl[eé]s|ingl[eé]s.*licenciatura|\blic\b.*ingl[eé]s|ingl[eé]s.*\blic\b/i.test(m)) return 'Licenciatura en Inglés'
-          if (/franc[eé]s/i.test(m)) return 'Francés'
-          if (/italian/i.test(m)) return 'Italiano'
-          if (/psicolog/i.test(m)) return 'Psicología'
-          if (/turism/i.test(m)) return 'Administración turística'
-          if (/relaciones p[uú]blicas|mercadotecnia/i.test(m)) return 'Relaciones públicas y mercadotecnia'
-          if (/innovaci[oó]n empresarial/i.test(m)) return 'Maestría en Innovación empresarial'
-          if (/maestr[ií]a/i.test(m)) return 'maestrías'
-          if (/licenciatura/i.test(m)) return 'licenciaturas'
-          if (/diplomado/i.test(m)) return 'diplomados'
-          return fallback || ''
-        }
+        // Usa detectarPrograma() como única fuente de verdad (sin duplicar lógica) —
+        // antes había una copia local aquí sin Bachillerato/Prepa, así que una pregunta
+        // de seguimiento sobre Bachillerato caía al curso genérico del lead y el RAG
+        // contestaba de forma genérica en vez de específica (ver bug reportado 2026-08-06,
+        // caso +527472532394: el bot daba vueltas repitiendo el catálogo completo).
         const queryPrograma = (phase === 'dudas' || phase === 'seguimiento')
-          ? detectPrograma(originalText, leadSnapshot?.curso)
+          ? (detectarPrograma(originalText) || leadSnapshot?.curso || '')
           : leadSnapshot?.curso || ''
         const ragQuestion = queryPrograma && (phase === 'dudas' || phase === 'seguimiento')
           ? `${queryPrograma} en Instituto Windsor: ${originalText}`
@@ -3768,17 +3761,27 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           codigo = !usados.has('a') ? 'a' : !usados.has('b') ? 'b' : 'c'
         } catch { /* usar 'a' por defecto */ }
 
-        // Mensaje al lead: reconocer sin bloquear la conversación
+        // Mensaje al lead avisando que se escala con un asesor
         const msgEspera = `Déjame consultarlo con un asesor para darte la respuesta exacta 😊 En breve te respondemos.`
         await supabase.from('whatsapp_mensajes').insert([{
           conversacion_id: conversacionIdOuter,
           rol: 'bot',
           contenido: msgEspera,
         }])
-        // Guardar código en la conversación (sin cambiar fase)
+        // modo_humano: true — antes la conversación quedaba "sin bloquear": el siguiente
+        // mensaje del lead se procesaba de nuevo con GPT como si nada hubiera pasado,
+        // pudiendo contestar cosas distintas/contradictorias a la pregunta ya escalada
+        // (ver bug reportado 2026-08-06, caso +527472532394). Bloquear aquí es consistente
+        // con el resto del código: es el mismo flag que ya usa la escalación por 5 turnos
+        // sin avance (línea ~3733) y con cómo ya se resuelven manualmente estos casos en
+        // la revisión diaria de 24h (mandando la corrección con modoHumano:false explícito).
+        await supabase.from('whatsapp_conversaciones')
+          .update({ modo_humano: true, ultimo_mensaje_at: new Date().toISOString() })
+          .eq('id', conversacionIdOuter)
+        // Guardar código en la conversación (columna aparte, puede no existir aún)
         try {
           await supabase.from('whatsapp_conversaciones')
-            .update({ revision_codigo: codigo, ultimo_mensaje_at: new Date().toISOString() })
+            .update({ revision_codigo: codigo })
             .eq('id', conversacionIdOuter)
         } catch { /* columna puede no existir aún — ver supabase/revision_pendiente.sql */ }
 
