@@ -104,6 +104,12 @@ const casos: Caso[] = [
     got: detectarPrograma('quiero la licenciatura en inglés en línea'),
     want: 'Licenciatura en Inglés online',
   },
+  {
+    nombre: 'detectarPrograma reconoce el programa aunque venga junto al nombre en el mismo mensaje',
+    got: detectarPrograma('Yarely Romero Gatica \nLicenciatura en Ingles'),
+    want: 'Licenciatura en Inglés',
+    bug: 'windsorcrm_falsa_negacion_programas_ago07 — sin esto, GPT llegó a negar que existiera la Licenciatura en Inglés',
+  },
 
   // Diplomados — lista cerrada + keyword "diplomado" como señal adicional.
   {

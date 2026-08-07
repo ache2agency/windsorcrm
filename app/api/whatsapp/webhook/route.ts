@@ -3172,6 +3172,24 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         return buildProviderResponse(provider, dirMsg, waNumber)
       }
 
+      // En cualquier fase: si el lead aún no tiene programa capturado y el mensaje ya
+      // menciona uno de forma inequívoca, capturarlo ya con el detector determinístico
+      // (misma fuente de verdad que el resto del bot, ver lib/whatsapp/programas.ts) —
+      // así el contexto que recibe GPT/RAG más abajo (leadData.curso, ragQuestion) ya
+      // refleja el programa real y no puede alucinar que "no lo ofrecemos". Bug real
+      // 2026-08-07: un lead mandó nombre+programa en el mismo mensaje durante fase
+      // "saludo" (fase donde el catálogo/detector determinístico de "programa" nunca
+      // corría) y GPT respondió negando que existiera la Licenciatura en Inglés.
+      if (!hasLeadProgram(leadSnapshot?.curso)) {
+        const progTemprano = detectarPrograma(originalText)
+        if (progTemprano) {
+          if (leadId) {
+            await supabase.from('leads').update({ curso: progTemprano, ...(getValorPrograma(progTemprano) ? { valor: getValorPrograma(progTemprano) } : {}) }).eq('id', leadId)
+          }
+          leadSnapshot = { ...leadSnapshot, curso: progTemprano } as LeadSnapshot
+        }
+      }
+
       // Detección global de "inglés" ambiguo — sin importar la fase, si no hay programa capturado aún
       if (!hasLeadProgram(leadSnapshot?.curso)) {
         const msgLower0 = originalText.toLowerCase()
@@ -3184,6 +3202,27 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           const disambigVerano = `¡Qué buena elección! ☀️ My Best Summer tiene dos modalidades, ¿cuál te interesa?\n\nA) Niños (4 a 12 años)\nB) Adolescentes y adultos`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, disambigVerano, 'verano_disambig')
           return buildProviderResponse(provider, disambigVerano, waNumber)
+        }
+      }
+
+      // En cualquier fase: igual que el "inglés ambiguo" de arriba, si preguntan por una
+      // categoría genérica (licenciaturas/maestrías/diplomados) antes de tener un programa
+      // capturado, responder con el catálogo real en vez de dejar que GPT+RAG improvise —
+      // mismo bug de 2026-08-07: sin este check, "¿maestrías tienen?" fuera de fase
+      // "programa" (única fase donde antes se manejaba este caso) caía al fallback de
+      // GPT, que llegó a negar que existieran maestrías en Instituto Windsor.
+      if (!hasLeadProgram(leadSnapshot?.curso)) {
+        const msgNorm0 = quitarAcentos(originalText.trim()).toLowerCase()
+        const categoriaGenerica0 = /licenciaturas?/.test(msgNorm0)
+          ? `Tenemos las siguientes licenciaturas:\n\n• Licenciatura en Inglés\n• Relaciones públicas y mercadotecnia\n• Administración turística\n• Psicología\n\n¿Cuál te interesa? 😊`
+          : /maestrias?/.test(msgNorm0)
+          ? `Tenemos dos maestrías:\n\n• Maestría en Innovación empresarial\n• Maestría en Multiculturalidad y Plurilingüismo\n\n¿Cuál te interesa? 😊`
+          : /diplomados?/.test(msgNorm0)
+          ? `Contamos con más de 30 diplomados en distintas áreas. ¿Me puedes decir cuál tema te interesa? Por ejemplo: salud, educación, negocios, tecnología... 😊`
+          : null
+        if (categoriaGenerica0) {
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, categoriaGenerica0, 'programa')
+          return buildProviderResponse(provider, categoriaGenerica0, waNumber)
         }
       }
 
@@ -3834,11 +3873,18 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, disambig, 'programa')
           return buildProviderResponse(provider, disambig, waNumber)
         }
-        // Si el usuario ya nombró un programa específico sin ambigüedad, saltar catálogo e ir a correo
-        if (gpt.programa && leadId) {
-          const cursoCanonico = canonicalizarPrograma(gpt.programa, originalText)
+        // Si el usuario ya nombró un programa específico sin ambigüedad, saltar catálogo e ir a correo.
+        // Usa leadSnapshot?.curso como respaldo de gpt.programa: la captura determinística de
+        // arriba (detectarPrograma, antes de llamar a GPT) ya lo puede haber guardado aunque GPT
+        // no lo haya extraído en su JSON — mismo bug de fondo del 2026-08-07.
+        const programaGPT = gpt.programa || leadSnapshot?.curso
+        if (programaGPT && leadId) {
+          const cursoCanonico = canonicalizarPrograma(programaGPT, originalText)
           await supabase.from('leads').update({ curso: cursoCanonico, ...(getValorPrograma(cursoCanonico) ? { valor: getValorPrograma(cursoCanonico) } : {}) }).eq('id', leadId)
-          const correoMsg = gpt.respuesta || `¡Perfecto! Para contarte todo sobre ${cursoCanonico}, ¿me compartes tu correo para darte seguimiento personalizado?`
+          // Mensaje siempre determinístico, nunca gpt.respuesta: aquí es donde el bug real
+          // ocurrió — GPT escribió una negación del programa en su "respuesta" libre a pesar
+          // de que el programa sí se había identificado correctamente.
+          const correoMsg = `¡Perfecto! 😊 Para contarte todo sobre *${cursoCanonico}*, ¿me compartes tu correo electrónico para darte seguimiento personalizado? 📧`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, correoMsg, 'correo')
           return buildProviderResponse(provider, correoMsg, waNumber)
         }
