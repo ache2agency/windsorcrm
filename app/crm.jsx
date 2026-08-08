@@ -460,14 +460,34 @@ export default function CRM() {
 
   const fetchLeads = async (userId, admin) => {
     setLoading(true);
-    let query = supabase.from("leads").select("*").order("created_at", { ascending: false });
-    // Vendedores solo ven sus leads asignados
-    if (!admin) {
-      query = query.eq("asignado_a", userId);
+    // Supabase/PostgREST cap cada respuesta en 1000 filas por default — sin paginar,
+    // cualquier lead fuera de los 1000 más recientes (ordenados por created_at) queda
+    // invisible en el CRM: no carga al navegador, así que ni el buscador del Kanban ni
+    // la tabla lo encuentran aunque exista en la base (bug real 2026-08-08, caso
+    // +527471247133, ya con 1566 leads en total). Se pagina en bloques de 1000 hasta
+    // agotar los resultados.
+    const PAGE_SIZE = 1000;
+    let all = [];
+    let from = 0;
+    let pageError = null;
+    for (;;) {
+      let query = supabase
+        .from("leads")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(from, from + PAGE_SIZE - 1);
+      // Vendedores solo ven sus leads asignados
+      if (!admin) {
+        query = query.eq("asignado_a", userId);
+      }
+      const { data, error } = await query;
+      if (error) { pageError = error; break; }
+      all = all.concat(data || []);
+      if (!data || data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
     }
-    const { data, error } = await query;
-    if (error) showToast("Error cargando leads", "error");
-    else setLeads(data || []);
+    if (pageError) showToast("Error cargando leads", "error");
+    else setLeads(all);
     setLoading(false);
   };
 
@@ -491,20 +511,36 @@ export default function CRM() {
   };
 
   const fetchWhatsConvs = async () => {
-    let { data, error } = await supabase
-      .from("whatsapp_conversaciones")
-      .select("id, whatsapp, lead_id, estado, ultimo_mensaje_at, modo_humano, tomado_por, fase")
-      .order("ultimo_mensaje_at", { ascending: false });
-    if (error) {
-      const fallback = await supabase
-        .from("whatsapp_conversaciones")
-        .select("id, whatsapp, lead_id, estado, ultimo_mensaje_at")
-        .order("ultimo_mensaje_at", { ascending: false });
-      if (fallback.error) {
+    // Mismo bug de fondo que fetchLeads (ver ahí el detalle): sin paginar, Supabase
+    // corta en 1000 filas y las conversaciones más viejas quedan invisibles — ya
+    // confirmado activo (1525 conversaciones en total al momento de este fix).
+    const PAGE_SIZE = 1000;
+    const fetchPaginated = async (selectCols) => {
+      let all = [];
+      let from = 0;
+      for (;;) {
+        const { data, error } = await supabase
+          .from("whatsapp_conversaciones")
+          .select(selectCols)
+          .order("ultimo_mensaje_at", { ascending: false })
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        all = all.concat(data || []);
+        if (!data || data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+      return all;
+    };
+    let data;
+    try {
+      data = await fetchPaginated("id, whatsapp, lead_id, estado, ultimo_mensaje_at, modo_humano, tomado_por, fase");
+    } catch {
+      try {
+        data = await fetchPaginated("id, whatsapp, lead_id, estado, ultimo_mensaje_at");
+      } catch {
         showToast("Error cargando conversaciones de WhatsApp", "error");
         return;
       }
-      data = fallback.data;
     }
     setWhatsConvs(data || []);
   };
