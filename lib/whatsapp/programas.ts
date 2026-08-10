@@ -9,11 +9,30 @@ export function quitarAcentos(s: string): string {
 
 export type OfertaMatchResult = { match: string | null; ambiguous: boolean }
 
+/** Busca coincidencia contra el catálogo de diplomados (ver PROGRAMAS_DIPLOMADO abajo).
+ * Se revisa ANTES que cualquier otra categoría porque varios nombres de diplomado
+ * comparten palabras clave con licenciaturas (ej. "Psicología educativa" contiene
+ * "psicolog", "Enseñanza del idioma inglés" contiene "ingles") — sin este orden,
+ * esos diplomados se clasificaban mal como la licenciatura correspondiente.
+ * Antes esta función no existía: ningún diplomado se reconocía en texto libre,
+ * así que leads.curso nunca se actualizaba al hablar de un diplomado a media
+ * conversación (caso David, 08-ago-2026, ver windsorcrm_fixes_estructurales_jul24). */
+function detectarDiplomadoEnTexto(norm: string): string | null {
+  for (const nombre of PROGRAMAS_DIPLOMADO) {
+    if (norm.includes(quitarAcentos(nombre).toLowerCase())) return `Diplomado en ${nombre}`
+  }
+  if (/diplomado/.test(norm)) return 'Diplomado'
+  return null
+}
+
 /** Reconoce la oferta educativa por palabras clave. Si reconoce la categoría pero falta
  * el calificador niños/adultos, marca ambiguous en vez de adivinar uno de los dos. */
 export function matchOfertaEducativa(input: string): OfertaMatchResult {
   const norm = quitarAcentos(input.trim().toLowerCase())
   if (!norm) return { match: null, ambiguous: false }
+
+  const diplomado = detectarDiplomadoEnTexto(norm)
+  if (diplomado) return { match: diplomado, ambiguous: false }
 
   const esNino = /nin|kids?|infantil/.test(norm)
   const esAdulto = /adult/.test(norm)
@@ -180,6 +199,8 @@ export function detectarPrograma(msg: string): string | null {
   // mensaje como "En línea: licenciatura en inglés" (el calificador va primero) no
   // matcheaba ningún regex de "programa...online" y perdía la modalidad online.
   const esOnline = /online|virtual|distancia|en linea/.test(norm)
+  const diplomado = detectarDiplomadoEnTexto(norm)
+  if (diplomado) return diplomado
   if (/ingles para nin|nin.*ingles|ingles.*nin/.test(norm)) return 'Inglés para niños'
   if (/ingles para adult|adult.*ingles|ingles.*adult/.test(norm)) return 'Inglés para adultos'
   if (/licenciatura.*ingles|ingles.*licenciatura|\blic\b.*ingles|ingles.*\blic\b/.test(norm)) return esOnline ? 'Licenciatura en Inglés online' : 'Licenciatura en Inglés'

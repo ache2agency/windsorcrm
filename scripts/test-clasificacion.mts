@@ -122,6 +122,32 @@ const casos: Caso[] = [
     got: esDiplomado('Diplomado en algo nuevo no listado'),
     want: true,
   },
+
+  // Caso David (+527471647980, 08-ago) — detectarPrograma() no tenía NINGUNA regla
+  // para diplomados, así que leads.curso nunca se actualizaba al hablar de uno a
+  // media conversación. Quedó pegado en "Administración turística" (su primera
+  // pregunta) y el bot le mandó documentos de inscripción de licenciatura por error
+  // cuando llevaba rato preguntando por el Diplomado en Contabilidad.
+  {
+    nombre: 'detectarPrograma reconoce un diplomado mencionado a media conversación',
+    got: detectarPrograma('¿entonces no hay presencial para el Diplomado en Contabilidad?'),
+    want: 'Diplomado en Contabilidad',
+    bug: 'windsorcrm_fixes_estructurales_jul24 (caso David, 08-ago)',
+  },
+  {
+    nombre: 'tipoInscripcion de un diplomado detectado es diplomado, no licenciatura',
+    got: tipoInscripcion(detectarPrograma('quiero el diplomado en contabilidad')),
+    want: 'diplomado',
+    bug: 'windsorcrm_fixes_estructurales_jul24 (caso David, 08-ago)',
+  },
+  {
+    // Antes de este fix, un diplomado con nombre parecido a una licenciatura se
+    // habría clasificado mal si se revisaban las categorías genéricas primero
+    // (ej. "psicolog" matchea el regex de la licenciatura de Psicología).
+    nombre: 'un diplomado con nombre parecido a una licenciatura no se confunde con la licenciatura',
+    got: matchOfertaEducativa('me interesa el diplomado en psicología educativa').match,
+    want: 'Diplomado en Psicología educativa',
+  },
 ]
 
 let fallos = 0

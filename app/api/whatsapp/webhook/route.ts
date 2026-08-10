@@ -2565,13 +2565,14 @@ export async function POST(request: Request) {
       const supabaseHL = createServiceRoleClient()
 
       // Patrón "A ok" → Harold aprueba un borrador
-      const matchAprobacion = originalText.trim().match(/^([a-c])\s*ok\b/i)
+      const matchAprobacion = originalText.trim().match(/^([a-z])\s*ok\b/i)
       if (matchAprobacion) {
         const codigo = matchAprobacion[1].toLowerCase()
         const { data: convAprobacion } = await supabaseHL
           .from('whatsapp_conversaciones')
           .select('id, whatsapp, lead_id, revision_draft')
           .eq('revision_codigo', codigo)
+          .order('revision_codigo_asignado_at', { ascending: false, nullsFirst: false })
           .limit(1)
           .maybeSingle()
 
@@ -2584,7 +2585,7 @@ export async function POST(request: Request) {
             contenido: draft,
           }])
           await supabaseHL.from('whatsapp_conversaciones')
-            .update({ revision_codigo: null, revision_draft: null, modo_humano: false, ultimo_mensaje_at: new Date().toISOString() })
+            .update({ revision_codigo: null, revision_draft: null, revision_codigo_asignado_at: null, modo_humano: false, ultimo_mensaje_at: new Date().toISOString() })
             .eq('id', (convAprobacion as any).id)
           await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: `✅ [${codigo.toUpperCase()}] Enviado.` })
         } else {
@@ -2594,7 +2595,7 @@ export async function POST(request: Request) {
       }
 
       // Patrón "A: explicación" → Harold explica, GPT redacta borrador
-      const matchInstruccion = originalText.trim().match(/^([a-c]):\s*([\s\S]+)/i)
+      const matchInstruccion = originalText.trim().match(/^([a-z]):\s*([\s\S]+)/i)
       if (matchInstruccion) {
         const codigo = matchInstruccion[1].toLowerCase()
         const instruccion = matchInstruccion[2].trim()
@@ -2603,6 +2604,7 @@ export async function POST(request: Request) {
           .from('whatsapp_conversaciones')
           .select('id, whatsapp, lead_id')
           .eq('revision_codigo', codigo)
+          .order('revision_codigo_asignado_at', { ascending: false, nullsFirst: false })
           .limit(1)
           .maybeSingle()
 
@@ -3789,15 +3791,21 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         FRASES_INCERTIDUMBRE.some(f => gpt.respuesta.toLowerCase().includes(f))
 
       if (respuestaIncierta) {
-        // Asignar código a/b/c según cuántos pendientes hay
-        let codigo = 'a'
+        // Asignar código de a-z según cuántos pendientes hay. Un código solo cuenta como
+        // "usado" si se asignó en las últimas 48h — evita que uno quede pegado para
+        // siempre cuando Harold nunca llega a aprobarlo con "X ok" (bug real: 88
+        // conversaciones acabaron compartiendo 'c' desde jun-2026 con el pool viejo de a-c).
+        const CODIGOS_REVISION = 'abcdefghijklmnopqrstuvwxyz'.split('')
+        let codigo = CODIGOS_REVISION[0]
         try {
+          const hace48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
           const { data: pendientes } = await supabase
             .from('whatsapp_conversaciones')
             .select('revision_codigo')
             .not('revision_codigo', 'is', null)
+            .gte('revision_codigo_asignado_at', hace48h)
           const usados = new Set((pendientes || []).map((c: any) => c.revision_codigo))
-          codigo = !usados.has('a') ? 'a' : !usados.has('b') ? 'b' : 'c'
+          codigo = CODIGOS_REVISION.find(c => !usados.has(c)) || CODIGOS_REVISION[CODIGOS_REVISION.length - 1]
         } catch { /* usar 'a' por defecto */ }
 
         // Mensaje al lead avisando que se escala con un asesor
@@ -3820,7 +3828,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         // Guardar código en la conversación (columna aparte, puede no existir aún)
         try {
           await supabase.from('whatsapp_conversaciones')
-            .update({ revision_codigo: codigo })
+            .update({ revision_codigo: codigo, revision_codigo_asignado_at: new Date().toISOString() })
             .eq('id', conversacionIdOuter)
         } catch { /* columna puede no existir aún — ver supabase/revision_pendiente.sql */ }
 
