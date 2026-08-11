@@ -1587,6 +1587,27 @@ Beneficiarios: Alumnos
 ☀️ *Verano 2026:* No aplica`,
 }
 
+/** Detecta si el usuario pregunta por revalidación de materias cursadas en otra institución.
+ * Incluye typos comunes (ej. "balidar" en vez de "revalidar" — caso real Isabel 2026-08-10,
+ * donde el bot ignoró la pregunta y solo mandó los pasos de inscripción normales). */
+function detectarRevalidacion(msg: string): boolean {
+  const norm = quitarAcentos(msg).toLowerCase()
+  if (/revalida|balida|convalida/.test(norm)) return true
+  if (/materias?\s+(ya\s+)?(cursad|aprobad|vist)/.test(norm)) return true
+  if (/semestres?\s+(ya\s+)?(cursad|aprobad|vist)/.test(norm)) return true
+  if (/(ya\s+(estudi|curs)\w*\s+.{0,30}(otra\s+(escuela|universidad|instituci|prepa)|semestre))/.test(norm)) return true
+  return false
+}
+
+/** Proceso real de revalidación: nunca confirma ni niega de antemano si se aceptará —
+ * solo pide el kardex para que un asesor lo evalúe. Ver memoria/instrucción del caso Isabel. */
+const REVALIDACION_MATERIAS_MSG = `Para revisar si podemos revalidarte materias que ya cursaste en otra institución, por favor envía tu *kardex oficial* (donde aparezcan las materias que ya cursaste) al correo 📧 *hola@windsor.edu.mx*, incluyendo:
+
+• Tu nombre completo
+• Tu número de WhatsApp
+
+En cuanto lo envíes, confírmanoslo por aquí para darle seguimiento. Un asesor revisará tu kardex y te dirá qué materias aplican. 😊`
+
 /** Detecta si el mensaje es alguien buscando trabajo/vacante docente, NO un prospecto de inscripción */
 function detectarConsultaVacante(msg: string): boolean {
   return /vacante|plaza docente|buscan\s+(maestros?|profesor(a)?|docentes?)|solicit(o|an|ud)\s+.*(empleo|trabajo|maestro|profesor|docente)|trabajar\s+como\s+(maestro|profesor|docente)|dar\s+clases\s+(en|para)\s+(su|la)\s+(instituci|escuela|colegio)|postularme|contratando\s+(personal|maestros?|docentes?)|env[ií]o\s+.*(cv|curr[ií]culum)|curr[ií]culum\s+vitae|reclutamiento|recursos\s+humanos/i.test(msg)
@@ -3199,6 +3220,17 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       if (detectarConsultaVacante(originalText)) {
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, VACANTE_DOCENTE_MSG, 'seguimiento')
         return buildProviderResponse(provider, VACANTE_DOCENTE_MSG, waNumber)
+      }
+
+      // En cualquier fase: si pregunta por revalidación de materias de otra institución —
+      // se revisa ANTES que convenios/institución específica porque "ya estudié en la UAGro"
+      // puede matchear por error el detector de "egresados" de convenios (ver detectarInstitucionConvenio)
+      // y responder con el descuento de egresados en vez del proceso real de revalidación.
+      // Nunca confirmar ni negar de antemano si se aceptará — caso real Isabel 2026-08-10,
+      // el bot ignoró la pregunta y solo mandó los pasos de inscripción normales.
+      if (detectarRevalidacion(originalText)) {
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, REVALIDACION_MATERIAS_MSG, currentFase || phase, leadId)
+        return buildProviderResponse(provider, REVALIDACION_MATERIAS_MSG, waNumber)
       }
 
       // En cualquier fase: si pregunta por convenios → mostrar lista
