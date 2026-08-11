@@ -3160,7 +3160,10 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       // Maneja las 3 respuestas rápidas del template de reactivación
       const msgTrimBtn = originalText.trim()
       if (/^(sí,?\s*tengo\s*dudas|si,?\s*tengo\s*dudas)[\s\S]*$/i.test(msgTrimBtn)) {
-        const resp = `¡Claro que sí! 😊 Con gusto resuelvo tus dudas. ¿Qué quisiera saber sobre ${leadSnapshot?.curso || 'el programa'}?`
+        // hasLeadProgram() evita mostrar el placeholder "WhatsApp - Instituto Windsor" si por
+        // alguna razón este botón llega antes de tener un programa real capturado (mismo bug
+        // de fondo que el placeholder colándose en el mensaje de pedir correo, ver más abajo).
+        const resp = `¡Claro que sí! 😊 Con gusto resuelvo tus dudas. ¿Qué quisiera saber sobre ${hasLeadProgram(leadSnapshot?.curso) ? leadSnapshot?.curso : 'el programa'}?`
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'dudas', leadId)
         return buildProviderResponse(provider, resp, waNumber)
       }
@@ -3462,12 +3465,36 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           return buildProviderResponse(provider, noOfrecemosMsg, waNumber)
         }
 
-        // Caso 3: mensaje ambiguo o muy corto — repetir catálogo completo
-        const botMessage = nombreP
-          ? `¡Hola ${nombreP}! 😊 ¿Qué programa de Instituto Windsor te interesa?\n\n${CATALOGO_OFERTA}`
-          : `¡Hola! 😊 ¿Qué programa de Instituto Windsor te interesa?\n\n${CATALOGO_OFERTA}`
-        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMessage, 'programa')
-        return buildProviderResponse(provider, botMessage, waNumber)
+        // Caso 3a: si el mensaje parece una pregunta real (RVOE/SEP, costos, horarios, etc.)
+        // en vez de un nombre de programa o un mensaje ambiguo, NO repetir el catálogo —
+        // dejar que caiga al fallback de GPT+RAG más abajo (fuera de este if de fase
+        // 'programa'), que sí responde preguntas libres sin importar la fase gracias a
+        // REGLAS_NEGOCIO (ej. "RVOE: ... Cuando alguien pregunte por RVOE, reconocimiento
+        // oficial, o validez del título, da este número directamente"). Mismo heurístico
+        // de "parece pregunta" que ya se usa en fase 'accion' (línea ~3547).
+        // Caso real: lead "Sistema habierto" (+527472533420) preguntó dos veces seguidas
+        // "¿está incorporado a la SEP?" en fase 'programa' y el bot repitió el catálogo
+        // completo e idéntico las dos veces sin acusar la pregunta.
+        const parecePreguntaP = /\?/.test(msgTrimP)
+          || msgTrimP.length > 12
+          || /\b(costo|precio|hora|horario|d[ií]a|cu[aá]nto|cu[aá]l|qu[eé]|ubicaci[oó]n|direcci[oó]n|diploma|certificado|descuento|duraci[oó]n|materia|document|requisito|uniforme|nivel|becas?|mensualidad|inscripci[oó]n|sep|rvoe|incorporad|reconoc|validez|oficial|modalidad)\b/i.test(msgNormP)
+
+        if (!parecePreguntaP) {
+          // Caso 3b: mensaje ambiguo o muy corto — repetir catálogo, pero si ya se mostró
+          // en el turno anterior, variar el texto en vez de repetirlo palabra por palabra
+          // (backstop adicional para no caer en bucle exacto ante cualquier caso no cubierto
+          // por el heurístico de arriba).
+          const lastBotMsgP = convHistory.filter(m => m.role === 'assistant').pop()?.content || ''
+          const yaSeMostroCatalogo = lastBotMsgP.includes('¿Qué programa de Instituto Windsor te interesa?')
+          const botMessage = yaSeMostroCatalogo
+            ? `${nombreP ? nombreP + ', ' : ''}si tienes alguna pregunta puedes escribirla directamente, o elige uno de estos programas:\n\n${CATALOGO_OFERTA}`
+            : nombreP
+            ? `¡Hola ${nombreP}! 😊 ¿Qué programa de Instituto Windsor te interesa?\n\n${CATALOGO_OFERTA}`
+            : `¡Hola! 😊 ¿Qué programa de Instituto Windsor te interesa?\n\n${CATALOGO_OFERTA}`
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMessage, 'programa')
+          return buildProviderResponse(provider, botMessage, waNumber)
+        }
+        // parecePreguntaP: no retornar — sigue al bloque principal de GPT+RAG más abajo.
       }
 
       // ── Pregunta sobre cursos de verano (no en saludo/correo — esos fases capturan datos primero) ──
@@ -3998,7 +4025,14 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         // Usa leadSnapshot?.curso como respaldo de gpt.programa: la captura determinística de
         // arriba (detectarPrograma, antes de llamar a GPT) ya lo puede haber guardado aunque GPT
         // no lo haya extraído en su JSON — mismo bug de fondo del 2026-08-07.
-        const programaGPT = gpt.programa || leadSnapshot?.curso
+        // IMPORTANTE: filtrar con hasLeadProgram() — leadSnapshot?.curso puede seguir siendo el
+        // placeholder con el que se crea el lead ("WhatsApp - Instituto Windsor" / "Messenger -
+        // Instituto Windsor", ver línea de creación de leads) cuando fase 'saludo' NO le pidió a
+        // GPT extraer el programa (faseInstruccion.saludo solo captura "nombre") y el mensaje del
+        // lead sí mencionaba un programa real. Sin este filtro, ese placeholder se colaba tal cual
+        // en el mensaje visible al lead ("Para contarte todo sobre *WhatsApp - Instituto Windsor*").
+        // Caso real: Ana Mariela Trejo Palacios (+527911112666), 2026-08-10.
+        const programaGPT = gpt.programa || (hasLeadProgram(leadSnapshot?.curso) ? leadSnapshot?.curso : null)
         if (programaGPT && leadId) {
           const cursoCanonico = canonicalizarPrograma(programaGPT, originalText)
           await supabase.from('leads').update({ curso: cursoCanonico, ...(getValorPrograma(cursoCanonico) ? { valor: getValorPrograma(cursoCanonico) } : {}) }).eq('id', leadId)
