@@ -3068,7 +3068,10 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         const hasProgramKeyword = /ingl[eé]s|psicolog|turism|relaciones|bachillerato|maestr[ií]a|diplomado|administraci[oó]n|idiom|franc[eé]s|italian|verano|summer/i.test(originalText)
         const hasDigits = /\d/.test(originalText)
         const hasQuestion = /\?/.test(originalText) || /^\s*(qu[eé]|c[oó]mo|cu[aá]ndo|cu[aá]nto|d[oó]nde|cu[aá]l|qui[eé]n|tienen?|hay|info|informaci[oó]n|cuanto|cuando|cual|quien|como|que)\b/i.test(originalText.trim())
-        const looksLikeName = !isGreeting && !hasProgramKeyword && !hasDigits && !hasQuestion && !/@/.test(originalText) && words.length >= 1 && words.length <= 3 && hasLeadName(originalText.trim(), waNumber)
+        // words.length <= 4 (no 3): nombres reales de 4 palabras (ej. "Feliz Eduardo Maganda Telumbre")
+        // se rechazaban aquí y caían al fallback de GPT, que no manda la ficha completa de INFO_MSGS.
+        // Mismo límite que ya usa el chequeo equivalente de fase 'accion' más abajo en este archivo.
+        const looksLikeName = !isGreeting && !hasProgramKeyword && !hasDigits && !hasQuestion && !/@/.test(originalText) && words.length >= 1 && words.length <= 4 && hasLeadName(originalText.trim(), waNumber)
 
         if (looksLikeName) {
           // Limpiar prefijos comunes: "Con X", "Soy X", "Me llamo X", "Es X"
