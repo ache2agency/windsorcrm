@@ -2627,11 +2627,18 @@ export async function POST(request: Request) {
       const matchAprobacion = originalText.trim().match(/^([a-z])\s*ok\b/i)
       if (matchAprobacion) {
         const codigo = matchAprobacion[1].toLowerCase()
+        // Desempate: revision_codigo_asignado_at primero (fecha real de escalación), y
+        // ultimo_mensaje_at como respaldo para las conversaciones escaladas ANTES de que
+        // existiera esa columna (siguen con el valor en null y nunca se limpiaron — ver
+        // supabase/revision_codigo_fix.sql). Sigue siendo ambiguo si dos escaladas del
+        // mismo código caen casi al mismo tiempo, pero reduce drásticamente el riesgo real
+        // de contestarle a un lead que no es.
         const { data: convAprobacion } = await supabaseHL
           .from('whatsapp_conversaciones')
           .select('id, whatsapp, lead_id, revision_draft')
           .eq('revision_codigo', codigo)
           .order('revision_codigo_asignado_at', { ascending: false, nullsFirst: false })
+          .order('ultimo_mensaje_at', { ascending: false, nullsFirst: false })
           .limit(1)
           .maybeSingle()
 
@@ -2659,11 +2666,13 @@ export async function POST(request: Request) {
         const codigo = matchInstruccion[1].toLowerCase()
         const instruccion = matchInstruccion[2].trim()
 
+        // Mismo desempate que en "A ok" — ver comentario ahí.
         const { data: convInstruccion } = await supabaseHL
           .from('whatsapp_conversaciones')
           .select('id, whatsapp, lead_id')
           .eq('revision_codigo', codigo)
           .order('revision_codigo_asignado_at', { ascending: false, nullsFirst: false })
+          .order('ultimo_mensaje_at', { ascending: false, nullsFirst: false })
           .limit(1)
           .maybeSingle()
 
