@@ -2238,6 +2238,44 @@ Responde ÚNICAMENTE con JSON válido:
   }
 }
 
+/** Arma el mensaje informativo de un programa + CTA, listo para fase 'accion'.
+ * Usa INFO_MSGS si existe (caso común); si no (maestrías, diplomados, francés,
+ * italiano), cae a RAG+GPT — mismo patrón que ya usan las fases 'correo' e
+ * "interceptor global: cambio de programa" más abajo en este archivo. */
+async function buildProgramInfoMessage(
+  programa: string,
+  requestUrl: string,
+  leadData: { nombre?: string | null; email?: string | null },
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>
+): Promise<string> {
+  const infoMsg = INFO_MSGS[programa]
+  if (infoMsg) {
+    return infoMsg + buildCTA(programa)
+  }
+  let ragContext = ''
+  try {
+    const ragUrl = new URL('/api/rag/query', new URL(requestUrl).origin)
+    const ragRes = await fetch(ragUrl.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: `${programa} en Instituto Windsor: costos, horarios, duración, modalidad, certificaciones, campo laboral`, match_count: 15 }),
+      signal: AbortSignal.timeout(8000),
+    })
+    if (ragRes.ok) {
+      const rd = await ragRes.json()
+      ragContext = typeof rd?.context === 'string' ? rd.context : rd?.answer || ''
+    }
+  } catch { /* sin RAG */ }
+  const gpt = await askGPT({
+    fase: 'info_enviada',
+    leadData: { nombre: leadData.nombre, email: leadData.email, curso: programa },
+    userMessage: 'Dame información del programa',
+    ragContext,
+    history,
+  })
+  return gpt.respuesta + buildCTA(programa)
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const mode = url.searchParams.get('hub.mode')
@@ -3023,6 +3061,13 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           }
           // Si ya se detectó el programa desde el primer mensaje, saltar catálogo e ir a correo
           if (hasLeadProgram(leadSnapshot?.curso)) {
+            // Si el lead ya tenía correo capturado (ej. lead recurrente sin nombre válido aún),
+            // no volver a pedirlo — ir directo a la info del programa
+            if (hasLeadEmail(leadSnapshot?.email)) {
+              const infoSaludo = await buildProgramInfoMessage(String(leadSnapshot?.curso || ''), request.url, { nombre: nombreCapturado, email: leadSnapshot?.email }, convHistory)
+              await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, infoSaludo, 'accion', leadId)
+              return buildProviderResponse(provider, infoSaludo, waNumber)
+            }
             const askCorreo = `¡Hola ${nombreCapturado}! 😊 ¿Me compartes tu correo electrónico para darte seguimiento personalizado? 📧`
             await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, askCorreo, 'correo')
             return buildProviderResponse(provider, askCorreo, waNumber)
@@ -3059,6 +3104,12 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           if (nombreExtraido && leadId) {
             await supabase.from('leads').update({ nombre: nombreExtraido }).eq('id', leadId)
             leadSnapshot = { ...leadSnapshot, nombre: nombreExtraido } as LeadSnapshot
+            // Si el lead ya tenía correo capturado, no volver a pedirlo — ir directo a la info del programa
+            if (hasLeadEmail(leadSnapshot?.email)) {
+              const infoVeranoSaludo = await buildProgramInfoMessage(String(leadSnapshot?.curso || ''), request.url, { nombre: nombreExtraido, email: leadSnapshot?.email }, convHistory)
+              await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, infoVeranoSaludo, 'accion', leadId)
+              return buildProviderResponse(provider, infoVeranoSaludo, waNumber)
+            }
             const askCorreo = `¡Hola ${nombreExtraido}! 😊 ¿Me compartes tu correo electrónico para darte seguimiento personalizado? 📧`
             await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, askCorreo, 'correo')
             return buildProviderResponse(provider, askCorreo, waNumber)
@@ -3265,6 +3316,12 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
             await supabase.from('leads').update({ curso: programaIngles, ...(getValorPrograma(programaIngles) ? { valor: getValorPrograma(programaIngles) } : {}) }).eq('id', leadId)
             leadSnapshot = { ...leadSnapshot, curso: programaIngles } as LeadSnapshot
           }
+          // Si el lead ya tiene correo capturado, no volver a pedirlo — ir directo a la info del programa
+          if (hasLeadEmail(leadSnapshot?.email)) {
+            const infoIngles = await buildProgramInfoMessage(programaIngles, request.url, { nombre: leadSnapshot?.nombre, email: leadSnapshot?.email }, convHistory)
+            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, infoIngles, 'accion', leadId)
+            return buildProviderResponse(provider, infoIngles, waNumber)
+          }
           const ackIngles = `¡Excelente elección! 😊 Para contarte todo sobre *${programaIngles}*, ¿me compartes tu correo electrónico para darte seguimiento personalizado? 📧`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, ackIngles, 'correo')
           return buildProviderResponse(provider, ackIngles, waNumber)
@@ -3289,6 +3346,11 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           const pV = 'Cursos de verano niños'
           if (leadId) await supabase.from('leads').update({ curso: pV }).eq('id', leadId)
           leadSnapshot = { ...leadSnapshot, curso: pV } as LeadSnapshot
+          if (hasLeadEmail(leadSnapshot?.email)) {
+            const infoV = await buildProgramInfoMessage(pV, request.url, { nombre: leadSnapshot?.nombre, email: leadSnapshot?.email }, convHistory)
+            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, infoV, 'accion', leadId)
+            return buildProviderResponse(provider, infoV, waNumber)
+          }
           const ackV = `¡Perfecto! ☀️ Para contarte todo sobre *My Best Summer* para niños, ¿me compartes tu correo para darte seguimiento? 📧`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, ackV, 'correo')
           return buildProviderResponse(provider, ackV, waNumber)
@@ -3297,6 +3359,11 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           const pV = 'Cursos de verano adultos'
           if (leadId) await supabase.from('leads').update({ curso: pV, valor: 1700 }).eq('id', leadId)
           leadSnapshot = { ...leadSnapshot, curso: pV } as LeadSnapshot
+          if (hasLeadEmail(leadSnapshot?.email)) {
+            const infoV = await buildProgramInfoMessage(pV, request.url, { nombre: leadSnapshot?.nombre, email: leadSnapshot?.email }, convHistory)
+            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, infoV, 'accion', leadId)
+            return buildProviderResponse(provider, infoV, waNumber)
+          }
           const ackV = `¡Perfecto! ☀️ Para contarte todo sobre *My Best Summer* para adolescentes y adultos, ¿me compartes tu correo para darte seguimiento? 📧`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, ackV, 'correo')
           return buildProviderResponse(provider, ackV, waNumber)
@@ -3308,6 +3375,11 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           if (leadId) {
             await supabase.from('leads').update({ curso: programaDetectado, ...(getValorPrograma(programaDetectado) ? { valor: getValorPrograma(programaDetectado) } : {}) }).eq('id', leadId)
             leadSnapshot = { ...leadSnapshot, curso: programaDetectado } as LeadSnapshot
+          }
+          if (hasLeadEmail(leadSnapshot?.email)) {
+            const infoDet = await buildProgramInfoMessage(programaDetectado, request.url, { nombre: leadSnapshot?.nombre, email: leadSnapshot?.email }, convHistory)
+            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, infoDet, 'accion', leadId)
+            return buildProviderResponse(provider, infoDet, waNumber)
           }
           const correoMsg = `¡Excelente elección! 😊 Para contarte todo sobre *${programaDetectado}*, ¿me compartes tu correo electrónico para darte seguimiento personalizado? 📧`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, correoMsg, 'correo')
@@ -3889,6 +3961,14 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         if (programaGPT && leadId) {
           const cursoCanonico = canonicalizarPrograma(programaGPT, originalText)
           await supabase.from('leads').update({ curso: cursoCanonico, ...(getValorPrograma(cursoCanonico) ? { valor: getValorPrograma(cursoCanonico) } : {}) }).eq('id', leadId)
+          // Si el lead ya tiene correo capturado (de este mensaje vía GPT o de antes),
+          // no volver a pedirlo — ir directo a la info del programa
+          const emailYaCapturado = gpt.email || leadSnapshot?.email
+          if (hasLeadEmail(emailYaCapturado)) {
+            const infoGPT = await buildProgramInfoMessage(cursoCanonico, request.url, { nombre: gpt.nombre || leadSnapshot?.nombre, email: emailYaCapturado }, convHistory)
+            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, infoGPT, 'accion', leadId)
+            return buildProviderResponse(provider, infoGPT, waNumber)
+          }
           // Mensaje siempre determinístico, nunca gpt.respuesta: aquí es donde el bug real
           // ocurrió — GPT escribió una negación del programa en su "respuesta" libre a pesar
           // de que el programa sí se había identificado correctamente.
