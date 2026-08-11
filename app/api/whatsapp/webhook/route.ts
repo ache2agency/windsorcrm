@@ -237,8 +237,24 @@ function hasLeadName(nombre: string | null | undefined, whatsapp: string | null 
   // Rechazar si contiene emojis o caracteres no válidos en un nombre
   if (!/^[\p{L}\s'\-]+$/u.test(value)) return false
   // Rechazar palabras que claramente no son nombres propios
-  const noNombres = /^(hola|buenas?|buen|d[ií]a|tardes?|noches?|info|informaci[oó]n|costos?|precios?|horarios?|quiero|quisiera|necesito|ayuda|gracias|ok|s[ií]|no|nada|nope|oye|hey|buenos|saludos|permiso|disculp|por\s+favor|favor|buen[oa]s?\s+d[ií]as?|buen[oa]s?\s+tardes?|buen[oa]s?\s+noches?)$/i
+  // Nota: "buen[oa]?s?" (con la vocal también opcional) para cubrir "Buen día" suelto,
+  // no solo "Buenos días" — caso real confirmado: "Buen día" guardado como nombre.
+  const noNombres = /^(hola|buenas?|buen|d[ií]a|tardes?|noches?|info|informaci[oó]n|costos?|precios?|horarios?|quiero|quisiera|necesito|ayuda|gracias|ok|s[ií]|no|nada|nope|oye|hey|buenos|saludos|permiso|disculp|por\s+favor|favor|buen[oa]?s?\s+d[ií]as?|buen[oa]?s?\s+tardes?|buen[oa]?s?\s+noches?)$/i
   if (noNombres.test(value.trim())) return false
+  // Rechazar si claramente es la respuesta a OTRA pregunta del flujo (para quién es,
+  // modalidad, costos, petición de reenvío, etc.) colada como si fuera el nombre.
+  // Causa raíz confirmada de nombres corruptos guardados en leads.nombre: "Para adultos",
+  // "De costos", "Para mi hija", "Enviar nuevamente", "Sistema habierto" (ver memoria
+  // windsorcrm: bug nombre corrupto). Un nombre real de pila nunca empieza con "para"
+  // ni contiene estas palabras sueltas.
+  if (/^para\b/i.test(value)) return false
+  const respuestaOtraCosa = /\b(adultos?|ni[ñn]os?|sistema|abiert[oa]|cerrad[oa]|escolarizad[oa]|semiescolarizad[oa]|presencial(es)?|virtual(es)?|modalidad(es)?|en\s*l[ií]nea|online|costos?|precios?|mensualidad(es)?|colegiatur(a|as)|inscripci[oó]n(es)?|descuentos?|becas?|env[ií]a(r|me)?|reenv[ií]a(r|me)?|manda(r|me)?|nuevamente|hij[oa]s?)\b/i
+  if (respuestaOtraCosa.test(value)) return false
+  // Rechazar si el texto coincide con un programa/curso conocido (ej. "Mercadotecnia"):
+  // quien lo escribe está diciendo qué le interesa estudiar, no su nombre. Reutiliza el
+  // mismo detector que usa el resto del flujo para reconocer programas, en vez de
+  // mantener una lista de palabras aparte.
+  if (detectarPrograma(value)) return false
   return true
 }
 
