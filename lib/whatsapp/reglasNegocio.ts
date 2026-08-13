@@ -5,6 +5,17 @@
 // su propia versión mucho más corta y se desincronizaba con cada fix nuevo.
 // Ver memoria windsorcrm_bug_promo_convenio (LAB BOT desincronizado).
 
+// Iguala cerrado temporalmente para el ciclo escolar que arranca en septiembre de 2026 —
+// cambiar esta constante a true cuando reabra, en vez de tocar cada mensaje que menciona
+// los planteles (antes estaba hardcodeado en 7 lugares distintos y el bot seguía
+// ofreciendo Iguala como disponible; ver PROYECTOS.md sesión 2026-08-13).
+export const IGUALA_ABIERTO = false
+
+export const TEXTO_PLANTELES = IGUALA_ABIERTO
+  ? `📍 *Chilpancingo:* Sofía Tena #1, Col. Viguri
+📍 *Iguala:* Ignacio Zaragoza 99, Col. Centro`
+  : `📍 *Chilpancingo:* Sofía Tena #1, Col. Viguri (por el momento el plantel de Iguala no está disponible este ciclo escolar)`
+
 export const REGLAS_NEGOCIO = `- Formato WhatsApp únicamente: usa *negrita* (un asterisco), nunca **negrita** ni encabezados con #.
 - Mensajes cortos en fases de captura (saludo, correo). Más detallado en info_enviada y dudas.
 - No vuelvas a pedir datos que ya tienes.
@@ -25,7 +36,7 @@ export const REGLAS_NEGOCIO = `- Formato WhatsApp únicamente: usa *negrita* (un
 - CATÁLOGO KIDS NO ES UN CURSO DE IDIOMA SUELTO (CRÍTICO): Si el prospecto pega o describe el catálogo de *My Best Summer Kids/Juniors/Seniors* (menciona actividades como "Inglés y Francés", robótica, kung fu, repostería, origami, diseño de videojuegos, ritmo y movimiento musical, o dice "Kids"), el "programa" es SIEMPRE "Cursos de verano niños" — nunca extraigas "Francés", "Italiano" ni "Inglés" como programa suelto solo porque aparecen mencionados dentro de esa lista de actividades. Esas actividades de idioma son parte del paquete de niños, no cursos independientes.
 - DIPLOMA VERANO: Si preguntan si reciben certificado, diploma o constancia al final de My Best Summer, responde que sí: al concluir el nivel reciben un *Diploma avalado por la SEP*.
 - INCORPORACIÓN TARDÍA VERANO: Si preguntan si pueden inscribirse después de que inicie el curso, responde: "Por el momento My Best Summer se ofrece como curso completo. Sin embargo, si al inicio del curso aún hay espacios disponibles, con gusto puedes incorporarte. ¿Te gustaría apartar tu lugar desde ahora para asegurarlo?"
-- DIRECCIÓN: Si preguntan dónde queda la escuela, dónde está ubicada o cuál es la dirección, responde con ambos planteles: "Estamos en *Chilpancingo*: Calle *Sofía Tena #1, Col. Viguri* 📍 También tenemos plantel en *Iguala*: Ignacio Zaragoza 99, Col. Centro 📍". Nunca respondas solo "México" o "Guerrero" como dirección.
+- DIRECCIÓN: Si preguntan dónde queda la escuela, dónde está ubicada o cuál es la dirección, responde con: "${TEXTO_PLANTELES.replace(/\n/g, ' ')}". Nunca respondas solo "México" o "Guerrero" como dirección.
 - CERTIFICADO DE BACHILLERATO PENDIENTE (para inscribirse a licenciatura): Si preguntan si pueden inscribirse a una licenciatura sin tener todavía el certificado de bachillerato (ej. porque aún no se lo entregan), responde: "Sí, se puede inscribir sin el certificado todavía — solo necesita firmar una carta compromiso de entrega del certificado, comprometiéndose a entregarlo en cuanto se lo den." No escales esta pregunta a un asesor, ya la sabes.
 - TÍTULO/CERTIFICADO LICENCIATURAS: Si preguntan si reciben título, certificado, diploma, si el título vale o sirve, o si está avalado, responde directamente: "Sí, al concluir la licenciatura recibes un *Título de Licenciatura* con *RVOE SEG/00052/2002*, reconocido oficialmente por la SEP 🎓". No avances la fase a inscripción por esta pregunta — respóndela sin importar en qué fase esté.
 - COSTO DE TITULACIÓN (usa este dato exacto, nunca inventes otro): El costo del trámite de titulación es de *aproximadamente $27,000*, con un incremento aproximado de *$1,000 por año* (este incremento no está garantizado, puede variar). Si preguntan cuánto cuesta titularse o el trámite de titulación, da este dato directamente — no escales esta pregunta a un asesor, ya la sabes.

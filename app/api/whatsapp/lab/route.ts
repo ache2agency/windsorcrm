@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { detectarPrograma, canonicalizarPrograma } from '@/lib/whatsapp/programas'
-import { REGLAS_NEGOCIO } from '@/lib/whatsapp/reglasNegocio'
+import { REGLAS_NEGOCIO, TEXTO_PLANTELES } from '@/lib/whatsapp/reglasNegocio'
 
 export const maxDuration = 60
 
@@ -278,10 +278,9 @@ function buildInscripcionPresencialMsg(baseUrl: string, nombre?: string | null, 
 📁 1 Sobre-bolsa tamaño oficio plastificado
 📝 Llenar la solicitud de inscripción
 
-Te esperamos en cualquiera de nuestros planteles:
+Te esperamos:
 
-🏢 *Chilpancingo:* Sofía Tena #1, Col. Viguri
-🏢 *Iguala:* Ignacio Zaragoza 99, Col. Centro
+${TEXTO_PLANTELES}
 
 🕐 *Horarios:* Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
 

@@ -23,7 +23,7 @@ import {
   type TipoInscripcion,
   type OfertaMatchResult,
 } from '@/lib/whatsapp/programas'
-import { REGLAS_NEGOCIO } from '@/lib/whatsapp/reglasNegocio'
+import { REGLAS_NEGOCIO, TEXTO_PLANTELES } from '@/lib/whatsapp/reglasNegocio'
 
 export const maxDuration = 60
 
@@ -1631,8 +1631,7 @@ function detectarConsultaVacante(msg: string): boolean {
 
 const VACANTE_DOCENTE_MSG = `¡Hola! Para el tema de la vacante docente, te invitamos a visitarnos directamente en nuestras instalaciones:
 
-📍 *Chilpancingo:* Sofía Tena #1, Col. Viguri
-📍 *Iguala:* Ignacio Zaragoza 99, Col. Centro
+${TEXTO_PLANTELES}
 
 🕐 *Horarios:* Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
 
@@ -1768,8 +1767,7 @@ Confírmanos aquí por WhatsApp cuando lo hayas completado.
 
 *B) Presencial* 🏫
 Visítanos con tus documentos — el pago lo puedes realizar directamente en las instalaciones, a la cuenta bancaria que te compartimos arriba:
-📍 Chilpancingo: Sofía Tena #1, Col. Viguri
-📍 Iguala: Ignacio Zaragoza 99, Col. Centro
+${TEXTO_PLANTELES}
 🕐 Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
 
 🚨 *¡Cupo limitado!* Asegura tu lugar pronto. 😊`
@@ -1794,8 +1792,7 @@ Confírmanos aquí por WhatsApp cuando lo hayas completado.
 
 *B) Presencial* 🏫
 Visítanos con tus documentos — el pago lo puedes realizar directamente en las instalaciones, a la cuenta bancaria que te compartimos arriba:
-📍 Chilpancingo: Sofía Tena #1, Col. Viguri
-📍 Iguala: Ignacio Zaragoza 99, Col. Centro
+${TEXTO_PLANTELES}
 🕐 Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
 
 🚨 *¡Cupo limitado!* Asegura tu lugar pronto. 😊`
@@ -1954,10 +1951,9 @@ function buildInscripcionPresencialMsg(nombre?: string | null, email?: string | 
 📁 1 Sobre-bolsa tamaño oficio plastificado
 📝 Llenar la solicitud de inscripción
 
-Te esperamos en cualquiera de nuestros planteles:
+Te esperamos:
 
-🏢 *Chilpancingo:* Sofía Tena #1, Col. Viguri
-🏢 *Iguala:* Ignacio Zaragoza 99, Col. Centro
+${TEXTO_PLANTELES}
 
 🕐 *Horarios:* Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
 
@@ -3322,9 +3318,9 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         }
       }
 
-      // En cualquier fase: si pregunta por dirección / ubicación → responder con ambos planteles
+      // En cualquier fase: si pregunta por dirección / ubicación → responder con los planteles disponibles
       if (detectarPreguntaDireccion(originalText)) {
-        const dirMsg = `Nos encontramos en:\n\n📍 *Chilpancingo:* Calle Sofía Tena #1, Col. Viguri\n📍 *Iguala:* Ignacio Zaragoza 99, Col. Centro\n\n🕐 *Horarios:* Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00`
+        const dirMsg = `Nos encontramos en:\n\n${TEXTO_PLANTELES}\n\n🕐 *Horarios:* Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00`
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, dirMsg)
         return buildProviderResponse(provider, dirMsg, waNumber)
       }
@@ -3665,7 +3661,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         if (/presencial|instalaci[oó]n|ir a|plantel|visitar|en persona|de manera presencial/i.test(originalText)
           && !/examen|colocaci[oó]n|evaluaci[oó]n|ubicaci[oó]n/i.test(originalText)) {
           const nombre = leadSnapshot?.nombre ? ` ${leadSnapshot.nombre.split(' ')[0]}` : ''
-          const msgP = `¡Perfecto${nombre}! 🏫 Para inscribirte presencialmente solo necesitas traer:\n\n📄 Acta de nacimiento\n💳 Tu pago (puedes pagar el 50% para apartar y el resto al inicio del curso)\n\nTe esperamos en:\n📍 *Chilpancingo:* Sofía Tena #1, Col. Viguri\n📍 *Iguala:* Ignacio Zaragoza 99, Col. Centro\n🕐 Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00\n\n¡Nos vemos pronto! ☀️😊`
+          const msgP = `¡Perfecto${nombre}! 🏫 Para inscribirte presencialmente solo necesitas traer:\n\n📄 Acta de nacimiento\n💳 Tu pago (puedes pagar el 50% para apartar y el resto al inicio del curso)\n\nTe esperamos en:\n${TEXTO_PLANTELES}\n🕐 Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00\n\n¡Nos vemos pronto! ☀️😊`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgP, 'seguimiento', leadId)
           return buildProviderResponse(provider, msgP, waNumber)
         }
