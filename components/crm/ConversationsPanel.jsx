@@ -318,6 +318,18 @@ function formatDateSep(dateStr) {
     : { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Mexico_City" });
 }
 
+// Tiempo restante antes de que cierre la ventana de servicio de 24h de WhatsApp
+// (Meta), contado desde el último mensaje del LEAD. Mismo cálculo que en
+// SeguimientosPanel.jsx para mantener consistencia visual.
+function tiempoRestanteVentana(fechaStr) {
+  if (!fechaStr) return null;
+  const cierraEn = new Date(fechaStr).getTime() + 24 * 60 * 60 * 1000 - Date.now();
+  if (cierraEn <= 0) return null;
+  const horas = Math.floor(cierraEn / (1000 * 60 * 60));
+  const minutos = Math.floor((cierraEn % (1000 * 60 * 60)) / (1000 * 60));
+  return horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min`;
+}
+
 function formatListTime(dateStr) {
   if (!dateStr) return "";
   const d = new Date(dateStr);
@@ -333,6 +345,7 @@ function formatListTime(dateStr) {
 
 export default function ConversationsPanel({
   filteredWhatsConvs,
+  ultimoUsuarioAtPorConv,
   convSearch,
   setConvSearch,
   convModeFilter,
@@ -441,6 +454,7 @@ export default function ConversationsPanel({
         .wa-item-row2 { display: flex; align-items: center; gap: 6px; }
         .wa-item-preview { font-size: 12px; color: #667781; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
         .wa-badge { font-size: 10px; border-radius: 999px; padding: 1px 7px; font-weight: 600; flex-shrink: 0; }
+        .wa-ventana-badge { font-size: 9px; border-radius: 999px; padding: 1px 6px; font-weight: 600; flex-shrink: 0; white-space: nowrap; }
 
         /* CHAT */
         .wa-chat { flex: 1; display: flex; flex-direction: column; background: ${WA_BG}; position: relative; min-height: 0; overflow: hidden; }
@@ -640,6 +654,8 @@ export default function ConversationsPanel({
                 const name = getDisplayName(c);
                 const owner = vendedores.find((v) => v.id === c.tomado_por);
                 const time = formatListTime(c.ultimo_mensaje_at);
+                const ultimoUsuarioAt = ultimoUsuarioAtPorConv?.[c.id];
+                const restanteVentana = tiempoRestanteVentana(ultimoUsuarioAt);
                 return (
                   <div
                     key={c.id}
@@ -672,6 +688,15 @@ export default function ConversationsPanel({
                       </div>
                       <div className="wa-item-row2">
                         <span className="wa-item-preview">{c.provider === "messenger" ? `💬 Messenger` : `${getModeIcon(c)} ${c.whatsapp}`}</span>
+                        {restanteVentana && (
+                          <span
+                            className="wa-ventana-badge"
+                            title="Tiempo restante antes de que cierre la ventana de 24h de WhatsApp"
+                            style={{ background: "#dcfce7", color: "#15803d" }}
+                          >
+                            ⏳ {restanteVentana}
+                          </span>
+                        )}
                         <span className="wa-badge" style={{ background: getModeColor(c) + "22", color: getModeColor(c) }}>
                           {getPhaseLabel(c.fase)}
                         </span>

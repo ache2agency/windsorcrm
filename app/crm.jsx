@@ -9,6 +9,7 @@ import LeadDetailModal from "@/components/crm/LeadDetailModal";
 import NewAppointmentModal from "@/components/crm/NewAppointmentModal";
 import NewLeadModal from "@/components/crm/NewLeadModal";
 import SeguimientosPanel from "@/components/crm/SeguimientosPanel";
+import { chunkArray } from "@/lib/db-utils";
 const supabase = createClient();
 
 const STAGES = [
@@ -124,6 +125,7 @@ export default function CRM() {
   const [editingDoc, setEditingDoc] = useState(null);
   const [editTexto, setEditTexto] = useState("");
   const [whatsConvs, setWhatsConvs] = useState([]);
+  const [ultimoUsuarioAtPorConv, setUltimoUsuarioAtPorConv] = useState({});
   const [selectedConv, setSelectedConv] = useState(null);
   const [convMessages, setConvMessages] = useState([]);
   const [convSearch, setConvSearch] = useState("");
@@ -543,6 +545,38 @@ export default function CRM() {
       }
     }
     setWhatsConvs(data || []);
+    fetchUltimosUsuarioMensajes(data || []);
+  };
+
+  // La ventana de servicio de 24h de WhatsApp se cuenta desde el último mensaje
+  // del LEAD, no desde `ultimo_mensaje_at` (que también se actualiza cuando
+  // responde el bot/agente humano). Como `ultimo_mensaje_at` es siempre >= el
+  // último mensaje del lead, solo hace falta consultar `whatsapp_mensajes` para
+  // las conversaciones cuyo `ultimo_mensaje_at` cae dentro de las últimas 24h —
+  // el resto ya está garantizado fuera de ventana sin necesidad de consultarlo.
+  const fetchUltimosUsuarioMensajes = async (convs) => {
+    const ahora = Date.now();
+    const convIds = convs
+      .filter((c) => c.ultimo_mensaje_at && (ahora - new Date(c.ultimo_mensaje_at).getTime()) < 24 * 60 * 60 * 1000)
+      .map((c) => c.id);
+    if (convIds.length === 0) {
+      setUltimoUsuarioAtPorConv({});
+      return;
+    }
+    const mapa = {};
+    for (const chunk of chunkArray(convIds, 200)) {
+      const { data: msgs, error } = await supabase
+        .from("whatsapp_mensajes")
+        .select("conversacion_id, created_at")
+        .in("conversacion_id", chunk)
+        .eq("rol", "usuario")
+        .order("created_at", { ascending: false });
+      if (error) continue;
+      for (const m of msgs || []) {
+        if (!mapa[m.conversacion_id]) mapa[m.conversacion_id] = m.created_at;
+      }
+    }
+    setUltimoUsuarioAtPorConv(mapa);
   };
 
   const fetchConvMessages = async (convId) => {
@@ -2305,6 +2339,7 @@ export default function CRM() {
         {view === "convs" && (
           <ConversationsPanel
             filteredWhatsConvs={filteredWhatsConvs}
+            ultimoUsuarioAtPorConv={ultimoUsuarioAtPorConv}
             convSearch={convSearch}
             setConvSearch={setConvSearch}
             convModeFilter={convModeFilter}
