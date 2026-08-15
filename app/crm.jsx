@@ -2278,6 +2278,8 @@ export default function CRM() {
                               style={{ fontSize: 10, padding: "4px 8px" }}
                               onClick={() => {
                                 const conv = whatsConvs.find(c => c.id === fila.conversacion_id || c.lead_id === fila.lead_id || c.whatsapp === fila.telefono);
+                                setConvVentanaFilter(false);
+                                setConvSearch(fila.telefono);
                                 fetchWhatsConvs().then(() => {
                                   setView("convs");
                                   if (conv) { setSelectedConv(conv); fetchConvMessages(conv.id); }
