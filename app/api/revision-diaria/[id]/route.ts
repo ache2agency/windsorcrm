@@ -14,7 +14,11 @@ export async function PATCH(
   if (!user) return Response.json({ error: 'No autenticado' }, { status: 401 })
 
   const body = await request.json()
-  const { notas_harold, estado } = body as { notas_harold?: string; estado?: string }
+  const { notas_harold, propuesta_claude, estado } = body as {
+    notas_harold?: string
+    propuesta_claude?: string
+    estado?: string
+  }
 
   if (estado !== undefined && !ESTADOS_VALIDOS.includes(estado)) {
     return Response.json({ error: 'Estado inválido' }, { status: 400 })
@@ -22,6 +26,7 @@ export async function PATCH(
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (notas_harold !== undefined) update.notas_harold = notas_harold
+  if (propuesta_claude !== undefined) update.propuesta_claude = propuesta_claude
   if (estado !== undefined) update.estado = estado
 
   const supabase = createServiceRoleClient()
