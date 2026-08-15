@@ -124,6 +124,9 @@ export default function CRM() {
   const [expandedDoc, setExpandedDoc] = useState(null);
   const [editingDoc, setEditingDoc] = useState(null);
   const [editTexto, setEditTexto] = useState("");
+  const [revisionFilas, setRevisionFilas] = useState([]);
+  const [revisionLoading, setRevisionLoading] = useState(false);
+  const [revisionGenerating, setRevisionGenerating] = useState(false);
   const [whatsConvs, setWhatsConvs] = useState([]);
   const [ultimoUsuarioAtPorConv, setUltimoUsuarioAtPorConv] = useState({});
   const [selectedConv, setSelectedConv] = useState(null);
@@ -510,6 +513,39 @@ export default function CRM() {
     } else {
       setCitas(data || []);
     }
+  };
+
+  const fetchRevisionDiaria = async () => {
+    setRevisionLoading(true);
+    try {
+      const res = await fetch("/api/revision-diaria");
+      const data = await res.json();
+      setRevisionFilas(data.filas || []);
+    } finally {
+      setRevisionLoading(false);
+    }
+  };
+
+  const generarRevisionDiaria = async () => {
+    setRevisionGenerating(true);
+    try {
+      const res = await fetch("/api/revision-diaria", { method: "POST" });
+      const data = await res.json();
+      if (data.filas) setRevisionFilas(data.filas);
+    } finally {
+      setRevisionGenerating(false);
+    }
+  };
+
+  const updateRevisionFila = async (id, patch) => {
+    setRevisionFilas((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+    const res = await fetch(`/api/revision-diaria/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    const data = await res.json();
+    if (data.fila) setRevisionFilas((prev) => prev.map((f) => (f.id === id ? data.fila : f)));
   };
 
   const fetchWhatsConvs = async () => {
@@ -1713,6 +1749,10 @@ export default function CRM() {
                 </span>
               )}
             </button>
+            <button
+              className={`nav-btn ${view === "revision" ? "active" : ""}`}
+              onClick={() => confirmReturnToBotIfNeeded(() => { setView("revision"); fetchRevisionDiaria(); })}
+            >REVISIÓN</button>
             {isAdmin && (
               <>
                 <button className={`nav-btn ${view === "base" ? "active" : ""}`} onClick={() => confirmReturnToBotIfNeeded(() => { setView("base"); loadDocumentos(); })}>BASE</button>
@@ -1751,6 +1791,7 @@ export default function CRM() {
               { label: "AGENDA", v: "agenda", action: () => setView("agenda") },
               { label: "CONVERSACIONES", v: "convs", action: () => { setView("convs"); fetchWhatsConvs(); setSelectedConv(null); setConvMessages([]); } },
               { label: `SEGUIMIENTOS${pendientesCount > 0 ? ` (${pendientesCount})` : ""}`, v: "seguimientos", action: () => { setView("seguimientos"); setPendientesCount(0); } },
+              { label: "REVISIÓN", v: "revision", action: () => { setView("revision"); fetchRevisionDiaria(); } },
               ...(isAdmin ? [
                 { label: "BASE", v: "base", action: () => { setView("base"); loadDocumentos(); } },
                 { label: "BOT", v: "bot", action: () => { setView("bot"); loadBotConfig(); } },
@@ -2162,6 +2203,101 @@ export default function CRM() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* REVISIÓN DIARIA */}
+        {view === "revision" && (
+          <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 12, color: "#1a1a1a", fontWeight: 600 }}>REVISIÓN DIARIA</div>
+                <div style={{ fontSize: 11, color: "#777" }}>Conversaciones con actividad en las últimas 24h — deja tus instrucciones y marca &quot;Analizar&quot; cuando termines.</div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={fetchRevisionDiaria} disabled={revisionLoading}>
+                  {revisionLoading ? "Cargando..." : "Actualizar"}
+                </button>
+                <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={generarRevisionDiaria} disabled={revisionGenerating}>
+                  {revisionGenerating ? "Generando..." : "Generar revisión de hoy"}
+                </button>
+              </div>
+            </div>
+
+            {revisionFilas.length === 0 ? (
+              <div style={{ fontSize: 12, color: "#777", padding: 20, textAlign: "center" }}>
+                Sin filas todavía — haz clic en &quot;Generar revisión de hoy&quot; para traer las conversaciones de las últimas 24h.
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #e2e8f0", textAlign: "left" }}>
+                      <th style={{ padding: "8px 6px" }}>Teléfono</th>
+                      <th style={{ padding: "8px 6px" }}>Nombre</th>
+                      <th style={{ padding: "8px 6px", minWidth: 220 }}>Notas</th>
+                      <th style={{ padding: "8px 6px", minWidth: 220 }}>Propuesta</th>
+                      <th style={{ padding: "8px 6px" }}>Estado</th>
+                      <th style={{ padding: "8px 6px" }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {revisionFilas.map((fila) => (
+                      <tr key={fila.id} style={{ borderBottom: "1px solid #f1f5f9", verticalAlign: "top" }}>
+                        <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>{fila.telefono}</td>
+                        <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>{fila.nombre || "—"}</td>
+                        <td style={{ padding: "8px 6px" }}>
+                          <textarea
+                            className="input"
+                            style={{ width: "100%", minHeight: 44, fontSize: 12, resize: "vertical" }}
+                            defaultValue={fila.notas_harold || ""}
+                            placeholder="Instrucción para esta conversación..."
+                            onBlur={(e) => {
+                              if (e.target.value !== (fila.notas_harold || "")) {
+                                updateRevisionFila(fila.id, { notas_harold: e.target.value });
+                              }
+                            }}
+                          />
+                        </td>
+                        <td style={{ padding: "8px 6px", color: "#555", whiteSpace: "pre-wrap" }}>
+                          {fila.propuesta_claude || <span style={{ color: "#aaa" }}>—</span>}
+                        </td>
+                        <td style={{ padding: "8px 6px" }}>
+                          <span style={{
+                            fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 600,
+                            background: fila.estado === "resuelto" ? "#dcfce7" : fila.estado === "analizado" ? "#dbeafe" : fila.estado === "pendiente_analisis" ? "#fef3c7" : "#f1f5f9",
+                            color: fila.estado === "resuelto" ? "#166534" : fila.estado === "analizado" ? "#1e40af" : fila.estado === "pendiente_analisis" ? "#92400e" : "#64748b",
+                          }}>
+                            {fila.estado}
+                          </span>
+                        </td>
+                        <td style={{ padding: "8px 6px" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            <button
+                              className="btn btn-ghost"
+                              style={{ fontSize: 10, padding: "4px 8px" }}
+                              onClick={() => {
+                                const conv = whatsConvs.find(c => c.id === fila.conversacion_id || c.lead_id === fila.lead_id || c.whatsapp === fila.telefono);
+                                fetchWhatsConvs().then(() => {
+                                  setView("convs");
+                                  if (conv) { setSelectedConv(conv); fetchConvMessages(conv.id); }
+                                });
+                              }}
+                            >Ir a conversación</button>
+                            <button
+                              className="btn btn-ghost"
+                              style={{ fontSize: 10, padding: "4px 8px" }}
+                              disabled={fila.estado === "pendiente_analisis"}
+                              onClick={() => updateRevisionFila(fila.id, { estado: "pendiente_analisis" })}
+                            >Analizar</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
