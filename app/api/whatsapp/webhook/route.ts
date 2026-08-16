@@ -3205,6 +3205,32 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
             )
           }
 
+          // Si es una pregunta clara (no un intento fallido de dar el nombre), no la
+          // ignores reenviando el saludo fijo de verano — puede ser un lead reactivado
+          // preguntando por OTRO programa. Caso real Alfonso Jiménez Giles
+          // (+527471669024, 2026-08-16): preguntó "¿podrías darme información sobre las
+          // licenciaturas?" y el bot solo volvió a pedir el nombre / reenvió la plantilla
+          // de My Best Summer, sin responder la pregunta.
+          if (hasQuestion) {
+            const nuevoPrograma = detectarPrograma(originalText)
+            if (nuevoPrograma && nuevoPrograma !== leadSnapshot?.curso) {
+              if (leadId) {
+                await supabase.from('leads').update({ curso: nuevoPrograma, ...(getValorPrograma(nuevoPrograma) ? { valor: getValorPrograma(nuevoPrograma) } : {}) }).eq('id', leadId)
+                leadSnapshot = { ...leadSnapshot, curso: nuevoPrograma } as LeadSnapshot
+              }
+              return respondProgramaSeleccionado(
+                { supabase, conversacionId: conversacionIdOuter, requestUrl: request.url, leadSnapshot, convHistory, provider, waNumber, leadId },
+                nuevoPrograma,
+                `¡Claro! 😊 Con gusto te comparto información sobre ${nuevoPrograma}. ¿Me compartes tu correo electrónico para darte seguimiento personalizado? 📧`
+              )
+            }
+            // No se detectó un programa específico (ej. "las licenciaturas" en general) —
+            // mostrar el catálogo en vez de ignorar la pregunta con el saludo de verano.
+            const catalogoResp = `¡Claro! 😊 ${CATALOGO_OFERTA}`
+            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, catalogoResp, 'programa')
+            return buildProviderResponse(provider, catalogoResp, waNumber)
+          }
+
           // No se pudo extraer nombre — pedir una vez más (mensaje varía si ya se pidió antes)
           const lastBotMsg = convHistory.filter(m => m.role === 'assistant').pop()?.content || ''
           const yaPidioNombre = /con quién tengo el gusto/i.test(lastBotMsg)
