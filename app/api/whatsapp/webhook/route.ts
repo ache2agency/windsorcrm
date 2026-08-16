@@ -210,6 +210,7 @@ type LeadSnapshot = {
 }
 
 const AGENDAR_BASE = 'https://crm.windsor.edu.mx/agendar/hola@windsor.edu.mx'
+const PLANTEL_TELEFONOS = '747 472 8775 / 747 472 2466 / 747 491 4498'
 
 function buildAgendarLink(tipo: string, nombre?: string | null, email?: string | null, programa?: string | null, telefono?: string | null): string {
   const p = new URLSearchParams({ tipo })
@@ -1941,7 +1942,15 @@ const INSCRIPCION_HABILIDADES_MSG = `¡Perfecto! 😊 Para inscribirte al curso 
 Confírmanos aquí cuando hayas completado el formulario. 🎉`
 
 function buildInscripcionPresencialMsg(nombre?: string | null, email?: string | null, programa?: string | null, telefono?: string | null): string {
-  const link = buildAgendarLink('inscripcion', nombre, email, programa, telefono)
+  // CRÍTICO: nunca generar el link de /agendar sin correo — el endpoint /api/agendar
+  // lo exige (400 si falta) y la página lo precarga vacío con solo un placeholder gris,
+  // así que el lead no nota que el campo sigue vacío y se atora en "Nombre y email son
+  // obligatorios" sin entender por qué (0 citas registradas en todo el historial hasta
+  // este fix, ver PROYECTOS.md sesión 2026-08-06/2026-08-16). Sin correo, se ofrece
+  // agendar por teléfono en su lugar.
+  const agendarSection = hasLeadEmail(email)
+    ? `👉 Agenda tu visita aquí:\n${buildAgendarLink('inscripcion', nombre, email, programa, telefono)}`
+    : `👉 Para agendar tu visita, llámanos: ${PLANTEL_TELEFONOS}`
   return `¡Perfecto! Para tu inscripción presencial necesitas traer los siguientes documentos:
 
 📄 Acta de Nacimiento (original y 2 copias)
@@ -1957,8 +1966,7 @@ ${TEXTO_PLANTELES}
 
 🕐 *Horarios:* Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
 
-👉 Agenda tu visita aquí:
-${link}`
+${agendarSection}`
 }
 
 // Pendiente: agregar link del PDF del examen cuando el usuario lo proporcione
