@@ -2266,7 +2266,7 @@ Responde ÚNICAMENTE con JSON válido:
       Authorization: `Bearer ${OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         ...(params.history || []),
@@ -3108,7 +3108,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       return buildProviderResponse(provider, flowAnswer, waNumber)
     }
 
-    // ── Orquestación principal con GPT-4o ────────────────────────────────────
+    // ── Orquestación principal con GPT-4o-mini ───────────────────────────────
     if (conversacionIdOuter && waNumber) {
       const supabase = createServiceRoleClient()
 
