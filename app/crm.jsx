@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import AgendaPanel from "@/components/crm/AgendaPanel";
 import ConversationsPanel from "@/components/crm/ConversationsPanel";
@@ -146,7 +146,6 @@ export default function CRM() {
   const [botPrompt, setBotPrompt] = useState("");
   const [botLoading, setBotLoading] = useState(false);
   const [botSaving, setBotSaving] = useState(false);
-  const [agentMessage, setAgentMessage] = useState("");
   const [sendingAgent, setSendingAgent] = useState(false);
   const sendingAgentRef = useRef(false);
   const [sendingReactivacion, setSendingReactivacion] = useState(false);
@@ -935,8 +934,9 @@ export default function CRM() {
     thenDo();
   };
 
-  const sendAgentReply = async () => {
-    if (!selectedConv || !agentMessage.trim() || sendingAgentRef.current) return;
+  const sendAgentReply = async (messageText) => {
+    const text = (messageText ?? "").trim();
+    if (!selectedConv || !text || sendingAgentRef.current) return false;
     sendingAgentRef.current = true;
     setSendingAgent(true);
     try {
@@ -945,7 +945,7 @@ export default function CRM() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: selectedConv.whatsapp,
-          body: agentMessage,
+          body: text,
           leadId: selectedConv.lead_id,
           agentUserId: currentUser?.id || null,
         }),
@@ -958,11 +958,11 @@ export default function CRM() {
           else if (data?.error) errMsg = data.error;
         } catch {}
         showToast(errMsg, "error");
-        return;
+        return false;
       }
 
       const now = new Date().toISOString();
-      const msgToShow = { id: `local-${now}`, rol: "agente", contenido: agentMessage, created_at: now };
+      const msgToShow = { id: `local-${now}`, rol: "agente", contenido: text, created_at: now };
 
       // El insert y update reales ya los hace /api/whatsapp/send del lado del servidor.
       // Aquí solo reflejamos el envío en la UI de forma optimista, sin volver a escribir en la base.
@@ -977,18 +977,19 @@ export default function CRM() {
             : c
         )
       );
-      setAgentMessage("");
       showToast("Mensaje enviado. Si no llega a WhatsApp, el número debe haber iniciado chat con el bot (sandbox).");
 
       await logLeadActivity({
         leadId: selectedConv.lead_id,
         eventType: "agent_reply_sent",
         title: "Respuesta enviada por vendedor",
-        detail: agentMessage,
+        detail: text,
         meta: { conversacion_id: selectedConv.id, whatsapp: selectedConv.whatsapp },
       });
+      return true;
     } catch (e) {
       showToast(e?.message || "Error enviando mensaje de WhatsApp", "error");
+      return false;
     } finally {
       sendingAgentRef.current = false;
       setSendingAgent(false);
@@ -1124,10 +1125,13 @@ export default function CRM() {
     FASES_ATORABLES.includes(conv.fase) &&
     !!conv.ultimo_mensaje_at &&
     (Date.now() - new Date(conv.ultimo_mensaje_at).getTime()) > 3 * 60 * 60 * 1000;
-  const atoradasCount = whatsConvs.filter(esAtorada).length;
+  const atoradasCount = useMemo(() => whatsConvs.filter(esAtorada).length, [whatsConvs]);
 
-  const conversationPhaseOptions = ["todas", ...Array.from(new Set(whatsConvs.map((c) => c.fase).filter(Boolean)))];
-  const filteredWhatsConvs = whatsConvs.filter((conv) => {
+  const conversationPhaseOptions = useMemo(
+    () => ["todas", ...Array.from(new Set(whatsConvs.map((c) => c.fase).filter(Boolean)))],
+    [whatsConvs]
+  );
+  const filteredWhatsConvs = useMemo(() => whatsConvs.filter((conv) => {
     // Asesores solo ven conversaciones de sus leads
     if (!isAdmin && currentProfile?.id) {
       const lead = leads.find((l) => l.id === conv.lead_id);
@@ -1148,7 +1152,7 @@ export default function CRM() {
       (conv.ultimo_mensaje_at && (Date.now() - new Date(conv.ultimo_mensaje_at).getTime()) < 24 * 60 * 60 * 1000);
     const matchesAtorada = !convAtoradaFilter || esAtorada(conv);
     return matchesSearch && matchesMode && matchesPhase && matchesVentana && matchesAtorada;
-  });
+  }), [whatsConvs, isAdmin, currentProfile, leads, convSearch, convModeFilter, convPhaseFilter, convVentanaFilter, convAtoradaFilter]);
 
   const selectedConvLead = leads.find((lead) => lead.id === selectedConv?.lead_id) || null;
   const selectedConvOwner = vendedores.find((v) => v.id === selectedConv?.tomado_por) || null;
@@ -2500,7 +2504,6 @@ export default function CRM() {
             setSelectedConv={setSelectedConv}
             confirmReturnToBotIfNeeded={confirmReturnToBotIfNeeded}
             fetchConvMessages={fetchConvMessages}
-            setAgentMessage={setAgentMessage}
             setView={setView}
             setSelectedLead={setSelectedLead}
             leads={leads}
@@ -2512,7 +2515,6 @@ export default function CRM() {
             selectedLeadAssigned={selectedLeadAssigned}
             setHumanMode={setHumanMode}
             convMessages={convMessages}
-            agentMessage={agentMessage}
             sendAgentReply={sendAgentReply}
             sendingAgent={sendingAgent}
             sendReactivacion={sendReactivacion}

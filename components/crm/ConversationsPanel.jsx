@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, Fragment } from "react";
+import { useState, useRef, useEffect, Fragment, memo } from "react";
 
 const RESPUESTAS_RAPIDAS = [
   { grupo: "Idiomas", items: [
@@ -343,7 +343,7 @@ function formatListTime(dateStr) {
     : { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "America/Mexico_City" });
 }
 
-export default function ConversationsPanel({
+function ConversationsPanel({
   filteredWhatsConvs,
   ultimoUsuarioAtPorConv,
   convSearch,
@@ -368,7 +368,6 @@ export default function ConversationsPanel({
   setSelectedConv,
   confirmReturnToBotIfNeeded,
   fetchConvMessages,
-  setAgentMessage,
   leads,
   vendedores,
   getConversationBadgeStyle,
@@ -380,7 +379,6 @@ export default function ConversationsPanel({
   setView,
   setSelectedLead,
   convMessages,
-  agentMessage,
   sendAgentReply,
   sendingAgent,
   sendReactivacion,
@@ -394,6 +392,7 @@ export default function ConversationsPanel({
   const [cerrarMotivo, setCerrarMotivo] = useState("");
   const [cerrando, setCerrando] = useState(false);
   const [showRR, setShowRR] = useState(false);
+  const [agentMessage, setAgentMessage] = useState("");
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -863,7 +862,9 @@ export default function ConversationsPanel({
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
-                      if (!sendingAgent && agentMessage.trim()) sendAgentReply();
+                      if (!sendingAgent && agentMessage.trim()) {
+                        sendAgentReply(agentMessage).then((ok) => { if (ok) setAgentMessage(""); });
+                      }
                     }
                   }}
                   rows={1}
@@ -871,7 +872,7 @@ export default function ConversationsPanel({
                 />
                 <button
                   className="wa-send-btn"
-                  onClick={sendAgentReply}
+                  onClick={() => sendAgentReply(agentMessage).then((ok) => { if (ok) setAgentMessage(""); })}
                   disabled={sendingAgent || !agentMessage.trim()}
                 >
                   <span style={{ color: "#fff", fontSize: 18 }}>{sendingAgent ? "⏳" : "➤"}</span>
@@ -885,3 +886,5 @@ export default function ConversationsPanel({
     </>
   );
 }
+
+export default memo(ConversationsPanel);
