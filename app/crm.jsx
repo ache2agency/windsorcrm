@@ -1891,15 +1891,15 @@ export default function CRM() {
         </div>
 
         {/* FILTROS */}
-        <div style={{ display: (view === "convs" || view === "agenda") ? "none" : "flex", gap: 12, marginBottom: 24, alignItems: "center" }}>
-          <input className="input" style={{ maxWidth: 260 }} placeholder="🔍  Buscar lead..." value={search} onChange={e => setSearch(e.target.value)} />
+        <div style={{ display: (view === "convs" || view === "agenda") ? "none" : "flex", flexWrap: "wrap", gap: 12, marginBottom: 24, alignItems: "center" }}>
+          <input className="input" style={{ maxWidth: 260, flex: "1 1 180px" }} placeholder="🔍  Buscar lead..." value={search} onChange={e => setSearch(e.target.value)} />
           {isAdmin && (
-            <select className="select" style={{ maxWidth: 200 }} value={filterVendedor} onChange={e => setFilterVendedor(e.target.value)}>
+            <select className="select" style={{ maxWidth: 200, flex: "1 1 160px" }} value={filterVendedor} onChange={e => setFilterVendedor(e.target.value)}>
               <option value="Todos">Todos los vendedores</option>
               {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre || v.email}</option>)}
             </select>
           )}
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ marginLeft: "auto", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 12, color: "#555" }}>{filteredLeads.length} leads mostrados</span>
             <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => {
               const headers = ["Nombre","Email","WhatsApp","Programa","Stage","Fecha","Valor","Notas"];

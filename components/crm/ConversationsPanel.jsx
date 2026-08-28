@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, Fragment, memo } from "react";
+import { useState, useRef, useEffect, useMemo, Fragment, memo } from "react";
 
 const RESPUESTAS_RAPIDAS = [
   { grupo: "Idiomas", items: [
@@ -587,8 +587,14 @@ function ConversationsPanel({
     });
   };
 
+  const leadsById = useMemo(() => {
+    const map = new Map();
+    for (const l of leads) map.set(l.id, l);
+    return map;
+  }, [leads]);
+
   const getDisplayName = (c) => {
-    const lead = leads.find((l) => l.id === c.lead_id);
+    const lead = leadsById.get(c.lead_id);
     if (lead?.nombre) return lead.nombre;
     return c.provider === "messenger" ? "Lead de Messenger" : c.whatsapp;
   };
