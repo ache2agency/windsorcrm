@@ -25,8 +25,8 @@ export default function LeadsTable({
   normalizeStage,
 }) {
   return (
-    <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+    <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 10, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 720 }}>
         <thead>
           <tr style={{ borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
             {["NOMBRE", "ORIGEN", "CURSO", "ETAPA", "VALOR", "ASIGNADO A", "FECHA", "ACCIONES"].map((h) => (

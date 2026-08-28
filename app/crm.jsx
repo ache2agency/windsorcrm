@@ -1115,7 +1115,7 @@ export default function CRM() {
     }
   };
 
-  const filteredLeads = leads.filter(l => {
+  const filteredLeads = useMemo(() => leads.filter(l => {
     // Asesores solo ven sus propios leads
     if (!isAdmin && currentProfile?.id) {
       if (l.asignado_a !== currentProfile.id) return false;
@@ -1128,7 +1128,7 @@ export default function CRM() {
       (searchClean.length >= 4 && whatsappClean.includes(searchClean)) ||
       (!searchClean && (l.whatsapp || '').toLowerCase().includes(search.toLowerCase()));
     return matchV && matchS;
-  });
+  }), [leads, isAdmin, currentProfile?.id, filterVendedor, search]);
 
   // Conversaciones "atoradas": abiertas, en fase temprana sin resolver, sin actividad hace +3h.
   const FASES_ATORABLES = ["saludo", "programa", "correo", "verano_disambig"];
@@ -1264,7 +1264,25 @@ export default function CRM() {
     return map[normalizeStage(stage)] || null;
   };
 
-  const byStage = (stageId) => filteredLeads.filter((l) => normalizeStage(l.stage) === stageId);
+  const conversationKeys = useMemo(() => {
+    const keys = new Set();
+    for (const c of whatsConvs) {
+      if (c.lead_id) keys.add(`id:${c.lead_id}`);
+      if (c.whatsapp) keys.add(`wa:${c.whatsapp}`);
+    }
+    return keys;
+  }, [whatsConvs]);
+  const hasConversation = (lead) => conversationKeys.has(`id:${lead.id}`) || conversationKeys.has(`wa:${lead.whatsapp}`);
+
+  const leadsByStage = useMemo(() => {
+    const map = {};
+    for (const l of filteredLeads) {
+      const stageId = normalizeStage(l.stage);
+      (map[stageId] ||= []).push(l);
+    }
+    return map;
+  }, [filteredLeads]);
+  const byStage = (stageId) => leadsByStage[stageId] || [];
 
   const moveStage = async (leadId, newStage) => {
     const lead = leads.find((item) => item.id === leadId);
@@ -1827,7 +1845,7 @@ export default function CRM() {
         )}
       </div>
 
-      <div style={{ maxWidth: view === "agenda" ? "none" : 1400, margin: "0 auto", padding: view === "agenda" ? "12px 16px" : view === "convs" ? "0" : "24px", flex: 1, minHeight: 0, display: (view === "convs" || view === "agenda") ? "flex" : "block", flexDirection: "column", overflowY: (view === "convs" || view === "agenda") ? "hidden" : "auto" }}>
+      <div style={{ maxWidth: view === "agenda" ? "none" : 1400, width: "100%", minWidth: 0, boxSizing: "border-box", margin: "0 auto", padding: view === "agenda" ? "12px 16px" : view === "convs" ? "0" : "24px", flex: 1, minHeight: 0, display: (view === "convs" || view === "agenda") ? "flex" : "block", flexDirection: "column", overflowY: (view === "convs" || view === "agenda") ? "hidden" : "auto" }}>
         {/* STATS */}
         <div style={{ display: (view === "convs" || view === "agenda") ? "none" : "block", marginBottom: 20 }}>
           {/* Stats compactas */}
@@ -1928,7 +1946,7 @@ export default function CRM() {
                 }
               });
             }}
-            hasConversation={(lead) => whatsConvs.some(c => c.lead_id === lead.id || c.whatsapp === lead.whatsapp)}
+            hasConversation={hasConversation}
           />
           </div>
         )}
