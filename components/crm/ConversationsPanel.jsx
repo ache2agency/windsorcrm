@@ -343,6 +343,12 @@ function formatListTime(dateStr) {
     : { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "America/Mexico_City" });
 }
 
+function isConvUnread(c) {
+  if (!c.ultimo_mensaje_at) return false;
+  if (!c.visto_at) return true;
+  return new Date(c.ultimo_mensaje_at) > new Date(c.visto_at);
+}
+
 function ConversationsPanel({
   filteredWhatsConvs,
   ultimoUsuarioAtPorConv,
@@ -376,6 +382,7 @@ function ConversationsPanel({
   selectedConvOwner,
   selectedLeadAssigned,
   setHumanMode,
+  setConvVisto,
   setView,
   setSelectedLead,
   convMessages,
@@ -404,6 +411,7 @@ function ConversationsPanel({
     setShowInfoCards(false);
     await confirmReturnToBotIfNeeded(async () => {
       setSelectedConv(c);
+      if (isConvUnread(c)) setConvVisto(c, true);
       await fetchConvMessages(c.id);
       setAgentMessage("");
       setMobileView("chat");
@@ -445,6 +453,10 @@ function ConversationsPanel({
         .wa-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; cursor: pointer; border-bottom: 1px solid #f0f2f5; transition: background 0.1s; }
         .wa-item:hover { background: #f5f6f6; }
         .wa-item.active { background: #f0f2f5; }
+        .wa-item.unread .wa-item-name { font-weight: 800; color: #111b21; }
+        .wa-item.unread .wa-item-preview { color: #111b21; font-weight: 600; }
+        .wa-item.unread .wa-item-time { color: #25D366; font-weight: 700; }
+        .wa-unread-dot { width: 10px; height: 10px; border-radius: 50%; background: #25D366; flex-shrink: 0; }
         .wa-avatar { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: #fff; flex-shrink: 0; }
         .wa-item-body { flex: 1; min-width: 0; }
         .wa-item-row1 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
@@ -655,10 +667,11 @@ function ConversationsPanel({
                 const time = formatListTime(c.ultimo_mensaje_at);
                 const ultimoUsuarioAt = ultimoUsuarioAtPorConv?.[c.id];
                 const restanteVentana = tiempoRestanteVentana(ultimoUsuarioAt);
+                const unread = isConvUnread(c);
                 return (
                   <div
                     key={c.id}
-                    className={`wa-item${selectedConv?.id === c.id ? " active" : ""}`}
+                    className={`wa-item${selectedConv?.id === c.id ? " active" : ""}${unread ? " unread" : ""}`}
                     onClick={() => handleSelectConv(c)}
                   >
                     {convAtoradaFilter && setSelectedAtoradaIds && (
@@ -687,6 +700,7 @@ function ConversationsPanel({
                       </div>
                       <div className="wa-item-row2">
                         <span className="wa-item-preview">{c.provider === "messenger" ? `💬 Messenger` : `${getModeIcon(c)} ${c.whatsapp}`}</span>
+                        {unread && <span className="wa-unread-dot" title="No leído" />}
                         {restanteVentana && (
                           <span
                             className="wa-ventana-badge"

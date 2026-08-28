@@ -570,7 +570,7 @@ export default function CRM() {
     };
     let data;
     try {
-      data = await fetchPaginated("id, whatsapp, lead_id, estado, ultimo_mensaje_at, modo_humano, tomado_por, fase");
+      data = await fetchPaginated("id, whatsapp, lead_id, estado, ultimo_mensaje_at, modo_humano, tomado_por, fase, visto_at");
     } catch {
       try {
         data = await fetchPaginated("id, whatsapp, lead_id, estado, ultimo_mensaje_at");
@@ -868,6 +868,18 @@ export default function CRM() {
       )
     );
     showToast(enabled ? "Ahora la conversación está en modo HUMANO" : "La conversación volvió al BOT");
+  };
+
+  const setConvVisto = async (conv, visto) => {
+    if (!conv) return;
+    const visto_at = visto ? new Date().toISOString() : null;
+    const { error } = await supabase
+      .from("whatsapp_conversaciones")
+      .update({ visto_at })
+      .eq("id", conv.id);
+    if (error) return; // no bloquear la UI por esto — no es crítico
+    setSelectedConv((prev) => (prev && prev.id === conv.id ? { ...prev, visto_at } : prev));
+    setWhatsConvs((prev) => prev.map((c) => (c.id === conv.id ? { ...c, visto_at } : c)));
   };
 
   const closeLead = async (leadId, stage, motivo) => {
@@ -2514,6 +2526,7 @@ export default function CRM() {
             selectedConvOwner={selectedConvOwner}
             selectedLeadAssigned={selectedLeadAssigned}
             setHumanMode={setHumanMode}
+            setConvVisto={setConvVisto}
             convMessages={convMessages}
             sendAgentReply={sendAgentReply}
             sendingAgent={sendingAgent}
