@@ -570,10 +570,33 @@ function ConversationsPanel({
   const [showRR, setShowRR] = useState(false);
   const [agentMessage, setAgentMessage] = useState("");
   const messagesEndRef = useRef(null);
+  const listRef = useRef(null);
+  const [listScrollTop, setListScrollTop] = useState(0);
+  const [listViewportHeight, setListViewportHeight] = useState(700);
+  const scrollRafRef = useRef(null);
+  const latestScrollTopRef = useRef(0);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [convMessages]);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const measure = () => setListViewportHeight(el.clientHeight || 700);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [mobileView]);
+
+  const handleListScroll = (e) => {
+    latestScrollTopRef.current = e.currentTarget.scrollTop;
+    if (scrollRafRef.current) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      setListScrollTop(latestScrollTopRef.current);
+      scrollRafRef.current = null;
+    });
+  };
 
   const handleSelectConv = async (c) => {
     if (c.id === selectedConv?.id) return;
@@ -832,11 +855,24 @@ function ConversationsPanel({
 
           <div className="wa-convs-count">{filteredWhatsConvs.length} conversaciones</div>
 
-          <div className="wa-list-items">
-            {filteredWhatsConvs.length === 0 ? (
-              <div style={{ padding: 24, textAlign: "center", color: "#8696a0", fontSize: 13 }}>Sin conversaciones</div>
-            ) : (
-              filteredWhatsConvs.map((c) => {
+          {(() => {
+            const ROW_HEIGHT = 68;
+            const OVERSCAN = 8;
+            const total = filteredWhatsConvs.length;
+            const startIndex = Math.max(0, Math.floor(listScrollTop / ROW_HEIGHT) - OVERSCAN);
+            const visibleCount = Math.ceil(listViewportHeight / ROW_HEIGHT) + OVERSCAN * 2;
+            const endIndex = Math.min(total, startIndex + visibleCount);
+            const topPad = startIndex * ROW_HEIGHT;
+            const bottomPad = (total - endIndex) * ROW_HEIGHT;
+            const visibleConvs = filteredWhatsConvs.slice(startIndex, endIndex);
+            return (
+              <div className="wa-list-items" ref={listRef} onScroll={handleListScroll}>
+                {total === 0 ? (
+                  <div style={{ padding: 24, textAlign: "center", color: "#8696a0", fontSize: 13 }}>Sin conversaciones</div>
+                ) : (
+                  <>
+                    <div style={{ height: topPad }} />
+                    {visibleConvs.map((c) => {
                 const name = getDisplayName(c);
                 const owner = vendedores.find((v) => v.id === c.tomado_por);
                 const time = formatListTime(c.ultimo_mensaje_at);
@@ -895,9 +931,13 @@ function ConversationsPanel({
                     </div>
                   </div>
                 );
-              })
-            )}
-          </div>
+                    })}
+                    <div style={{ height: bottomPad }} />
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* ── CHAT ── */}
