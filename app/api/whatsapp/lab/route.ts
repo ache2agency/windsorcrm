@@ -31,9 +31,9 @@ Duración: 5 meses (10 meses en sabatino)
 *🕐 Horarios online:* Vespertino 17-19h, Sabatino 9-13h
 
 *💰 Inversión:*
-• Inscripción: $750 → *$375 con promo* (50% de descuento)
-• Mensualidad matutino/vespertino: $1,070 (Básico a Pre-Intermedio) o $1,190 (Intermedio Avanzado en adelante)
-• Mensualidad sabatino: $990 o $1,010
+• Inscripción anual: $800 → *$400 con promo* (50% de descuento)
+• Mensualidad matutino/vespertino: $1,220 (Básico, Elemental y Pre-Intermedio) o $1,250 (Intermedio, Intermedio Avanzado y Avanzado)
+• Mensualidad sabatino: $1,040 (Básico, Elemental y Pre-Intermedio) o $1,060 (Intermedio, Intermedio Avanzado y Avanzado)
 • Material (libros): aprox. $900 aparte
 
 🎓 Obtienes diploma con validez oficial.
