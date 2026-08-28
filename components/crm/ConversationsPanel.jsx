@@ -279,6 +279,175 @@ Modalidad: Presencial | Duración: 2 años
 *A)* Tengo dudas 🤔
 *B)* Quiero inscribirme ✍️` },
   ]},
+  // Textos copiados tal cual de los INSCRIPCION_*_MSG en app/api/whatsapp/webhook/route.ts
+  // (incluye TEXTO_PLANTELES ya resuelto con IGUALA_ABIERTO=false) — si cambian allá, actualizar aquí también.
+  { grupo: "Inscripción", items: [
+    { label: "Idiomas", texto: `🔴PROCESO DE INSCRIPCIÓN CURSOS DE IDIOMAS🔴
+
+Antes que nada permítenos felicitarte por tomar acción en tu proceso de crecimiento profesional y personal, estamos seguros que has tomado la decisión correcta y nos dará mucho gusto acompañarte en este proceso.
+
+Para empezar tu proceso de inscripción vas a necesitar los siguientes archivos:
+
+Acta de nacimiento, el archivo debe llevar el siguiente nombre:
+Acta de nacimiento (tu nombre)
+
+Comprobante de pago, el archivo debe llevar el siguiente nombre:
+Comprobante de pago (tu nombre)
+
+Haz clic en la liga para descargar la información de nuestra cuenta bancaria:
+https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
+
+🔵¿Ya tienes todos los documentos?
+
+Por favor, sigue las indicaciones para completar tu inscripción.
+
+1️⃣ Ingresar a https://www.windsor.edu.mx/solicitud-de-inscripcion y llenar la "solicitud de inscripción cursos de idiomas"
+
+2️⃣ Envíanos un mensaje por este medio cuando hayas terminado.
+
+Listo, ya eres parte de la familia Windsor 🎉🎉🎉
+
+¡¡BIENVENID@!!` },
+    { label: "Licenciatura (en línea)", texto: `¡Perfecto! Aquí está todo lo que necesitas:
+
+*📄 Documentos necesarios:*
+1. Acta de nacimiento
+2. Certificado de bachillerato
+3. Comprobante de pago de inscripción
+
+*🏦 Información bancaria:*
+https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
+
+*📋 Pasos a seguir:*
+1️⃣ Realiza el pago de inscripción con los datos bancarios del enlace anterior.
+2️⃣ Ingresa a https://www.windsor.edu.mx/solicitud-de-inscripcion y llena la *Solicitud de Inscripción para Licenciaturas* — ahí podrás adjuntar tus documentos directamente.
+3️⃣ Confírmanos aquí por WhatsApp cuando hayas completado el formulario.
+4️⃣ Un asesor revisará todo y confirmará tu inscripción. 😊` },
+    { label: "Bachillerato", texto: `🔴PROCESO DE INSCRIPCIÓN BACHILLERATO 🔴
+
+Antes que nada permítenos felicitarte por tomar acción en tu proceso de crecimiento profesional y personal, estamos seguros que has tomado la decisión correcta y nos dará mucho gusto acompañarte en este proceso.
+
+Para empezar tu proceso de inscripción vas a necesitar los siguientes archivos:
+
+Acta de nacimiento, el archivo debe llevar el siguiente nombre:
+Acta de nacimiento (tu nombre)
+
+Certificado de secundaria, el archivo debe llevar el siguiente nombre:
+Certificado de secundaria (tu nombre)
+
+Comprobante de pago, el archivo debe llevar el siguiente nombre:
+Comprobante de pago (tu nombre)
+
+Haz clic en la liga para descargar la información de nuestra cuenta bancaria:
+https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
+
+🔵¿Ya tienes todos los documentos?
+
+Por favor, sigue las indicaciones para completar tu inscripción.
+
+1️⃣ Ingresar a https://www.windsor.edu.mx/solicitud-de-inscripcion y llenar la "solicitud de inscripción bachillerato / licenciatura"
+
+2️⃣ Envíanos un mensaje por este medio cuando hayas terminado.
+
+Listo, ya eres parte de la familia Windsor 🎉🎉🎉
+
+¡¡BIENVENID@!!` },
+    { label: "Diplomado", texto: `🔴PROCESO DE INSCRIPCIÓN DIPLOMADOS🔴
+
+1️⃣ Enviar documentación escaneada al correo hola@windsor.edu.mx (copia de Acta de Nacimiento)
+
+2️⃣ Ingresar a https://www.windsor.edu.mx/solicitud-de-inscripcion y llenar la solicitud de inscripción.
+
+3️⃣ Una vez recibida la solicitud, te enviamos una referencia y la cuenta a la que harás tu pago.
+
+Listo, ya eres parte de la familia Windsor 🎉🎉🎉
+
+¡¡BIENVENID@!!` },
+    { label: "Habilidades psicoterapéutica", texto: `¡Perfecto! 😊 Para inscribirte al curso *Habilidades para la práctica psicoterapéutica* solo necesitas:
+
+1️⃣ Llenar este formulario: https://docs.google.com/forms/d/e/1FAIpQLSf2QqhL5xo-C35_g2suWzMpX0oWpdvZS082DPHNksY-CcPNBQ/viewform
+2️⃣ Realizar tu pago en efectivo directamente en las instalaciones ($300 alumnos Windsor / $400 público)
+
+Confírmanos aquí cuando hayas completado el formulario. 🎉` },
+    { label: "Verano niños", texto: `¡Perfecto! ☀️ El proceso de inscripción a *My Best Summer* es muy sencillo:
+
+*📄 Documentos necesarios:*
+• Acta de nacimiento
+• Comprobante de pago
+
+*💳 Pago:* Puedes apartar tu lugar con el 50% hoy y cubrir el resto al inicio del curso.
+🏦 Datos bancarios: https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
+
+*📦 Material:* tiene un costo de $300 (ya incluido) y se paga en efectivo directamente en las instalaciones.
+
+*📋 Puedes inscribirte de dos formas:*
+
+*A) En línea* 💻
+Llena el formulario de inscripción y adjunta tus documentos:
+📝 https://forms.gle/fvxiekCtLb7KNz2U8
+Confírmanos aquí por WhatsApp cuando lo hayas completado.
+
+*B) Presencial* 🏫
+Visítanos con tus documentos — el pago lo puedes realizar directamente en las instalaciones, a la cuenta bancaria que te compartimos arriba:
+📍 *Chilpancingo:* Sofía Tena #1, Col. Viguri (por el momento el plantel de Iguala no está disponible este ciclo escolar)
+🕐 Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
+
+🚨 *¡Cupo limitado!* Asegura tu lugar pronto. 😊` },
+    { label: "Verano adultos", texto: `¡Perfecto! ☀️ El proceso de inscripción a *My Best Summer* es muy sencillo:
+
+*📄 Documentos necesarios:*
+• Acta de nacimiento
+• Comprobante de pago
+
+*💳 Pago:* Puedes apartar tu lugar con el 50% hoy y cubrir el resto al inicio del curso.
+🏦 Datos bancarios: https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
+
+*📦 Manual (solo cursos de inglés):* tiene un costo de $150 y se paga en efectivo directamente en las instalaciones.
+
+*📋 Puedes inscribirte de dos formas:*
+
+*A) En línea* 💻
+Llena el formulario de inscripción y adjunta tus documentos:
+📝 https://forms.gle/fvxiekCtLb7KNz2U8
+Confírmanos aquí por WhatsApp cuando lo hayas completado.
+
+*B) Presencial* 🏫
+Visítanos con tus documentos — el pago lo puedes realizar directamente en las instalaciones, a la cuenta bancaria que te compartimos arriba:
+📍 *Chilpancingo:* Sofía Tena #1, Col. Viguri (por el momento el plantel de Iguala no está disponible este ciclo escolar)
+🕐 Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
+
+🚨 *¡Cupo limitado!* Asegura tu lugar pronto. 😊` },
+  ]},
+  { grupo: "Seguimiento", items: [
+    { label: "Continuar inscripción", texto: `¡Hola! 😊
+
+Quería saber si pudiste revisar la información que te compartimos. Con gusto resolvemos cualquier duda y te acompañamos para continuar con tu inscripción.
+
+¿Te gustaría iniciar tu proceso de inscripción?` },
+    { label: "Solicitar nombre", texto: `¡Hola! 😊
+
+Para enviarte la información de nuestros programas que nos solicitaste, por favor compártenos tu nombre.` },
+    { label: "Solicitar correo", texto: `¡Hola! 😊
+
+Para enviarte la información de nuestros programas que nos solicitaste, por favor compártenos tu correo electrónico.` },
+    { label: "Convenios", texto: `Sí, contamos con convenios vigentes con las siguientes instituciones:
+
+1. Subsecretaría de Educación Básica y PRONI
+2. SUSPEG Central
+3. Sección VII
+4. Sección 36 de Salud
+5. Tribunal Electoral del Estado de Guerrero
+6. Colegios de Bachilleres del Estado de Guerrero
+7. Secretaría de Migrantes y Asuntos Internacionales
+8. Secretaría de Gestión Integral y Protección Civil
+9. SITMABEG
+10. Sindicato del Metro CD. México
+11. Egresados Windsor
+12. Instituto Tecnológico de Chilpancingo
+13. Secundaria Técnica No. 81
+
+¿A cuál de estas instituciones perteneces? 😊` },
+  ]},
 ];
 
 const WA_GREEN = "#075E54";
