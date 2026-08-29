@@ -151,6 +151,53 @@ export async function fetchApprovedTemplateBody(templateName: string): Promise<s
   }
 }
 
+let _templatesListCache: { data: { name: string; body: string }[]; ts: number } | null = null
+const TEMPLATES_LIST_TTL_MS = 5 * 60 * 1000
+
+/**
+ * Lista las plantillas aprobadas en Meta Business Manager (status APPROVED, español)
+ * con su texto BODY real, para que el CRM las muestre como opciones al enviar —
+ * mismo endpoint que fetchApprovedTemplateBody, sin filtrar por nombre. Cachea 5 min
+ * en memoria porque la lista de aprobadas cambia muy poco.
+ */
+export async function fetchApprovedTemplates(): Promise<{ name: string; body: string }[]> {
+  if (_templatesListCache && Date.now() - _templatesListCache.ts < TEMPLATES_LIST_TTL_MS) {
+    return _templatesListCache.data
+  }
+
+  const { accessToken, businessAccountId } = getMetaConfig()
+  if (!accessToken || !businessAccountId) {
+    console.error('[fetchApprovedTemplates] faltan META_WHATSAPP_TOKEN / META_WHATSAPP_BUSINESS_ACCOUNT_ID')
+    return []
+  }
+
+  try {
+    const url = `https://graph.facebook.com/v23.0/${businessAccountId}/message_templates?fields=name,status,language,components&limit=100`
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) {
+      console.error('[fetchApprovedTemplates] error HTTP', res.status, await res.text().catch(() => ''))
+      return []
+    }
+    const data = await res.json()
+    const templates: { name: string; body: string }[] = (data?.data || [])
+      .filter((t: { status?: string; language?: string }) => t.status === 'APPROVED' && (!t.language || t.language.startsWith('es')))
+      .map((t: { name: string; components?: { type: string; text?: string }[] }) => ({
+        name: t.name,
+        body: t.components?.find((c) => c.type === 'BODY')?.text || '',
+      }))
+      .filter((t: { body: string }) => t.body)
+
+    _templatesListCache = { data: templates, ts: Date.now() }
+    return templates
+  } catch (e) {
+    console.error('[fetchApprovedTemplates]', e)
+    return []
+  }
+}
+
 /** Intenta enviar y si falla con #133010 reintenta con formato +521 (México legacy) */
 async function metaPostWithRetry(phoneNumberId: string, accessToken: string, toNormalized: string, payload: object): Promise<Response> {
   const toFormatted = toNormalized.replace(/^\+/, '')

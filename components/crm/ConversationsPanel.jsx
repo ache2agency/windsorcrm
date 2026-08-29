@@ -527,6 +527,15 @@ function isConvUnread(c, lastUserMsgAt) {
   return new Date(lastUserMsgAt) > new Date(c.visto_at);
 }
 
+const PLANTILLA_LABELS = {
+  seguimiento_general: "Seguimiento general",
+  windsor_promo: "Promoción vigente",
+  windsor_inscripcion_pendiente_: "Inscripción pendiente",
+  windsor_bienvenida_lead_manual: "Bienvenida",
+};
+const formatPlantillaLabel = (name) => PLANTILLA_LABELS[name] || name.replace(/_/g, " ");
+const renderPlantillaPreview = (body, nombre) => (body || "").replace(/\{\{\d+\}\}/g, nombre || "amig@");
+
 function ConversationsPanel({
   filteredWhatsConvs,
   ultimoUsuarioAtPorConv,
@@ -566,16 +575,23 @@ function ConversationsPanel({
   convMessages,
   sendAgentReply,
   sendingAgent,
-  sendReactivacion,
+  fetchPlantillas,
+  plantillas,
+  loadingPlantillas,
+  sendPlantilla,
   sendingReactivacion,
-  closeLead,
+  moveStage,
+  STAGES,
+  normalizeStage,
 }) {
   const [mobileView, setMobileView] = useState("list");
   const [showInfoCards, setShowInfoCards] = useState(false);
-  const [showCerrarModal, setShowCerrarModal] = useState(false);
-  const [cerrarStage, setCerrarStage] = useState("inscrito");
-  const [cerrarMotivo, setCerrarMotivo] = useState("");
-  const [cerrando, setCerrando] = useState(false);
+  const [showEtapaModal, setShowEtapaModal] = useState(false);
+  const [etapaStage, setEtapaStage] = useState("primer_contacto");
+  const [etapaNota, setEtapaNota] = useState("");
+  const [guardandoEtapa, setGuardandoEtapa] = useState(false);
+  const [showPlantillasModal, setShowPlantillasModal] = useState(false);
+  const [plantillaSeleccionada, setPlantillaSeleccionada] = useState(null);
   const [showRR, setShowRR] = useState(false);
   const [agentMessage, setAgentMessage] = useState("");
   const messagesEndRef = useRef(null);
@@ -753,43 +769,93 @@ function ConversationsPanel({
         .wa-info-toggle { display: none; align-items: center; justify-content: center; padding: 3px 12px; background: #f0f2f5; border: none; cursor: pointer; font-size: 10px; color: #667781; letter-spacing: 0.5px; gap: 4px; flex-shrink: 0; }
       `}</style>
 
-      {showCerrarModal && selectedConvLead && (
+      {showEtapaModal && selectedConvLead && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 400, boxShadow: "0 16px 40px rgba(0,0,0,0.2)" }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Cerrar lead: {selectedConvLead.nombre || selectedConv.whatsapp}</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-              <button
-                style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "2px solid", borderColor: cerrarStage === "inscrito" ? "#15803d" : "#e2e8f0", background: cerrarStage === "inscrito" ? "#dcfce7" : "#fff", color: cerrarStage === "inscrito" ? "#15803d" : "#555", fontWeight: 600, cursor: "pointer", fontSize: 13 }}
-                onClick={() => setCerrarStage("inscrito")}
-              >✅ Inscrito</button>
-              <button
-                style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "2px solid", borderColor: cerrarStage === "perdido" ? "#A8263C" : "#e2e8f0", background: cerrarStage === "perdido" ? "#fee2e8" : "#fff", color: cerrarStage === "perdido" ? "#A8263C" : "#555", fontWeight: 600, cursor: "pointer", fontSize: 13 }}
-                onClick={() => setCerrarStage("perdido")}
-              >❌ Perdido</button>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 420, maxHeight: "80vh", overflowY: "auto", boxShadow: "0 16px 40px rgba(0,0,0,0.2)" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Cambiar etapa: {selectedConvLead.nombre || selectedConv.whatsapp}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+              {STAGES.map((s) => (
+                <button
+                  key={s.id}
+                  style={{ textAlign: "left", padding: "10px 12px", borderRadius: 8, border: "2px solid", borderColor: etapaStage === s.id ? s.color : "#e2e8f0", background: etapaStage === s.id ? s.bg : "#fff", color: etapaStage === s.id ? s.color : "#555", fontWeight: etapaStage === s.id ? 700 : 500, cursor: "pointer", fontSize: 13 }}
+                  onClick={() => setEtapaStage(s.id)}
+                >{s.label}</button>
+              ))}
             </div>
             <textarea
-              value={cerrarMotivo}
-              onChange={e => setCerrarMotivo(e.target.value)}
-              placeholder={cerrarStage === "inscrito" ? "Notas de cierre (opcional)..." : "Motivo de pérdida (opcional)..."}
-              rows={3}
+              value={etapaNota}
+              onChange={e => setEtapaNota(e.target.value)}
+              placeholder="Nota (opcional)..."
+              rows={2}
               style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: "10px 12px", fontSize: 13, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
             />
             <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
               <button
                 style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#555", cursor: "pointer", fontSize: 13 }}
-                onClick={() => setShowCerrarModal(false)}
+                onClick={() => setShowEtapaModal(false)}
               >Cancelar</button>
               <button
-                disabled={cerrando}
-                style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "none", background: cerrarStage === "inscrito" ? "#15803d" : "#A8263C", color: "#fff", fontWeight: 700, cursor: cerrando ? "default" : "pointer", fontSize: 13, opacity: cerrando ? 0.6 : 1 }}
+                disabled={guardandoEtapa}
+                style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "none", background: "#E8A838", color: "#fff", fontWeight: 700, cursor: guardandoEtapa ? "default" : "pointer", fontSize: 13, opacity: guardandoEtapa ? 0.6 : 1 }}
                 onClick={async () => {
-                  if (!closeLead || !selectedConvLead?.id) return;
-                  setCerrando(true);
-                  await closeLead(selectedConvLead.id, cerrarStage, cerrarMotivo);
-                  setCerrando(false);
-                  setShowCerrarModal(false);
+                  if (!moveStage || !selectedConvLead?.id) return;
+                  setGuardandoEtapa(true);
+                  await moveStage(selectedConvLead.id, etapaStage, etapaNota);
+                  setGuardandoEtapa(false);
+                  setShowEtapaModal(false);
                 }}
-              >{cerrando ? "Guardando..." : "Confirmar"}</button>
+              >{guardandoEtapa ? "Guardando..." : "Guardar"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPlantillasModal && selectedConvLead && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 420, maxHeight: "80vh", overflowY: "auto", boxShadow: "0 16px 40px rgba(0,0,0,0.2)" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Elegir plantilla</div>
+            {loadingPlantillas ? (
+              <div style={{ fontSize: 13, color: "#667781", padding: "12px 0" }}>Cargando plantillas aprobadas...</div>
+            ) : plantillas.length === 0 ? (
+              <div style={{ fontSize: 13, color: "#667781", padding: "12px 0" }}>No se encontraron plantillas aprobadas en Meta.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                {plantillas.map((t) => {
+                  const nombre = selectedConvLead?.nombre?.split(" ")[0] || "amig@";
+                  const preview = renderPlantillaPreview(t.body, nombre);
+                  const selected = plantillaSeleccionada === t.name;
+                  return (
+                    <button
+                      key={t.name}
+                      onClick={() => setPlantillaSeleccionada(t.name)}
+                      style={{ textAlign: "left", padding: "10px 12px", borderRadius: 8, border: "2px solid", borderColor: selected ? WA_GREEN : "#e2e8f0", background: selected ? "#f0fdf4" : "#fff", cursor: "pointer" }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 700, color: selected ? WA_GREEN : "#333", marginBottom: 4 }}>{formatPlantillaLabel(t.name)}</div>
+                      <div style={{ fontSize: 12, color: "#667781", whiteSpace: "pre-wrap" }}>{preview}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#555", cursor: "pointer", fontSize: 13 }}
+                onClick={() => setShowPlantillasModal(false)}
+              >Cancelar</button>
+              <button
+                disabled={!plantillaSeleccionada || sendingReactivacion}
+                style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "none", background: "#7B5EA7", color: "#fff", fontWeight: 700, cursor: (!plantillaSeleccionada || sendingReactivacion) ? "default" : "pointer", fontSize: 13, opacity: (!plantillaSeleccionada || sendingReactivacion) ? 0.6 : 1 }}
+                onClick={async () => {
+                  const t = plantillas.find((p) => p.name === plantillaSeleccionada);
+                  if (!t) return;
+                  const nombre = selectedConvLead?.nombre?.split(" ")[0] || "amig@";
+                  const preview = renderPlantillaPreview(t.body, nombre);
+                  const numVars = new Set(t.body.match(/\{\{\d+\}\}/g) || []).size;
+                  await sendPlantilla(t.name, preview, Array(numVars || 1).fill(nombre));
+                  setShowPlantillasModal(false);
+                  setPlantillaSeleccionada(null);
+                }}
+              >{sendingReactivacion ? "Enviando..." : "Enviar"}</button>
             </div>
           </div>
         </div>
@@ -999,35 +1065,27 @@ function ConversationsPanel({
                   )}
                   <button
                     className="wa-ctrl-btn"
-                    style={{ background: selectedConv.modo_humano ? "rgba(255,255,255,0.15)" : "#fff", color: selectedConv.modo_humano ? "rgba(255,255,255,0.35)" : WA_GREEN }}
-                    onClick={() => setHumanMode(selectedConv, true)}
-                    disabled={selectedConv.modo_humano}
+                    style={{ background: selectedConv.modo_humano ? "#A8263C" : "#fff", color: selectedConv.modo_humano ? "#fff" : WA_GREEN }}
+                    onClick={() => setHumanMode(selectedConv, !selectedConv.modo_humano)}
+                    title={selectedConv.modo_humano ? "Regresar el control al bot" : "Tomar control de la conversación"}
                   >
-                    Tomar
-                  </button>
-                  <button
-                    className="wa-ctrl-btn"
-                    style={{ background: selectedConv.modo_humano ? "#A8263C" : "rgba(255,255,255,0.15)", color: "#fff" }}
-                    onClick={() => setHumanMode(selectedConv, false)}
-                    disabled={!selectedConv.modo_humano}
-                  >
-                    BOT
+                    {selectedConv.modo_humano ? "BOT" : "Tomar"}
                   </button>
                   <button
                     className="wa-ctrl-btn"
                     style={{ background: "#7B5EA7", color: "#fff", opacity: sendingReactivacion ? 0.6 : 1 }}
-                    onClick={sendReactivacion}
+                    onClick={() => { setPlantillaSeleccionada(null); setShowPlantillasModal(true); fetchPlantillas(); }}
                     disabled={sendingReactivacion}
-                    title="Enviar plantilla de seguimiento cuando la ventana de 24h venció"
+                    title="Elegir y enviar una plantilla aprobada por Meta"
                   >
                     {sendingReactivacion ? "..." : "Reactivar"}
                   </button>
                   <button
                     className="wa-ctrl-btn"
                     style={{ background: "#E8A838", color: "#fff" }}
-                    onClick={() => { setCerrarStage("inscrito"); setCerrarMotivo(""); setShowCerrarModal(true); }}
+                    onClick={() => { setEtapaStage(normalizeStage(selectedConvLead?.stage)); setEtapaNota(""); setShowEtapaModal(true); }}
                   >
-                    Cerrar
+                    Etapa
                   </button>
                 </div>
               </div>

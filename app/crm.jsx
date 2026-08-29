@@ -173,6 +173,8 @@ export default function CRM() {
   const [sendingAgent, setSendingAgent] = useState(false);
   const sendingAgentRef = useRef(false);
   const [sendingReactivacion, setSendingReactivacion] = useState(false);
+  const [plantillas, setPlantillas] = useState([]);
+  const [loadingPlantillas, setLoadingPlantillas] = useState(false);
   const [sendingInfoLeadId, setSendingInfoLeadId] = useState(null);
   const [leadInfoDraft, setLeadInfoDraft] = useState("");
   const [labScenario, setLabScenario] = useState("ads");
@@ -929,19 +931,6 @@ export default function CRM() {
     setWhatsConvs((prev) => prev.map((c) => (c.id === conv.id ? { ...c, visto_at } : c)));
   };
 
-  const closeLead = async (leadId, stage, motivo) => {
-    if (!leadId) return;
-    const { error } = await supabase.from("leads").update({ stage }).eq("id", leadId);
-    if (error) { showToast("Error cerrando lead", "error"); return; }
-    await logLeadActivity({ leadId, eventType: "stage_changed", title: stage === "inscrito" ? "Lead inscrito" : "Lead perdido", detail: motivo || "" });
-    // Cerrar conversación si hay una abierta
-    if (selectedConv) {
-      await supabase.from("whatsapp_conversaciones").update({ estado: "cerrada", fase: stage === "inscrito" ? "cerrado" : "perdido" }).eq("id", selectedConv.id);
-    }
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage } : l));
-    showToast(stage === "inscrito" ? "Lead marcado como inscrito" : "Lead marcado como perdido");
-  };
-
   /** Marca en bulk como "perdidas" las conversaciones seleccionadas (limpieza de atoradas viejas sin caso). */
   const marcarPerdidasBulk = async (convIds) => {
     if (!convIds.length) return;
@@ -1055,25 +1044,46 @@ export default function CRM() {
     }
   };
 
-  const sendReactivacion = async () => {
+  const fetchPlantillas = async () => {
+    setLoadingPlantillas(true);
+    try {
+      const res = await fetch("/api/whatsapp/plantillas");
+      const data = await res.json();
+      setPlantillas(data?.templates || []);
+    } catch (e) {
+      showToast("Error cargando plantillas aprobadas", "error");
+    } finally {
+      setLoadingPlantillas(false);
+    }
+  };
+
+  const sendPlantilla = async (templateName, renderedBody, templateParams) => {
     if (!selectedConv || sendingReactivacion) return;
     setSendingReactivacion(true);
     try {
-      const res = await fetch("/api/whatsapp/reactivar-manual", {
+      const res = await fetch("/api/whatsapp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversacion_id: selectedConv.id }),
+        body: JSON.stringify({
+          to: selectedConv.whatsapp,
+          templateName,
+          templateParams,
+          body: renderedBody,
+          leadId: selectedConvLead?.id || null,
+          agentUserId: currentUser?.id || null,
+          fase: "seguimiento",
+        }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showToast(data?.error || "Error enviando plantilla de reactivación", "error");
+        showToast(data?.error || data?.detail || "Error enviando plantilla", "error");
         return;
       }
       const now = new Date().toISOString();
-      setConvMessages((prev) => [...prev, { id: `local-${now}`, rol: "agente", contenido: data.contenido, created_at: now }]);
-      showToast("Plantilla de reactivación enviada. El lead puede responderte ahora.");
+      setConvMessages((prev) => [...prev, { id: `local-${now}`, rol: "agente", contenido: renderedBody, created_at: now }]);
+      showToast("Plantilla enviada. El lead puede responderte ahora.");
     } catch (e) {
-      showToast(e?.message || "Error enviando reactivación", "error");
+      showToast(e?.message || "Error enviando plantilla", "error");
     } finally {
       setSendingReactivacion(false);
     }
@@ -1331,7 +1341,7 @@ export default function CRM() {
   }, [filteredLeads]);
   const byStage = (stageId) => leadsByStage[stageId] || [];
 
-  const moveStage = async (leadId, newStage) => {
+  const moveStage = async (leadId, newStage, notas = "") => {
     const lead = leads.find((item) => item.id === leadId);
     const previousStage = normalizeStage(lead?.stage);
     const { data: updData, error } = await supabase.from("leads").update({ stage: newStage }).eq("id", leadId).select("id");
@@ -1358,11 +1368,12 @@ export default function CRM() {
     }
 
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage } : l));
+    const notaTrim = (notas || "").trim();
     await logLeadActivity({
       leadId,
       eventType: "stage_changed",
       title: "Etapa actualizada",
-      detail: `${STAGES.find((s) => s.id === previousStage)?.label || previousStage || "Sin etapa"} -> ${STAGES.find((s) => s.id === newStage)?.label || newStage}`,
+      detail: `${STAGES.find((s) => s.id === previousStage)?.label || previousStage || "Sin etapa"} -> ${STAGES.find((s) => s.id === newStage)?.label || newStage}` + (notaTrim ? `\nNota: ${notaTrim}` : ""),
       meta: { from: previousStage || null, to: newStage },
     });
     showToast("Lead movido a " + STAGES.find(s => s.id === newStage)?.label);
@@ -2629,9 +2640,14 @@ export default function CRM() {
             convMessages={convMessages}
             sendAgentReply={sendAgentReply}
             sendingAgent={sendingAgent}
-            sendReactivacion={sendReactivacion}
+            fetchPlantillas={fetchPlantillas}
+            plantillas={plantillas}
+            loadingPlantillas={loadingPlantillas}
+            sendPlantilla={sendPlantilla}
             sendingReactivacion={sendingReactivacion}
-            closeLead={closeLead}
+            moveStage={moveStage}
+            STAGES={STAGES}
+            normalizeStage={normalizeStage}
           />
         )}
 
