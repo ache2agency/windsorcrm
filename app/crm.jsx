@@ -614,18 +614,31 @@ export default function CRM() {
     setUltimoUsuarioAtPorConv(mapa);
   };
 
-  const fetchConvMessages = async (convId) => {
-    setConvMessages([]);
+  const fetchConvMessages = async (convId, { silent = false } = {}) => {
+    if (!silent) setConvMessages([]);
     const { data, error } = await supabase
       .from("whatsapp_mensajes")
       .select("id, rol, contenido, created_at")
       .eq("conversacion_id", convId)
       .order("created_at", { ascending: true });
     if (error) {
-      showToast("Error cargando mensajes de WhatsApp", "error");
-    } else {
-      setConvMessages(data || []);
+      if (!silent) showToast("Error cargando mensajes de WhatsApp", "error");
+      return;
     }
+    const next = data || [];
+    // En refrescos silenciosos (polling) evitamos cambiar la referencia si el
+    // contenido es igual, para no disparar el auto-scroll ni el re-render
+    // del chat mientras el asesor está leyendo o escribiendo una respuesta.
+    setConvMessages((prev) => {
+      if (
+        silent &&
+        prev.length === next.length &&
+        prev[prev.length - 1]?.id === next[next.length - 1]?.id
+      ) {
+        return prev;
+      }
+      return next;
+    });
   };
 
   const loadWhatsappFlow = async () => {

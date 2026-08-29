@@ -590,7 +590,7 @@ function ConversationsPanel({
     const convId = selectedConv.id;
     const interval = setInterval(() => {
       if (document.visibilityState !== "visible") return;
-      fetchConvMessagesRef.current(convId);
+      fetchConvMessagesRef.current(convId, { silent: true });
     }, 8000);
     return () => clearInterval(interval);
   }, [selectedConv?.id]);
@@ -616,7 +616,7 @@ function ConversationsPanel({
   const handleSelectConv = async (c) => {
     if (c.id === selectedConv?.id) {
       setMobileView("chat");
-      fetchConvMessages(c.id);
+      fetchConvMessages(c.id, { silent: true });
       return;
     }
     setShowInfoCards(false);
