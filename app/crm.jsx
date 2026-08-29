@@ -1845,7 +1845,7 @@ export default function CRM() {
         )}
       </div>
 
-      <div style={{ maxWidth: view === "agenda" ? "none" : 1400, width: "100%", minWidth: 0, boxSizing: "border-box", margin: "0 auto", padding: view === "agenda" ? "12px 16px" : view === "convs" ? "0" : "24px", flex: 1, minHeight: 0, display: (view === "convs" || view === "agenda") ? "flex" : "block", flexDirection: "column", overflowY: (view === "convs" || view === "agenda") ? "hidden" : "auto" }}>
+      <div style={{ maxWidth: view === "agenda" ? "none" : 1400, width: "100%", minWidth: 0, boxSizing: "border-box", margin: "0 auto", padding: view === "agenda" ? "12px 16px" : view === "convs" ? "0" : "24px", flex: 1, minHeight: 0, display: (view === "convs" || view === "agenda") ? "flex" : "block", flexDirection: "column", overflowY: (view === "convs" || view === "agenda") ? "hidden" : "auto", overscrollBehaviorX: "contain" }}>
         {/* STATS */}
         <div style={{ display: (view === "convs" || view === "agenda") ? "none" : "block", marginBottom: 20 }}>
           {/* Stats compactas */}
@@ -1926,7 +1926,7 @@ export default function CRM() {
 
         {/* KANBAN */}
         {!loading && view === "kanban" && (
-          <div style={{ width: "100%", overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 16 }}>
+          <div style={{ width: "100%", maxWidth: "100%", overflowX: "auto", WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", paddingBottom: 16 }}>
           <KanbanBoard
             STAGES={STAGES}
             byStage={byStage}

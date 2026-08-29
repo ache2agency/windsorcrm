@@ -580,6 +580,21 @@ function ConversationsPanel({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [convMessages]);
 
+  const fetchConvMessagesRef = useRef(fetchConvMessages);
+  useEffect(() => {
+    fetchConvMessagesRef.current = fetchConvMessages;
+  }, [fetchConvMessages]);
+
+  useEffect(() => {
+    if (!selectedConv?.id) return;
+    const convId = selectedConv.id;
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      fetchConvMessagesRef.current(convId);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [selectedConv?.id]);
+
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
@@ -601,6 +616,7 @@ function ConversationsPanel({
   const handleSelectConv = async (c) => {
     if (c.id === selectedConv?.id) {
       setMobileView("chat");
+      fetchConvMessages(c.id);
       return;
     }
     setShowInfoCards(false);
