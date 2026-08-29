@@ -773,39 +773,34 @@ function ConversationsPanel({
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 420, maxHeight: "80vh", overflowY: "auto", boxShadow: "0 16px 40px rgba(0,0,0,0.2)" }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Cambiar etapa: {selectedConvLead.nombre || selectedConv.whatsapp}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
-              {STAGES.map((s) => (
-                <button
-                  key={s.id}
-                  style={{ textAlign: "left", padding: "10px 12px", borderRadius: 8, border: "2px solid", borderColor: etapaStage === s.id ? s.color : "#e2e8f0", background: etapaStage === s.id ? s.bg : "#fff", color: etapaStage === s.id ? s.color : "#555", fontWeight: etapaStage === s.id ? 700 : 500, cursor: "pointer", fontSize: 13 }}
-                  onClick={() => setEtapaStage(s.id)}
-                >{s.label}</button>
-              ))}
-            </div>
             <textarea
               value={etapaNota}
               onChange={e => setEtapaNota(e.target.value)}
-              placeholder="Nota (opcional)..."
+              placeholder="Nota (opcional, se guarda con la etapa que elijas abajo)..."
               rows={2}
-              style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: "10px 12px", fontSize: 13, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+              style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: "10px 12px", fontSize: 13, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit", marginBottom: 16 }}
             />
-            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-              <button
-                style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#555", cursor: "pointer", fontSize: 13 }}
-                onClick={() => setShowEtapaModal(false)}
-              >Cancelar</button>
-              <button
-                disabled={guardandoEtapa}
-                style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "none", background: "#E8A838", color: "#fff", fontWeight: 700, cursor: guardandoEtapa ? "default" : "pointer", fontSize: 13, opacity: guardandoEtapa ? 0.6 : 1 }}
-                onClick={async () => {
-                  if (!moveStage || !selectedConvLead?.id) return;
-                  setGuardandoEtapa(true);
-                  await moveStage(selectedConvLead.id, etapaStage, etapaNota);
-                  setGuardandoEtapa(false);
-                  setShowEtapaModal(false);
-                }}
-              >{guardandoEtapa ? "Guardando..." : "Guardar"}</button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16, opacity: guardandoEtapa ? 0.6 : 1 }}>
+              {STAGES.map((s) => (
+                <button
+                  key={s.id}
+                  disabled={guardandoEtapa}
+                  style={{ textAlign: "left", padding: "10px 12px", borderRadius: 8, border: "2px solid", borderColor: etapaStage === s.id ? s.color : "#e2e8f0", background: etapaStage === s.id ? s.bg : "#fff", color: etapaStage === s.id ? s.color : "#555", fontWeight: etapaStage === s.id ? 700 : 500, cursor: guardandoEtapa ? "default" : "pointer", fontSize: 13 }}
+                  onClick={async () => {
+                    if (!moveStage || !selectedConvLead?.id) return;
+                    setEtapaStage(s.id);
+                    setGuardandoEtapa(true);
+                    await moveStage(selectedConvLead.id, s.id, etapaNota);
+                    setGuardandoEtapa(false);
+                    setShowEtapaModal(false);
+                  }}
+                >{s.label}{guardandoEtapa && etapaStage === s.id ? " · Guardando..." : ""}</button>
+              ))}
             </div>
+            <button
+              style={{ width: "100%", padding: "10px 0", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#555", cursor: "pointer", fontSize: 13 }}
+              onClick={() => setShowEtapaModal(false)}
+            >Cancelar</button>
           </div>
         </div>
       )}
@@ -1082,10 +1077,11 @@ function ConversationsPanel({
                   </button>
                   <button
                     className="wa-ctrl-btn"
-                    style={{ background: "#E8A838", color: "#fff" }}
+                    style={{ background: "#E8A838", color: "#fff", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                     onClick={() => { setEtapaStage(normalizeStage(selectedConvLead?.stage)); setEtapaNota(""); setShowEtapaModal(true); }}
+                    title="Cambiar etapa"
                   >
-                    Etapa
+                    {STAGES.find((s) => s.id === normalizeStage(selectedConvLead?.stage))?.label || "Etapa"}
                   </button>
                 </div>
               </div>
