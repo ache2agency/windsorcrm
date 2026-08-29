@@ -599,7 +599,10 @@ function ConversationsPanel({
   };
 
   const handleSelectConv = async (c) => {
-    if (c.id === selectedConv?.id) return;
+    if (c.id === selectedConv?.id) {
+      setMobileView("chat");
+      return;
+    }
     setShowInfoCards(false);
     await confirmReturnToBotIfNeeded(async () => {
       setSelectedConv(c);
