@@ -13,6 +13,9 @@ Documento para anotar lo que queda por hacer y los errores a resolver. Actualiza
 - [ ] Agregar **fechas de inicio** de cada programa a la BASE (RAG)
 - [ ] Definir y cargar el prompt maestro del bot desde la pestaña `BOT` en el CRM
 - [ ] Probar bot en producción (WhatsApp real) con el flujo completo
+- [ ] Probar etiquetas claras de fases en UI, sin cambiar el flujo del bot: `accion` = "Información enviada · esperando decisión", `cerrado` = "Flujo del bot finalizado", `seguimiento` = "Pendiente de retomar"
+- [ ] Diseñar el relevo humano → bot: al volver a BOT, elegir fase de reanudación (dudas, siguiente paso, inscripción o cerrar), sin inferirla por cada mensaje humano
+- [ ] Crear un panel manual de **Reactivaciones sugeridas** para revisar, editar, enviar o descartar registros de `mensajes_pendientes`; no automatizar envíos antes de validar textos y proveedor
 
 ### **Técnico / Producto**
 - [ ] Ejecutar Fase 1 y Fase 2 de `docs/IMPLEMENTACION_ESCUELA.md`
@@ -110,5 +113,6 @@ Documento para anotar lo que queda por hacer y los errores a resolver. Actualiza
 
 - **CRM mobile-ready (2026-03-30):** viewport meta + PWA (manifest.json, iconos). Hamburger menu con dropdown `position:absolute top:100%` anclado al header. Stats 2col, LAB BOT stack vertical, modales bottom-sheet en mobile. ConversationsPanel con toggle list/chat y botón "← Conversaciones". Header limpio en mobile: oculta "CRM v1.0", badge ADMIN, reduce título a 22px.
 - **UX y rendimiento móvil (2026-08-28):** se corrigió el layout forzado a ~1400 px; filtros responsivos, tabla LISTA con scroll táctil y Kanban sin scroll/rebote horizontal infinito. Se memoizaron filtros/etapas y lookups de leads. CONVERSACIONES ahora virtualiza su lista para cuentas de ~2,000 chats, permite reabrir el mismo chat en móvil y actualiza mensajes cada 8 s sin vaciar ni saltar el historial. Se agregó punto verde de no leído compartido, basado exclusivamente en el último mensaje del prospecto; migración requerida: `supabase/migration_conversaciones_visto.sql`.
+- **Revisión cualitativa de 30 conversaciones (2026-08-29):** los prospectos suelen indicar el programa desde el inicio y sus preguntas reales se concentran en costos, horarios, edades, ubicación, documentos y cupo. El correo no debe ser una etapa del Kanban. Pendiente validar un flujo centrado en contactos/seguimientos (`Contacto 1–3`) y siguiente paso, sin modificar todavía el bot.
 
-*Última actualización (2026-08-28): Se registraron las correcciones de UX/rendimiento móvil y el estado del indicador de no leído.*
+*Última actualización (2026-08-29): Se registraron los hallazgos de conversaciones reales y los experimentos progresivos pendientes para bot, Kanban y reactivaciones.*

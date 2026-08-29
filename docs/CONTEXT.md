@@ -274,6 +274,15 @@ La lógica de roles se basa en el campo `rol` en `profiles` y/o metadatos de usu
   - Indicador de no leído compartido entre asesores: punto verde, nombre/previsualización destacados y marcado como visto al abrir. La condición usa el último mensaje del prospecto (`rol: usuario`), no una respuesta reciente del bot o asesor. Requiere que esté aplicada `supabase/migration_conversaciones_visto.sql` (`visto_at`).
   - El resumen **Por programa** del Kanban es un acordeón compacto. Al abrirlo ordena los leads activos por: cursos de idiomas, bachillerato, licenciaturas y maestrías; suma las modalidades presencial/en línea de cada licenciatura. Los diplomados son el único submenú, para no saturar la pantalla con su catálogo.
 
+### 8.1 Hallazgos de conversaciones y próximos experimentos (2026-08-29)
+
+- Se revisó una muestra cualitativa de **30 conversaciones reales** (recientes, estancadas, con intervención humana y con intención de avanzar). No usar el flujo técnico del bot como si describiera el recorrido comercial completo: los prospectos frecuentemente indican el programa desde el primer mensaje y pasan la mayor parte de la conversación preguntando por costos, horarios, edades, ubicación, documentos o cupo.
+- El correo es un dato útil para marketing, pero no debe definir una columna del Kanban: varios prospectos avanzan sin compartirlo. Es más útil mostrarlo como indicador en la tarjeta que como etapa.
+- Las fases actuales son estados de conversación del bot, no cierres comerciales. Etiquetas recomendadas para probar solo en UI (sin cambiar la lógica): `accion` → **Información enviada · esperando decisión**; `cerrado` → **Flujo del bot finalizado**; `seguimiento` → **Pendiente de retomar**. `cerrado` no equivale a inscrito.
+- Hipótesis de Kanban pendiente de validar: priorizar el número de contactos/seguimientos (`Contacto 1`, `Contacto 2`, `Contacto 3`) y el siguiente paso, en vez de usar nombre/correo/programa como columnas. No se ha implementado todavía.
+- Reactivaciones: Vercel ejecuta `/api/whatsapp/reactivacion` diariamente. El endpoint identifica silencio por fase (incluye reactivación a ~20 h cuando el último mensaje fue del bot) pero **solo encola** el texto en `mensajes_pendientes`; no existe un envío automático posterior ni una vista del CRM para revisar esa cola. El primer experimento recomendado es un panel **Reactivaciones sugeridas** con editar/enviar/descartar, antes de automatizar envíos.
+- Relevo bot-humano: mientras `modo_humano = true` el bot debe permanecer pausado. No cambiar fase por cada mensaje del asesor; al volver a BOT, elegir de forma explícita la fase de reanudación (dudas, siguiente paso, inscripción o cerrar) para evitar que el bot retome una fase vieja y contradiga al asesor.
+
 ### 9. Marketing y Ventas (Ecosistema Externo)
 
 - **Documentación completa**: Ver `docs/marketing/` para toda la estrategia
@@ -294,4 +303,4 @@ La lógica de roles se basa en el campo `rol` en `profiles` y/o metadatos de usu
 
 Con esto, cualquier persona (incluyéndote tú en unas semanas) puede entender rápido qué hace el proyecto y por dónde empezar.
 
-*Última actualización (2026-08-28): Se documentaron las mejoras de UX y rendimiento móvil: layout sin ancho forzado, filtros/tablas adaptables, Kanban sin rebote horizontal, lista de conversaciones virtualizada, reapertura correcta del chat, refresco silencioso y no leídos basados en mensajes del prospecto.*
+*Última actualización (2026-08-29): Se documentó la revisión de 30 conversaciones reales, el estado incompleto de reactivaciones, la interpretación de fases del bot y los experimentos de UX todavía pendientes de validar.*
