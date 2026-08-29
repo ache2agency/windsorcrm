@@ -272,6 +272,7 @@ La lógica de roles se basa en el campo `rol` en `profiles` y/o metadatos de usu
   - En móvil se puede volver a abrir la misma conversación tras usar la flecha de regreso; también recarga el historial de forma silenciosa.
   - Con un chat abierto, los mensajes se consultan cada 8 s solo si la app está visible. Los refrescos silenciosos no vacían, parpadean ni fuerzan scroll si el historial no cambió.
   - Indicador de no leído compartido entre asesores: punto verde, nombre/previsualización destacados y marcado como visto al abrir. La condición usa el último mensaje del prospecto (`rol: usuario`), no una respuesta reciente del bot o asesor. Requiere que esté aplicada `supabase/migration_conversaciones_visto.sql` (`visto_at`).
+  - El resumen **Por programa** del Kanban es un acordeón compacto. Al abrirlo ordena los leads activos por: cursos de idiomas, bachillerato, licenciaturas y maestrías; suma las modalidades presencial/en línea de cada licenciatura. Los diplomados son el único submenú, para no saturar la pantalla con su catálogo.
 
 ### 9. Marketing y Ventas (Ecosistema Externo)
 

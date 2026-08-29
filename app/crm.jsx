@@ -10,6 +10,7 @@ import NewAppointmentModal from "@/components/crm/NewAppointmentModal";
 import NewLeadModal from "@/components/crm/NewLeadModal";
 import SeguimientosPanel from "@/components/crm/SeguimientosPanel";
 import { chunkArray } from "@/lib/db-utils";
+import { esDiplomado } from "@/lib/whatsapp/programas";
 const supabase = createClient();
 
 const STAGES = [
@@ -51,6 +52,29 @@ const WA_TEMPLATES = {
 
 const normalizeStage = (stage) => LEGACY_STAGE_MAP[stage] || stage || "primer_contacto";
 const AGENDAR_LINK = "https://crm.windsor.edu.mx/agendar/hola@windsor.edu.mx";
+
+const getProgramaResumen = (curso) => {
+  const original = String(curso || "").trim();
+  const value = original.toLowerCase();
+  if (!original || original === "WhatsApp - Instituto Windsor") return null;
+  if (esDiplomado(original)) return { group: "diplomados", key: original, label: original.replace(/^diplomado en\s+/i, "") };
+  if (/ingl[eé]s para ni[ñn]os?/.test(value)) return { group: "idiomas", key: "ingles-ninos", label: "Inglés para niños" };
+  if (/ingl[eé]s para adultos?/.test(value)) return { group: "idiomas", key: "ingles-adultos", label: "Inglés para adultos" };
+  if (/franc[eé]s/.test(value)) return { group: "idiomas", key: "frances", label: "Francés" };
+  if (/italiano/.test(value)) return { group: "idiomas", key: "italiano", label: "Italiano" };
+  if (/verano.*ni[ñn]|summer.*ni[ñn]/.test(value)) return { group: "idiomas", key: "verano-ninos", label: "Verano niños" };
+  if (/verano.*adult|summer.*adult/.test(value)) return { group: "idiomas", key: "verano-adultos", label: "Verano adultos" };
+  if (/bachillerato|prepa/.test(value)) return { group: "bachillerato", key: "bachillerato", label: "Bachillerato" };
+  if (/licenciatura.*ingl[eé]s|ingl[eé]s.*licenciatura/.test(value)) return { group: "licenciaturas", key: "lic-ingles", label: "Lic. en Inglés" };
+  if (/administraci[oó]n tur[ií]stica/.test(value)) return { group: "licenciaturas", key: "administracion-turistica", label: "Administración Turística" };
+  if (/relaciones p[úu]blicas|mercadotecnia/.test(value)) return { group: "licenciaturas", key: "rrpp-mercadotecnia", label: "RR. PP. y Mercadotecnia" };
+  if (/^psicolog[ií]a$/.test(value)) return { group: "licenciaturas", key: "psicologia", label: "Psicología" };
+  if (/^licenciaturas?$/.test(value)) return { group: "licenciaturas", key: "lic-sin-especificar", label: "Licenciaturas sin especificar" };
+  if (/innovaci[oó]n empresarial/.test(value)) return { group: "maestrias", key: "innovacion-empresarial", label: "Innovación Empresarial" };
+  if (/multiculturalidad|pluriling[üu]ismo/.test(value)) return { group: "maestrias", key: "multiculturalidad", label: "Multiculturalidad y Plurilingüismo" };
+  if (/^maestr[ií]as?$/.test(value)) return { group: "maestrias", key: "maestrias-sin-especificar", label: "Maestrías sin especificar" };
+  return { group: "otros", key: original, label: original };
+};
 
 const getInfoTemplateForLead = (lead) => {
   const nombre = lead?.nombre?.split(" ")[0] || "Hola";
@@ -1753,6 +1777,23 @@ export default function CRM() {
         .hamburger-btn { background: transparent; border: none; cursor: pointer; padding: 8px; color: #ffffff; }
         .mobile-only { display: none; }
         .crm-tagline { display: inline; }
+        .program-summary { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; }
+        .program-summary > summary, .program-diplomados > summary { list-style: none; cursor: pointer; }
+        .program-summary > summary::-webkit-details-marker, .program-diplomados > summary::-webkit-details-marker { display: none; }
+        .program-summary > summary { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; color: #334155; font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+        .program-summary > summary::after { content: "▸"; color: #64748b; font-size: 14px; }
+        .program-summary[open] > summary::after { content: "⌄"; }
+        .program-summary-content { padding: 0 14px 12px; }
+        .program-group-title { margin: 10px 0 5px; color: #888; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; }
+        .program-group-title:first-child { margin-top: 2px; }
+        .program-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; border-bottom: 1px solid #f1f5f9; color: #334155; font-size: 12px; }
+        .program-row:last-child { border-bottom: none; }
+        .program-count { color: #2C4A8C; font-weight: 700; }
+        .program-diplomados { margin-top: 10px; border-top: 1px solid #e2e8f0; }
+        .program-diplomados > summary { display: flex; align-items: center; justify-content: space-between; padding-top: 10px; color: #334155; font-size: 11px; font-weight: 600; }
+        .program-diplomados > summary::before { content: "▸"; margin-right: 7px; color: #64748b; }
+        .program-diplomados[open] > summary::before { content: "⌄"; }
+        .program-diplomados > summary span:first-of-type { flex: 1; }
         @media (max-width: 768px) {
           .desktop-nav { display: none !important; }
           .desktop-user { display: none !important; }
@@ -1890,25 +1931,42 @@ export default function CRM() {
           {/* Desglose por oferta educativa */}
           {(() => {
             const activos = leads.filter(l => !["inscrito","perdido","archivado"].includes(normalizeStage(l.stage)));
-            const conteo = {};
+            const conteo = { idiomas: {}, bachillerato: {}, licenciaturas: {}, maestrias: {}, otros: {}, diplomados: {} };
             activos.forEach(l => {
-              const prog = l.curso && l.curso !== "WhatsApp - Instituto Windsor" ? l.curso : null;
-              if (prog) conteo[prog] = (conteo[prog] || 0) + 1;
+              const programa = getProgramaResumen(l.curso);
+              if (!programa) return;
+              const bucket = conteo[programa.group];
+              bucket[programa.key] = bucket[programa.key] || { label: programa.label, count: 0 };
+              bucket[programa.key].count += 1;
             });
-            const items = Object.entries(conteo).sort((a,b) => b[1]-a[1]);
-            if (items.length === 0) return null;
-            const COLORES = ["#4A90D9","#A8263C","#27AE60","#E8A838","#7B5EA7","#0891B2","#D97706","#E85D38"];
+            const groups = [
+              ["idiomas", "Cursos de idiomas"],
+              ["bachillerato", "Bachillerato"],
+              ["licenciaturas", "Licenciaturas"],
+              ["maestrias", "Maestrías"],
+              ["otros", "Otros programas"],
+            ].map(([key, label]) => ({ key, label, items: Object.values(conteo[key]).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "es")) }))
+              .filter((group) => group.items.length > 0);
+            const diplomados = Object.values(conteo.diplomados).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "es"));
+            if (groups.length === 0 && diplomados.length === 0) return null;
             return (
-              <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "8px 14px", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                <span style={{ fontSize: 9, color: "#888", letterSpacing: 1.5, textTransform: "uppercase", marginRight: 4 }}>Por programa</span>
-                {items.map(([prog, n], i) => (
-                  <span key={prog} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: COLORES[i % COLORES.length] + "15", border: `1px solid ${COLORES[i % COLORES.length]}40`, borderRadius: 20, padding: "3px 10px", fontSize: 11, color: "#1a1a1a" }}>
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: COLORES[i % COLORES.length], flexShrink: 0 }} />
-                    {prog}
-                    <strong style={{ color: COLORES[i % COLORES.length] }}>{n}</strong>
-                  </span>
-                ))}
-              </div>
+              <details className="program-summary">
+                <summary>Por programa</summary>
+                <div className="program-summary-content">
+                  {groups.map((group) => (
+                    <div key={group.key}>
+                      <div className="program-group-title">{group.label}</div>
+                      {group.items.map((item) => <div className="program-row" key={item.label}><span>{item.label}</span><strong className="program-count">{item.count}</strong></div>)}
+                    </div>
+                  ))}
+                  {diplomados.length > 0 && (
+                    <details className="program-diplomados">
+                      <summary><span>Diplomados</span><strong className="program-count">{diplomados.reduce((total, item) => total + item.count, 0)}</strong></summary>
+                      {diplomados.map((item) => <div className="program-row" key={item.label}><span>{item.label}</span><strong className="program-count">{item.count}</strong></div>)}
+                    </details>
+                  )}
+                </div>
+              </details>
             );
           })()}
         </div>
