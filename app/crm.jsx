@@ -583,16 +583,26 @@ export default function CRM() {
     fetchUltimosUsuarioMensajes(data || []);
   };
 
-  // La ventana de servicio de 24h de WhatsApp se cuenta desde el último mensaje
-  // del LEAD, no desde `ultimo_mensaje_at` (que también se actualiza cuando
-  // responde el bot/agente humano). Como `ultimo_mensaje_at` es siempre >= el
-  // último mensaje del lead, solo hace falta consultar `whatsapp_mensajes` para
-  // las conversaciones cuyo `ultimo_mensaje_at` cae dentro de las últimas 24h —
-  // el resto ya está garantizado fuera de ventana sin necesidad de consultarlo.
+  // Se usa para dos cosas que necesitan el último mensaje del LEAD (rol
+  // "usuario"), no `ultimo_mensaje_at` (que también se actualiza cuando
+  // responde el bot/agente humano):
+  // 1) la ventana de servicio de 24h de WhatsApp
+  // 2) el punto verde de "no leído" (una conversación NO es no-leída solo
+  //    porque el asesor/bot acaba de contestar)
+  // Para no consultar whatsapp_mensajes de todas las conversaciones, solo se
+  // pide para las que hacen falta: las que están dentro de las últimas 24h
+  // (para el punto 1) o las que el chequeo básico (ultimo_mensaje_at vs
+  // visto_at) marca como posible no-leída (para el punto 2) — el resto ya
+  // está garantizado fuera de ventana / leída sin necesidad de consultarlo.
   const fetchUltimosUsuarioMensajes = async (convs) => {
     const ahora = Date.now();
     const convIds = convs
-      .filter((c) => c.ultimo_mensaje_at && (ahora - new Date(c.ultimo_mensaje_at).getTime()) < 24 * 60 * 60 * 1000)
+      .filter((c) => {
+        if (!c.ultimo_mensaje_at) return false;
+        const dentroVentana = (ahora - new Date(c.ultimo_mensaje_at).getTime()) < 24 * 60 * 60 * 1000;
+        const candidatoNoLeido = !c.visto_at || new Date(c.ultimo_mensaje_at) > new Date(c.visto_at);
+        return dentroVentana || candidatoNoLeido;
+      })
       .map((c) => c.id);
     if (convIds.length === 0) {
       setUltimoUsuarioAtPorConv({});

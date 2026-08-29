@@ -512,10 +512,19 @@ function formatListTime(dateStr) {
     : { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "America/Mexico_City" });
 }
 
-function isConvUnread(c) {
+// "No leído" debe depender de si el ÚLTIMO MENSAJE DEL LEAD (rol "usuario")
+// es más reciente que visto_at — no de ultimo_mensaje_at, que también se
+// actualiza cuando responde el bot o el propio asesor (eso marcaba como no
+// leídas conversaciones donde el asesor acababa de contestar). lastUserMsgAt
+// viene de ultimoUsuarioAtPorConv, precomputado en app/crm.jsx solo para las
+// conversaciones candidatas (ver fetchUltimosUsuarioMensajes).
+function isConvUnread(c, lastUserMsgAt) {
   if (!c.ultimo_mensaje_at) return false;
+  const candidato = !c.visto_at || new Date(c.ultimo_mensaje_at) > new Date(c.visto_at);
+  if (!candidato) return false;
+  if (!lastUserMsgAt) return false;
   if (!c.visto_at) return true;
-  return new Date(c.ultimo_mensaje_at) > new Date(c.visto_at);
+  return new Date(lastUserMsgAt) > new Date(c.visto_at);
 }
 
 function ConversationsPanel({
@@ -622,7 +631,7 @@ function ConversationsPanel({
     setShowInfoCards(false);
     await confirmReturnToBotIfNeeded(async () => {
       setSelectedConv(c);
-      if (isConvUnread(c)) setConvVisto(c, true);
+      if (isConvUnread(c, ultimoUsuarioAtPorConv?.[c.id])) setConvVisto(c, true);
       await fetchConvMessages(c.id);
       setAgentMessage("");
       setMobileView("chat");
@@ -897,7 +906,7 @@ function ConversationsPanel({
                 const time = formatListTime(c.ultimo_mensaje_at);
                 const ultimoUsuarioAt = ultimoUsuarioAtPorConv?.[c.id];
                 const restanteVentana = tiempoRestanteVentana(ultimoUsuarioAt);
-                const unread = isConvUnread(c);
+                const unread = isConvUnread(c, ultimoUsuarioAt);
                 return (
                   <div
                     key={c.id}

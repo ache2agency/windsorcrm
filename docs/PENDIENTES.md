@@ -37,7 +37,10 @@ Documento para anotar lo que queda por hacer y los errores a resolver. Actualiza
 - [ ] Afinar el guardado de notas del lead para registrar un solo evento al guardar/blurear, no por cada tecla
 
 ### **Mobile / UX — Revisión pendiente**
-- [ ] Probar el CRM completo en iPhone/Android después de los cambios responsive de hoy
+- [ ] Probar el CRM completo en iPhone/Android después de los cambios responsive y de rendimiento del 2026-08-28
+- [ ] Validar en celular: Kanban sin rebote horizontal, filtros sin desbordamiento y tabla LISTA con scroll horizontal táctil
+- [ ] Validar en celular una cuenta con muchas conversaciones: scroll fluido, abrir → volver → reabrir el mismo chat y llegada de mensajes nuevos sin parpadeo
+- [ ] Aplicar/verificar `supabase/migration_conversaciones_visto.sql` en producción y comprobar que el punto verde solo aparece cuando el último mensaje es del prospecto
 - [ ] Verificar que el menú hamburguesa se cierra al hacer scroll o al tocar fuera
 - [ ] Revisar que las demás vistas (KANBAN, LISTA, AGENDA, BASE, FLOWS, BOT) se ven bien en móvil — sólo se ajustaron STATS, LAB BOT, modales y CONVERSACIONES por ahora
 
@@ -106,5 +109,6 @@ Documento para anotar lo que queda por hacer y los errores a resolver. Actualiza
 ---
 
 - **CRM mobile-ready (2026-03-30):** viewport meta + PWA (manifest.json, iconos). Hamburger menu con dropdown `position:absolute top:100%` anclado al header. Stats 2col, LAB BOT stack vertical, modales bottom-sheet en mobile. ConversationsPanel con toggle list/chat y botón "← Conversaciones". Header limpio en mobile: oculta "CRM v1.0", badge ADMIN, reduce título a 22px.
+- **UX y rendimiento móvil (2026-08-28):** se corrigió el layout forzado a ~1400 px; filtros responsivos, tabla LISTA con scroll táctil y Kanban sin scroll/rebote horizontal infinito. Se memoizaron filtros/etapas y lookups de leads. CONVERSACIONES ahora virtualiza su lista para cuentas de ~2,000 chats, permite reabrir el mismo chat en móvil y actualiza mensajes cada 8 s sin vaciar ni saltar el historial. Se agregó punto verde de no leído compartido, basado exclusivamente en el último mensaje del prospecto; migración requerida: `supabase/migration_conversaciones_visto.sql`.
 
-*Última actualización (2026-03-30): Flujo bot definido y hardcodeado. CRM completamente adaptado a móvil: PWA, hamburger menu, responsive en todas las secciones clave.*
+*Última actualización (2026-08-28): Se registraron las correcciones de UX/rendimiento móvil y el estado del indicador de no leído.*

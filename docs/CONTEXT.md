@@ -239,7 +239,7 @@ La lógica de roles se basa en el campo `rol` en `profiles` y/o metadatos de usu
 - **max_tokens webhook**: aumentado a 800 para respuestas completas.
 - **Pendiente**: agregar fechas de inicio de cada programa a la BASE.
 
-### 8. Diseño responsive y PWA (actualizado 2026-03-30)
+### 8. Diseño responsive, rendimiento móvil y PWA (actualizado 2026-08-28)
 
 - **PWA instalable en móvil**:
   - `public/manifest.json`: nombre, theme_color `#E8A838`, background `#0e0e0e`, iconos `icon-192.png` / `icon-512.png`.
@@ -263,6 +263,16 @@ La lógica de roles se basa en el campo `rol` en `profiles` y/o metadatos de usu
   - Filtros apilados verticalmente en mobile.
   - CSS en `<style>` interno con clases `.convs-list-panel` / `.convs-chat-panel` toggled por `mobileView`.
 
+- **Ajustes de UX móvil y rendimiento (2026-08-28)**:
+  - El contenedor principal ahora respeta el ancho real del viewport (`width: 100%`, `minWidth: 0` y `boxSizing: border-box`); eliminó el layout que podía quedar forzado a ~1400 px en móvil.
+  - La fila de filtros de leads permite wrap y sus controles se encogen de forma segura. La tabla de LISTA conserva todas sus columnas mediante scroll horizontal táctil, en vez de recortarlas.
+  - El scroll horizontal del Kanban queda contenido para evitar el rebote/scroll encadenado de iOS que se percibía como infinito.
+  - Los filtros y agrupaciones de leads se memoizan, y la comprobación de conversación ligada usa un `Set`; evita cálculos repetidos al renderizar Kanban y KPIs.
+  - La lista de CONVERSACIONES está virtualizada: solo monta las filas visibles más un margen, por lo que una cuenta con ~2,000 conversaciones sigue respondiendo al abrir o cambiar chats. La búsqueda de lead ligado usa un `Map` memoizado.
+  - En móvil se puede volver a abrir la misma conversación tras usar la flecha de regreso; también recarga el historial de forma silenciosa.
+  - Con un chat abierto, los mensajes se consultan cada 8 s solo si la app está visible. Los refrescos silenciosos no vacían, parpadean ni fuerzan scroll si el historial no cambió.
+  - Indicador de no leído compartido entre asesores: punto verde, nombre/previsualización destacados y marcado como visto al abrir. La condición usa el último mensaje del prospecto (`rol: usuario`), no una respuesta reciente del bot o asesor. Requiere que esté aplicada `supabase/migration_conversaciones_visto.sql` (`visto_at`).
+
 ### 9. Marketing y Ventas (Ecosistema Externo)
 
 - **Documentación completa**: Ver `docs/marketing/` para toda la estrategia
@@ -283,4 +293,4 @@ La lógica de roles se basa en el campo `rol` en `profiles` y/o metadatos de usu
 
 Con esto, cualquier persona (incluyéndote tú en unas semanas) puede entender rápido qué hace el proyecto y por dónde empezar.
 
-*Última actualización (2026-03-30): Flujo bot completamente simulado y definido. Catálogo hardcodeado, mensajes de inscripción y clase de prueba hardcodeados, CTA A/B por tipo de programa, fase asesor con info de planteles y captura de teléfono. CRM adaptado a móvil: viewport, PWA, hamburger menu, stats 2 col, LAB BOT stack, modales bottom-sheet, ConversationsPanel con navegación list/chat.*
+*Última actualización (2026-08-28): Se documentaron las mejoras de UX y rendimiento móvil: layout sin ancho forzado, filtros/tablas adaptables, Kanban sin rebote horizontal, lista de conversaciones virtualizada, reapertura correcta del chat, refresco silencioso y no leídos basados en mensajes del prospecto.*
