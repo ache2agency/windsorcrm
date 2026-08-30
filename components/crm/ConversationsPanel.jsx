@@ -282,7 +282,7 @@ Modalidad: Presencial | Duración: 2 años
   // Textos copiados tal cual de los INSCRIPCION_*_MSG en app/api/whatsapp/webhook/route.ts
   // (incluye TEXTO_PLANTELES ya resuelto con IGUALA_ABIERTO=false) — si cambian allá, actualizar aquí también.
   { grupo: "Inscripción", items: [
-    { label: "Idiomas", texto: `🔴PROCESO DE INSCRIPCIÓN CURSOS DE IDIOMAS🔴
+    { label: "Cursos libres", texto: `🔴PROCESO DE INSCRIPCIÓN CURSOS DE IDIOMAS🔴
 
 Antes que nada permítenos felicitarte por tomar acción en tu proceso de crecimiento profesional y personal, estamos seguros que has tomado la decisión correcta y nos dará mucho gusto acompañarte en este proceso.
 
@@ -308,7 +308,7 @@ Por favor, sigue las indicaciones para completar tu inscripción.
 Listo, ya eres parte de la familia Windsor 🎉🎉🎉
 
 ¡¡BIENVENID@!!` },
-    { label: "Licenciatura (en línea)", texto: `¡Perfecto! Aquí está todo lo que necesitas:
+    { label: "Licenciaturas (en línea)", texto: `¡Perfecto! Aquí está todo lo que necesitas:
 
 *📄 Documentos necesarios:*
 1. Acta de nacimiento
@@ -417,6 +417,93 @@ Visítanos con tus documentos — el pago lo puedes realizar directamente en las
 🕐 Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
 
 🚨 *¡Cupo limitado!* Asegura tu lugar pronto. 😊` },
+  ]},
+  { grupo: "Información", items: [
+    { label: "Oferta educativa", texto: `¿Cuál de nuestras ofertas educativas te interesa?
+
+🔴PRESENCIALES
+
+🔵BACHILLERATO
+
+🔵LICENCIATURAS
+
+•Licenciatura en Inglés
+•Relaciones públicas y mercadotecnia
+•Administración turística
+•Psicología
+
+🔵MAESTRÍAS
+
+•Innovación empresarial
+•Multiculturalidad y plurilingüismo
+
+🔵CURSOS DE IDIOMAS
+
+•Inglés para adultos
+•Inglés para niños
+•Francés
+•Italiano
+
+🔵CURSOS Y TALLERES
+
+•Habilidades para la práctica psicoterapéutica
+
+🔴EN LÍNEA
+
+•Cursos de Inglés
+•Licenciatura en Inglés
+•Relaciones públicas y mercadotecnia
+•Administración turística
+
+🔵DIPLOMADOS
+
+•Administración de Instituciones de la Salud
+•Administración de recursos humanos
+•Administración de restaurantes
+•Análisis y Evaluación de Políticas Públicas
+•Comunicación y Liderazgo en el Sector Público
+•Comunicación y Liderazgo empresarial
+•Competencias educativas
+•Comunicación y Gobierno Digital
+•Contabilidad
+•Creación y dirección de franquicias
+•Ciencias del deporte
+•Enfermería
+•Epidemiología
+•Equidad de género y diversidad sexual
+•Farmacología
+•Gamificación educativa
+•Gerontología
+•Innovación y Gobierno Digital
+•Mindfulness
+•Nutrición deportiva
+•Nutrición y Dietética
+•Políticas y Procesos de Participación Ciudadana
+•Psicología criminológica
+•Psicología educativa
+•Realidad Virtual
+•Salud pública
+•Tecnología educativa
+•Terapia ocupacional
+•Tanatología
+•Enseñanza del idioma inglés
+•Enseñanza del idioma español` },
+    { label: "Contacto y dirección", texto: `Con gusto te atenderemos en nuestras instalaciones. 😊
+
+📍 Instituto Windsor — Chilpancingo
+Sofía Tena #1, Col. Viguri.
+
+📞 Teléfonos:
+747 472 8775
+747 472 2466
+747 491 4498
+
+🕐 Horario de atención:
+Lun–Vie 8:00–14:00 y 17:00–20:00
+Sáb 8:00–14:00
+
+🗺️ Cómo llegar:
+https://maps.app.goo.gl/y7xdD5AxWtFav6Yc9` },
   ]},
   { grupo: "Seguimiento", items: [
     { label: "Continuar inscripción", texto: `¡Hola! 😊
