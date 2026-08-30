@@ -17,6 +17,7 @@ export const metadata: Metadata = {
   description: "CRM Instituto Windsor",
   manifest: "/manifest.json",
   icons: {
+    icon: "/icon.png",
     apple: "/apple-touch-icon.png",
   },
   appleWebApp: {
