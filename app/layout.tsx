@@ -17,8 +17,8 @@ export const metadata: Metadata = {
   description: "CRM Instituto Windsor",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon.png",
-    apple: "/apple-touch-icon.png",
+    icon: "/windsor-app-icon.png",
+    apple: "/apple-touch-icon-windsor.png",
   },
   appleWebApp: {
     capable: true,
@@ -42,7 +42,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Windsor CRM" />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-windsor.png" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
