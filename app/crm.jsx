@@ -2799,7 +2799,7 @@ export default function CRM() {
         onClick={() => setChatOpen((v) => !v)}
         style={{
           position: "fixed",
-          bottom: 24,
+          bottom: 96,
           right: 24,
           zIndex: 900,
           width: 52,
@@ -2824,7 +2824,7 @@ export default function CRM() {
         <div
           style={{
             position: "fixed",
-            bottom: 88,
+            bottom: 160,
             right: 24,
             width: 360,
             maxHeight: 520,
