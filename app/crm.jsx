@@ -1248,6 +1248,15 @@ export default function CRM() {
     () => ["todas", ...Array.from(new Set(whatsConvs.map((c) => c.fase).filter(Boolean)))],
     [whatsConvs]
   );
+  const conversacionesVentanaActiva = useMemo(() => {
+    const ahora = Date.now();
+    return whatsConvs.filter((conv) => {
+      const ultimoUsuarioAt = ultimoUsuarioAtPorConv[conv.id];
+      if (!ultimoUsuarioAt) return false;
+      const elapsed = ahora - new Date(ultimoUsuarioAt).getTime();
+      return elapsed >= 0 && elapsed < 24 * 60 * 60 * 1000;
+    }).length;
+  }, [whatsConvs, ultimoUsuarioAtPorConv]);
   const filteredWhatsConvs = useMemo(() => whatsConvs.filter((conv) => {
     // Asesores solo ven conversaciones de sus leads
     if (!isAdmin && currentProfile?.id) {
@@ -1265,11 +1274,15 @@ export default function CRM() {
       (convModeFilter === "humano" ? !!conv.modo_humano : !conv.modo_humano);
     const matchesPhase =
       convPhaseFilter === "todas" || (conv.fase || "—") === convPhaseFilter;
+    // La ventana de WhatsApp se abre por el ÚLTIMO mensaje del prospecto,
+    // no por una respuesta posterior del bot o del asesor.
+    const ultimoUsuarioAt = ultimoUsuarioAtPorConv[conv.id];
+    const elapsedDesdeUsuario = ultimoUsuarioAt ? Date.now() - new Date(ultimoUsuarioAt).getTime() : null;
     const matchesVentana = !convVentanaFilter ||
-      (conv.ultimo_mensaje_at && (Date.now() - new Date(conv.ultimo_mensaje_at).getTime()) < 24 * 60 * 60 * 1000);
+      (elapsedDesdeUsuario !== null && elapsedDesdeUsuario >= 0 && elapsedDesdeUsuario < 24 * 60 * 60 * 1000);
     const matchesAtorada = !convAtoradaFilter || esAtorada(conv);
     return matchesSearch && matchesMode && matchesPhase && matchesVentana && matchesAtorada;
-  }), [whatsConvs, isAdmin, currentProfile, leads, convSearch, convModeFilter, convPhaseFilter, convVentanaFilter, convAtoradaFilter]);
+  }), [whatsConvs, ultimoUsuarioAtPorConv, isAdmin, currentProfile, leads, convSearch, convModeFilter, convPhaseFilter, convVentanaFilter, convAtoradaFilter]);
 
   const selectedConvLead = leads.find((lead) => lead.id === selectedConv?.lead_id) || null;
   const selectedConvOwner = vendedores.find((v) => v.id === selectedConv?.tomado_por) || null;
@@ -2657,6 +2670,7 @@ export default function CRM() {
             conversationPhaseOptions={conversationPhaseOptions}
             convVentanaFilter={convVentanaFilter}
             setConvVentanaFilter={setConvVentanaFilter}
+            conversacionesVentanaActiva={conversacionesVentanaActiva}
             convAtoradaFilter={convAtoradaFilter}
             setConvAtoradaFilter={setConvAtoradaFilter}
             atoradasCount={atoradasCount}

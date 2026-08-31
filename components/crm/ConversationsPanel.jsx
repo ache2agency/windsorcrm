@@ -640,6 +640,7 @@ function ConversationsPanel({
   getPhaseLabel,
   convVentanaFilter,
   setConvVentanaFilter,
+  conversacionesVentanaActiva,
   convAtoradaFilter,
   setConvAtoradaFilter,
   atoradasCount,
@@ -988,7 +989,7 @@ function ConversationsPanel({
                 }}
                 title="Mostrar solo conversaciones con actividad en las últimas 24h"
               >
-                ⚡ Ventana activa (24h)
+                ⚡ Ventana activa (24h){typeof conversacionesVentanaActiva === "number" ? ` · ${conversacionesVentanaActiva}` : ""}
               </button>
             </div>
           )}
