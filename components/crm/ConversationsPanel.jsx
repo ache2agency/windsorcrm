@@ -543,6 +543,7 @@ const WA_TEAL = "#128C7E";
 const WA_BUBBLE_OUT = "#DCF8C6";
 const WA_BUBBLE_IN = "#FFFFFF";
 const WA_BG = "#E5DDD5";
+const MANUAL_UNREAD_AT = "1970-01-01T00:00:00.000Z";
 
 function getInitials(name) {
   if (!name) return "?";
@@ -608,10 +609,12 @@ function formatListTime(dateStr) {
 // conversaciones candidatas (ver fetchUltimosUsuarioMensajes).
 function isConvUnread(c, lastUserMsgAt) {
   if (!c.ultimo_mensaje_at) return false;
+  // La fecha sentinel es una acción manual del asesor: debe restaurar el
+  // punto verde aunque el mapa del último mensaje todavía no se haya refrescado.
+  if (c.visto_at === MANUAL_UNREAD_AT) return true;
   const candidato = !c.visto_at || new Date(c.ultimo_mensaje_at) > new Date(c.visto_at);
   if (!candidato) return false;
   if (!lastUserMsgAt) return false;
-  if (!c.visto_at) return true;
   return new Date(lastUserMsgAt) > new Date(c.visto_at);
 }
 
@@ -842,9 +845,10 @@ function ConversationsPanel({
           .wa-root { flex-direction: column; width: 100%; max-width: 100%; border-radius: 0; overflow: hidden; }
           .wa-list { display: ${mobileView === "list" ? "flex" : "none"}; width: 100%; max-width: 100%; overflow-x: hidden; flex: 1; min-height: 0; }
           .wa-chat { display: ${mobileView === "chat" ? "flex" : "none"}; width: 100%; max-width: 100%; overflow-x: hidden; }
-          .wa-chat-header { padding: 8px 10px; gap: 6px; overflow: hidden; }
-          .wa-chat-actions { gap: 4px; }
-          .wa-ctrl-btn { padding: 4px 7px; font-size: 10px; }
+          .wa-chat-header { padding: 8px 10px; gap: 6px; flex-wrap: wrap; overflow: visible; }
+          .wa-chat-header-info { min-width: 0; }
+          .wa-chat-actions { width: 100%; gap: 4px; overflow-x: auto; padding: 2px 0; justify-content: flex-end; -webkit-overflow-scrolling: touch; }
+          .wa-ctrl-btn { padding: 5px 7px; font-size: 10px; white-space: nowrap; flex-shrink: 0; }
           .wa-back-btn { display: block !important; font-size: 18px; }
           .wa-info-cards { grid-template-columns: 1fr 1fr; display: ${showInfoCards ? "grid" : "none"}; padding: 6px 10px; gap: 6px; }
           .wa-info-card { padding: 6px 8px; }

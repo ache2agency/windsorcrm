@@ -953,7 +953,9 @@ export default function CRM() {
 
   const setConvVisto = async (conv, visto) => {
     if (!conv) return;
-    const visto_at = visto ? new Date().toISOString() : null;
+    // Fecha sentinel para "no leído" manual. Evita confundir una base que aún
+    // no tenga la migración `visto_at` aplicada con una conversación pendiente.
+    const visto_at = visto ? new Date().toISOString() : "1970-01-01T00:00:00.000Z";
     const { error } = await supabase
       .from("whatsapp_conversaciones")
       .update({ visto_at })
@@ -961,6 +963,7 @@ export default function CRM() {
     if (error) return; // no bloquear la UI por esto — no es crítico
     setSelectedConv((prev) => (prev && prev.id === conv.id ? { ...prev, visto_at } : prev));
     setWhatsConvs((prev) => prev.map((c) => (c.id === conv.id ? { ...c, visto_at } : c)));
+    if (!visto) showToast("Conversación marcada como no leída");
   };
 
   /** Marca en bulk como "perdidas" las conversaciones seleccionadas (limpieza de atoradas viejas sin caso). */
