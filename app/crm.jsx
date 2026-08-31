@@ -9,6 +9,7 @@ import LeadDetailModal from "@/components/crm/LeadDetailModal";
 import NewAppointmentModal from "@/components/crm/NewAppointmentModal";
 import NewLeadModal from "@/components/crm/NewLeadModal";
 import SeguimientosPanel from "@/components/crm/SeguimientosPanel";
+import ReactivacionesPanel from "@/components/crm/ReactivacionesPanel";
 import { chunkArray } from "@/lib/db-utils";
 import { esDiplomado } from "@/lib/whatsapp/programas";
 const supabase = createClient();
@@ -198,6 +199,9 @@ export default function CRM() {
   });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showAyuda, setShowAyuda] = useState(false);
+  const [exitDecisionOpen, setExitDecisionOpen] = useState(false);
+  const [pendingExitAction, setPendingExitAction] = useState(null);
+  const leadsRequestRef = useRef(0);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -488,37 +492,64 @@ export default function CRM() {
     fetchWhatsConvs();
   };
 
-  const fetchLeads = async (userId, admin) => {
+  const fetchLeads = async (userId = currentUser?.id, admin = currentProfile?.rol === "admin") => {
     setLoading(true);
-    // Supabase/PostgREST cap cada respuesta en 1000 filas por default — sin paginar,
-    // cualquier lead fuera de los 1000 más recientes (ordenados por created_at) queda
-    // invisible en el CRM: no carga al navegador, así que ni el buscador del Kanban ni
-    // la tabla lo encuentran aunque exista en la base (bug real 2026-08-08, caso
-    // +527471247133, ya con 1566 leads en total). Se pagina en bloques de 1000 hasta
-    // agotar los resultados.
-    const PAGE_SIZE = 1000;
-    let all = [];
-    let from = 0;
-    let pageError = null;
-    for (;;) {
+    const requestId = ++leadsRequestRef.current;
+    // Pintamos primero una parte pequeña del pipeline y cargamos el resto después.
+    // Esto conserva la búsqueda y el Kanban completos sin congelar el arranque móvil.
+    const INITIAL_PAGE_SIZE = 250;
+    const PAGE_SIZE = 500;
+    const makeQuery = (from, to) => {
       let query = supabase
         .from("leads")
         .select("*")
         .order("created_at", { ascending: false })
-        .range(from, from + PAGE_SIZE - 1);
-      // Vendedores solo ven sus leads asignados
-      if (!admin) {
-        query = query.eq("asignado_a", userId);
-      }
-      const { data, error } = await query;
-      if (error) { pageError = error; break; }
+        .range(from, to);
+      if (!admin) query = query.eq("asignado_a", userId);
+      return query;
+    };
+
+    const { data: initialPage, error: initialError } = await makeQuery(0, INITIAL_PAGE_SIZE - 1);
+    if (requestId !== leadsRequestRef.current) return [];
+    if (initialError) {
+      showToast("Error cargando leads", "error");
+      setLoading(false);
+      return [];
+    }
+
+    let all = initialPage || [];
+    setLeads(all);
+    setLoading(false);
+    if (all.length < INITIAL_PAGE_SIZE) return all;
+
+    // Ceder un frame al navegador antes de completar la carga histórica.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    let from = INITIAL_PAGE_SIZE;
+    for (;;) {
+      const { data, error } = await makeQuery(from, from + PAGE_SIZE - 1);
+      if (requestId !== leadsRequestRef.current) return all;
+      if (error) { showToast("No se pudieron cargar todos los leads", "error"); break; }
       all = all.concat(data || []);
+      setLeads(all);
       if (!data || data.length < PAGE_SIZE) break;
       from += PAGE_SIZE;
     }
-    if (pageError) showToast("Error cargando leads", "error");
-    else setLeads(all);
-    setLoading(false);
+    return all;
+  };
+
+  const openConversationForLead = async (lead) => {
+    if (!lead) return;
+    setSelectedLead(null);
+    setView("convs");
+    setConvSearch("");
+    const refreshedConvs = await fetchWhatsConvs();
+    const conv = (refreshedConvs || []).find((c) => c.lead_id === lead.id || c.whatsapp === lead.whatsapp);
+    if (!conv) {
+      showToast("Este lead no tiene una conversación vinculada", "error");
+      return;
+    }
+    setSelectedConv(conv);
+    await fetchConvMessages(conv.id);
   };
 
   const fetchCitas = async (userId, admin) => {
@@ -602,11 +633,12 @@ export default function CRM() {
         data = await fetchPaginated("id, whatsapp, lead_id, estado, ultimo_mensaje_at");
       } catch {
         showToast("Error cargando conversaciones de WhatsApp", "error");
-        return;
+        return [];
       }
     }
     setWhatsConvs(data || []);
     fetchUltimosUsuarioMensajes(data || []);
+    return data || [];
   };
 
   // Se usa para dos cosas que necesitan el último mensaje del LEAD (rol
@@ -970,16 +1002,29 @@ export default function CRM() {
     }
   };
 
-  /** Si estamos en una conv en modo humano y el usuario va a salir, pide confirmar. Aceptar = pasar a BOT y ejecutar callback; Cancelar = no hacer nada. */
+  /** Al salir de una conversación tomada por un asesor, permite elegir si el bot retoma el control o si se conserva el modo humano. */
   const confirmReturnToBotIfNeeded = async (thenDo) => {
     if (view !== "convs" || !selectedConv?.modo_humano) {
       thenDo();
       return;
     }
-    const ok = window.confirm("Al salir, la conversación pasará a modo BOT y el bot volverá a responder. ¿Aceptar o Cancelar?");
-    if (!ok) return;
+    setPendingExitAction(() => thenDo);
+    setExitDecisionOpen(true);
+  };
+
+  const continueManualAndLeave = () => {
+    const action = pendingExitAction;
+    setExitDecisionOpen(false);
+    setPendingExitAction(null);
+    action?.();
+  };
+
+  const returnToBotAndLeave = async () => {
+    const action = pendingExitAction;
+    setExitDecisionOpen(false);
+    setPendingExitAction(null);
     await setHumanMode(selectedConv, false);
-    thenDo();
+    action?.();
   };
 
   const sendAgentReply = async (messageText) => {
@@ -1858,6 +1903,7 @@ export default function CRM() {
                 </span>
               )}
             </button>
+            <button className={`nav-btn ${view === "reactivaciones" ? "active" : ""}`} onClick={() => confirmReturnToBotIfNeeded(() => setView("reactivaciones"))}>REACTIVACIONES</button>
             <button
               className={`nav-btn ${view === "revision" ? "active" : ""}`}
               onClick={() => confirmReturnToBotIfNeeded(() => { setView("revision"); fetchRevisionDiaria(); })}
@@ -1900,6 +1946,7 @@ export default function CRM() {
               { label: "AGENDA", v: "agenda", action: () => setView("agenda") },
               { label: "CONVERSACIONES", v: "convs", action: () => { setView("convs"); fetchWhatsConvs(); setSelectedConv(null); setConvMessages([]); } },
               { label: `SEGUIMIENTOS${pendientesCount > 0 ? ` (${pendientesCount})` : ""}`, v: "seguimientos", action: () => { setView("seguimientos"); setPendientesCount(0); } },
+              { label: "REACTIVACIONES", v: "reactivaciones", action: () => setView("reactivaciones") },
               { label: "REVISIÓN", v: "revision", action: () => { setView("revision"); fetchRevisionDiaria(); } },
               ...(isAdmin ? [
                 { label: "BASE", v: "base", action: () => { setView("base"); loadDocumentos(); } },
@@ -2029,14 +2076,7 @@ export default function CRM() {
             setSelectedLead={setSelectedLead}
             getNombreVendedor={getNombreVendedor}
             goToConversation={(lead) => {
-              const conv = whatsConvs.find(c => c.lead_id === lead.id || c.whatsapp === lead.whatsapp);
-              fetchWhatsConvs().then(() => {
-                setView("convs");
-                if (conv) {
-                  setSelectedConv(conv);
-                  fetchConvMessages(conv.id);
-                }
-              });
+              openConversationForLead(lead);
             }}
             hasConversation={hasConversation}
           />
@@ -2602,6 +2642,7 @@ export default function CRM() {
         {/* CONVERSACIONES WHATSAPP */}
         {view === "convs" && (
           <ConversationsPanel
+            key={selectedConv?.id || "no-selected-conv"}
             filteredWhatsConvs={filteredWhatsConvs}
             ultimoUsuarioAtPorConv={ultimoUsuarioAtPorConv}
             convSearch={convSearch}
@@ -2668,6 +2709,17 @@ export default function CRM() {
                   fetchConvMessages(conv.id);
                 }
               });
+            }}
+          />
+        )}
+
+        {view === "reactivaciones" && (
+          <ReactivacionesPanel
+            onOpenConversation={(conversationId) => {
+              const conv = whatsConvs.find(c => c.id === conversationId);
+              setView("convs");
+              if (conv) { setSelectedConv(conv); fetchConvMessages(conv.id); }
+              else fetchWhatsConvs();
             }}
           />
         )}
@@ -2765,12 +2817,7 @@ export default function CRM() {
             deleteLead={deleteLead}
             updateLeadField={updateLeadField}
             goToConversation={(l) => {
-              const conv = whatsConvs.find(c => c.lead_id === l.id || c.whatsapp === l.whatsapp);
-              setSelectedLead(null);
-              fetchWhatsConvs().then(() => {
-                setView("convs");
-                if (conv) { setSelectedConv(conv); fetchConvMessages(conv.id); }
-              });
+              openConversationForLead(l);
             }}
           />
         );
@@ -2954,6 +3001,26 @@ export default function CRM() {
       {toast && (
         <div className="toast" style={{ background: toast.type === "error" ? "#fee2e2" : "#dcfce7", border: `1px solid ${toast.type === "error" ? "#fca5a5" : "#86efac"}`, color: toast.type === "error" ? "#991b1b" : "#15803d" }}>
           {toast.msg}
+        </div>
+      )}
+
+      {exitDecisionOpen && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="exit-chat-title">
+          <div className="modal" style={{ maxWidth: 440, padding: 24 }}>
+            <div id="exit-chat-title" style={{ fontSize: 18, fontWeight: 700, color: "#1e293b" }}>¿Qué quieres hacer con este chat?</div>
+            <p style={{ color: "#64748b", fontSize: 13, lineHeight: 1.55, margin: "10px 0 20px" }}>
+              Este prospecto está en modo manual. Puedes dejar el control al asesor o devolver la conversación al bot antes de salir.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              <button className="btn" onClick={continueManualAndLeave} style={{ padding: "12px 14px", textAlign: "left", background: "#fff", border: "1px solid #cbd5e1", color: "#1e293b" }}>
+                <strong>Continuar manual</strong><span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 3 }}>El asesor conserva el control; el bot no responderá.</span>
+              </button>
+              <button className="btn" onClick={returnToBotAndLeave} style={{ padding: "12px 14px", textAlign: "left", background: "#2C4A8C", color: "#fff" }}>
+                <strong>Regresar al bot</strong><span style={{ display: "block", fontSize: 11, opacity: .8, marginTop: 3 }}>El bot podrá responder al prospecto nuevamente.</span>
+              </button>
+              <button className="btn" onClick={() => { setExitDecisionOpen(false); setPendingExitAction(null); }} style={{ padding: "8px", background: "transparent", color: "#64748b" }}>Cancelar</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

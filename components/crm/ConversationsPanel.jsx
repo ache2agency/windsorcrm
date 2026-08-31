@@ -506,6 +506,7 @@ Sáb 8:00–14:00
 https://maps.app.goo.gl/y7xdD5AxWtFav6Yc9` },
   ]},
   { grupo: "Seguimiento", items: [
+    { label: "¿Qué programa te interesa?", texto: `Hola 😊 Esperamos que la información te haya sido útil. ¿Hay algún programa que te haya llamado la atención? Estamos para ayudarte.` },
     { label: "Continuar inscripción", texto: `¡Hola! 😊
 
 Quería saber si pudiste revisar la información que te compartimos. Con gusto resolvemos cualquier duda y te acompañamos para continuar con tu inscripción.
@@ -671,7 +672,7 @@ function ConversationsPanel({
   STAGES,
   normalizeStage,
 }) {
-  const [mobileView, setMobileView] = useState("list");
+  const [mobileView, setMobileView] = useState(() => selectedConv?.id ? "chat" : "list");
   const [showInfoCards, setShowInfoCards] = useState(false);
   const [showEtapaModal, setShowEtapaModal] = useState(false);
   const [etapaStage, setEtapaStage] = useState("primer_contacto");
@@ -838,7 +839,7 @@ function ConversationsPanel({
 
         /* mobile */
         @media (max-width: 768px) {
-          .wa-root { flex-direction: column; width: 100vw; max-width: 100vw; border-radius: 0; overflow: hidden; }
+          .wa-root { flex-direction: column; width: 100%; max-width: 100%; border-radius: 0; overflow: hidden; }
           .wa-list { display: ${mobileView === "list" ? "flex" : "none"}; width: 100%; max-width: 100%; overflow-x: hidden; flex: 1; min-height: 0; }
           .wa-chat { display: ${mobileView === "chat" ? "flex" : "none"}; width: 100%; max-width: 100%; overflow-x: hidden; }
           .wa-chat-header { padding: 8px 10px; gap: 6px; overflow: hidden; }
@@ -1139,7 +1140,7 @@ function ConversationsPanel({
                     <button
                       className="wa-ctrl-btn"
                       style={{ background: "rgba(255,255,255,0.15)", color: "#fff" }}
-                      onClick={() => { setView("kanban"); setSelectedLead(selectedConvLead); }}
+                      onClick={() => confirmReturnToBotIfNeeded(() => { setView("kanban"); setSelectedLead(selectedConvLead); })}
                       title="Ver tarjeta del lead en el Kanban"
                     >
                       ← Kanban
@@ -1152,6 +1153,14 @@ function ConversationsPanel({
                     title={selectedConv.modo_humano ? "Regresar el control al bot" : "Tomar control de la conversación"}
                   >
                     {selectedConv.modo_humano ? "BOT" : "Tomar"}
+                  </button>
+                  <button
+                    className="wa-ctrl-btn"
+                    style={{ background: "#fff", color: "#2C4A8C", border: "1px solid #d7e0f2" }}
+                    onClick={() => setConvVisto(selectedConv, false)}
+                    title="Marcar como no leído para que vuelva a aparecer el punto verde"
+                  >
+                    No leído
                   </button>
                   <button
                     className="wa-ctrl-btn"

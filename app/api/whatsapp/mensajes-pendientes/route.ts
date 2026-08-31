@@ -60,7 +60,7 @@ export async function GET() {
   const mensajes = data || []
   const convIds = [...new Set(mensajes.map(m => m.conversacion_id).filter(Boolean))]
 
-  let ultimosMensajesUsuario: Record<string, { at: string; contenido: string }> = {}
+  const ultimosMensajesUsuario: Record<string, { at: string; contenido: string }> = {}
 
   if (convIds.length > 0) {
     const { data: userMsgs } = await supabase
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
       if (msg.template_params) {
         params = Array.isArray(msg.template_params) ? msg.template_params : JSON.parse(msg.template_params)
       } else {
-        const primerNombre = (msg.lead_nombre || '').trim().split(/\s+/)[0] || 'amig@'
+        const primerNombre = (msg.nombre || '').trim().split(/\s+/)[0] || 'amig@'
         params = [primerNombre]
       }
       await sendMetaWhatsAppTemplate({ to, templateName: msg.template_name, parameters: params })
@@ -158,7 +158,7 @@ export async function POST(request: Request) {
         .replace('{{1}}', params[0] || '')
     } else {
       // Si el texto crudo tiene {{nombre}} sin sustituir, reemplazarlo antes de enviar
-      const primerNombre = (msg.lead_nombre || '').trim().split(/\s+/)[0] || 'amig@'
+      const primerNombre = (msg.nombre || '').trim().split(/\s+/)[0] || 'amig@'
       textoParaHistorial = textoFinal
         .replace('{{nombre}}', primerNombre)
         .replace('{{1}}', primerNombre)
