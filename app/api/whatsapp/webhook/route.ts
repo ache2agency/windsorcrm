@@ -1748,6 +1748,44 @@ const CATALOGO_OFERTA = `¿Cuál de nuestras ofertas educativas te interesa?
 •Enseñanza del idioma inglés
 •Enseñanza del idioma español`
 
+type CategoriaInteres = 'idiomas' | 'licenciaturas' | 'maestrias' | 'diplomados' | 'bachillerato' | null
+
+// Solo clasifica intereses amplios. Los programas específicos siguen pasando por
+// detectarPrograma(), que es la fuente de verdad para guardar el curso del lead.
+function detectarCategoriaInteres(texto: string): CategoriaInteres {
+  const value = String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+
+  if (/licenciaturas?|carreras?\s+(universitarias?|profesionales?)/.test(value)) return 'licenciaturas'
+  if (/maestrias?|posgrados?/.test(value)) return 'maestrias'
+  if (/diplomados?/.test(value)) return 'diplomados'
+  if (/bachillerato|preparatoria|prepa/.test(value)) return 'bachillerato'
+  if (/cursos?\s+de\s+idiomas?|idiomas?|lenguas?/.test(value)) return 'idiomas'
+  return null
+}
+
+function mensajeCategoriaInteres(categoria: CategoriaInteres, nombre: string): string | null {
+  const saludo = `¡Hola ${nombre}! 😊`
+  if (categoria === 'idiomas') {
+    return `${saludo} Para adultos y jóvenes tenemos estas opciones de idiomas:\n\n• Inglés para adultos\n• Francés\n• Italiano\n\n¿Cuál te interesa conocer?`
+  }
+  if (categoria === 'licenciaturas') {
+    return `${saludo} Tenemos estas licenciaturas:\n\n• Licenciatura en Inglés\n• Relaciones Públicas y Mercadotecnia\n• Administración Turística\n• Psicología\n\n¿Cuál te interesa conocer?`
+  }
+  if (categoria === 'maestrias') {
+    return `${saludo} Tenemos estas maestrías:\n\n• Innovación Empresarial\n• Multiculturalidad y Plurilingüismo\n\n¿Cuál te interesa conocer?`
+  }
+  if (categoria === 'diplomados') {
+    return `${saludo} Contamos con varios diplomados. ¿En qué área te gustaría especializarte?\n\n• Salud\n• Educación\n• Administración\n• Psicología\n• Tecnología\n\nCon gusto te comparto las opciones disponibles.`
+  }
+  if (categoria === 'bachillerato') {
+    return `${saludo} Tenemos Bachillerato. ¿Te gustaría conocer horarios, costos o el proceso de inscripción?`
+  }
+  return null
+}
+
 const INSCRIPCION_VERANO_NINOS_MSG = `¡Perfecto! ☀️ El proceso de inscripción a *My Best Summer* es muy sencillo:
 
 *📄 Documentos necesarios:*
@@ -3173,6 +3211,21 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
               `¡Hola ${nombreCapturado}! 😊 ¿Me compartes tu correo electrónico para darte seguimiento personalizado? 📧`
             )
           }
+
+          // Si antes de dar su nombre ya indicó una categoría (pero no un
+          // programa exacto), conserva ese contexto y ofrece solo esa parte
+          // de la oferta. Los mensajes genéricos siguen usando el catálogo completo.
+          const contextoPrevioUsuario = convHistory
+            .filter((message) => message.role === 'user')
+            .map((message) => message.content)
+            .join(' ')
+          const categoriaPrevia = detectarCategoriaInteres(contextoPrevioUsuario)
+          const respuestaCategoria = mensajeCategoriaInteres(categoriaPrevia, nombreCapturado)
+          if (respuestaCategoria) {
+            await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, respuestaCategoria, 'programa')
+            return buildProviderResponse(provider, respuestaCategoria, waNumber)
+          }
+
           const greeting = `¡Hola ${nombreCapturado}! 😊 ¿Qué programa de Instituto Windsor te interesa?\n\n${CATALOGO_OFERTA}`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, greeting, 'programa')
           return buildProviderResponse(provider, greeting, waNumber)
