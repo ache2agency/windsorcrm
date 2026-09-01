@@ -356,6 +356,9 @@ export default function CRM() {
       .then(r => r.json())
       .then(d => setPendientesCount((d.seguimientos || []).length))
       .catch(() => {});
+    if (window.innerWidth <= 768) {
+      setView("convs");
+    }
   }, []);
 
   useEffect(() => {
