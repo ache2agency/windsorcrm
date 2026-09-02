@@ -1249,9 +1249,11 @@ function ConversationsPanel({
                               />
                             </a>
                           )}
-                          {m.contenido === "__MEDIA__"
-                            ? (m.media_url ? null : "📎 Archivo (no se pudo procesar)")
-                            : m.contenido}
+                          {m.media_url && m.media_tipo === "image"
+                            ? null /* ya se ve la imagen real, no hace falta mostrar la descripción de la IA */
+                            : m.contenido === "__MEDIA__"
+                              ? (m.media_url ? null : "📎 Archivo (no se pudo procesar)")
+                              : m.contenido}
                           <div className="wa-msg-time">{time}</div>
                         </div>
                       </Fragment>
