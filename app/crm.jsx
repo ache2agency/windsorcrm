@@ -759,8 +759,12 @@ export default function CRM() {
 
   useEffect(() => {
     if (view !== "convs") return;
+    // Sin chequeo de document.visibilityState a propósito: en el PWA de iPhone
+    // (agregado a pantalla de inicio) ese valor se queda mal reportado como "no
+    // visible" aunque la app esté abierta y en primer plano, así que el check
+    // bloqueaba el refresh por completo — reportado por Harold 2-sep-2026 (solo
+    // veía mensajes nuevos al cerrar y volver a abrir la app entera).
     const interval = setInterval(() => {
-      if (document.visibilityState !== "visible") return;
       pollWhatsConvsRecientes();
     }, 10000);
     return () => clearInterval(interval);
