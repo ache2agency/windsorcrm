@@ -58,7 +58,7 @@ type IncomingWhatsAppMessage = {
   messageSid?: string
   rawPayload: Record<string, unknown>
   referral?: Record<string, unknown>
-  mediaKind?: 'audio' | 'image' | 'sticker'
+  mediaKind?: 'audio' | 'image' | 'sticker' | 'document'
   mediaId?: string
 }
 
@@ -651,8 +651,8 @@ async function parseIncomingWhatsAppMessage(
       const msgType = message.type || ''
       if (mediaTypes.includes(msgType)) {
         const msgAny = message as Record<string, unknown>
-        const mediaKind: 'audio' | 'image' | 'sticker' | undefined =
-          msgType === 'audio' || msgType === 'voice' ? 'audio' : msgType === 'image' ? 'image' : msgType === 'sticker' ? 'sticker' : undefined
+        const mediaKind: 'audio' | 'image' | 'sticker' | 'document' | undefined =
+          msgType === 'audio' || msgType === 'voice' ? 'audio' : msgType === 'image' ? 'image' : msgType === 'sticker' ? 'sticker' : msgType === 'document' ? 'document' : undefined
         const mediaObj = mediaKind
           ? (msgAny[msgType === 'voice' ? 'audio' : msgType] as { id?: string } | undefined)
           : undefined
@@ -2131,7 +2131,13 @@ async function subirMediaWhatsapp(
 ): Promise<string | null> {
   try {
     const supabase = createServiceRoleClient()
-    const ext = mimeType.includes('webp') ? 'webp' : mimeType.includes('png') ? 'png' : mimeType.includes('gif') ? 'gif' : 'jpg'
+    const extMap: Record<string, string> = {
+      'image/webp': 'webp', 'image/png': 'png', 'image/gif': 'gif', 'image/jpeg': 'jpg',
+      'application/pdf': 'pdf',
+      'application/msword': 'doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    }
+    const ext = extMap[mimeType] || mimeType.split('/')[1]?.split(';')[0]?.replace(/[^a-z0-9]/gi, '') || 'bin'
     const path = `${waNumber.replace(/\D/g, '')}/${mediaId}.${ext}`
     const { error: uploadError } = await supabase.storage
       .from('whatsapp-media')
@@ -2504,17 +2510,21 @@ export async function POST(request: Request) {
     }
 
     // Notas de voz: transcribir antes de procesar, para que el mensaje fluya como texto
-    // normal por el resto del pipeline. Imágenes y stickers: se suben a Storage para que
-    // el CRM pueda mostrar la imagen real (antes solo se guardaba la descripción de la IA,
-    // o el sentinel __MEDIA__ crudo si fallaba — bug reportado 2-sep-2026). Si todo falla,
-    // se deja el sentinel '__MEDIA__' y sigue el fallback de "no podemos procesar".
+    // normal por el resto del pipeline. Imágenes, stickers y documentos: se suben a
+    // Storage para que el CRM pueda mostrar/descargar el archivo real (antes solo se
+    // guardaba una descripción de IA, o el sentinel __MEDIA__ crudo si fallaba — bug
+    // reportado 2-sep-2026, primero con imágenes/stickers, luego con un PDF real que
+    // llegó como tipo "document" y seguía sin manejarse). Stickers y documentos dejan
+    // el body en '__MEDIA__' a propósito — el bot no puede "leer" su contenido, así que
+    // sigue respondiendo la disculpa normal al lead, pero el asesor ya ve el archivo
+    // real en el CRM vía media_url/media_tipo.
     let mediaUrlParaGuardar: string | null = null
     let mediaTipoParaGuardar: string | null = null
     if (incoming.body === '__MEDIA__' && incoming.mediaId) {
       if (incoming.mediaKind === 'audio') {
         const resolvedText = await transcribeAudioMessage(incoming.mediaId)
         if (resolvedText) incoming = { ...incoming, body: resolvedText }
-      } else if (incoming.mediaKind === 'image' || incoming.mediaKind === 'sticker') {
+      } else if (incoming.mediaKind === 'image' || incoming.mediaKind === 'sticker' || incoming.mediaKind === 'document') {
         const media = await getMetaMediaBuffer(incoming.mediaId)
         if (media) {
           mediaUrlParaGuardar = await subirMediaWhatsapp(media.buffer, media.mimeType, incoming.waNumber, incoming.mediaId)
@@ -2522,8 +2532,6 @@ export async function POST(request: Request) {
           if (incoming.mediaKind === 'image') {
             const resolvedText = await describeImageBuffer(media.buffer, media.mimeType)
             if (resolvedText) incoming = { ...incoming, body: resolvedText }
-          } else if (mediaUrlParaGuardar) {
-            incoming = { ...incoming, body: '[Sticker]' }
           }
         }
       }
@@ -2702,17 +2710,18 @@ export async function POST(request: Request) {
             contenido: originalText || '',
             raw_payload: incoming.rawPayload,
           }
-          let { data: insertedUserMsg, error: insertUserMsgError } = await supabase.from('whatsapp_mensajes').insert([
+          const primerIntento = await supabase.from('whatsapp_mensajes').insert([
             mediaUrlParaGuardar ? { ...mensajeBase, media_url: mediaUrlParaGuardar, media_tipo: mediaTipoParaGuardar } : mensajeBase,
           ]).select('id').single()
 
           // Fallback por si la migración de media_url/media_tipo aún no corrió en esta
           // base — no perder el mensaje del usuario solo por las columnas nuevas.
-          if (insertUserMsgError && mediaUrlParaGuardar) {
-            console.error('[whatsapp_mensajes] insert con media_url falló, reintentando sin esas columnas', insertUserMsgError)
-            const retry = await supabase.from('whatsapp_mensajes').insert([mensajeBase]).select('id').single()
-            insertedUserMsg = retry.data
+          let insertedUserMsgResult = primerIntento
+          if (primerIntento.error && mediaUrlParaGuardar) {
+            console.error('[whatsapp_mensajes] insert con media_url falló, reintentando sin esas columnas', primerIntento.error)
+            insertedUserMsgResult = await supabase.from('whatsapp_mensajes').insert([mensajeBase]).select('id').single()
           }
+          const insertedUserMsg = insertedUserMsgResult.data
 
           myMessageId = insertedUserMsg?.id
 

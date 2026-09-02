@@ -1230,18 +1230,28 @@ function ConversationsPanel({
                         <div className={`wa-msg ${isOut ? "out" : "in"}`}>
                           {m.rol === "agente" && <div className="wa-msg-role" style={{ color: "#A8263C" }}>Vendedor</div>}
                           {m.rol === "bot" && <div className="wa-msg-role" style={{ color: WA_TEAL }}>Bot</div>}
-                          {m.media_url && (
+                          {m.media_url && m.media_tipo === "document" && (
+                            <a
+                              href={m.media_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", background: "rgba(0,0,0,0.04)", borderRadius: 6, marginBottom: 4, color: "inherit", textDecoration: "none" }}
+                            >
+                              📄 <span style={{ textDecoration: "underline" }}>Ver documento</span>
+                            </a>
+                          )}
+                          {m.media_url && (m.media_tipo === "image" || m.media_tipo === "sticker") && (
                             <a href={m.media_url} target="_blank" rel="noreferrer">
                               <img
                                 src={m.media_url}
                                 alt={m.media_tipo === "sticker" ? "Sticker" : "Imagen"}
-                                style={{ maxWidth: 220, maxHeight: 220, borderRadius: 6, display: "block", marginBottom: m.contenido && m.contenido !== "[Sticker]" ? 4 : 0 }}
+                                style={{ maxWidth: 220, maxHeight: 220, borderRadius: 6, display: "block", marginBottom: 4 }}
                               />
                             </a>
                           )}
                           {m.contenido === "__MEDIA__"
-                            ? (m.media_url ? null : "📷 Imagen (no se pudo procesar)")
-                            : m.contenido !== "[Sticker]" && m.contenido}
+                            ? (m.media_url ? null : "📎 Archivo (no se pudo procesar)")
+                            : m.contenido}
                           <div className="wa-msg-time">{time}</div>
                         </div>
                       </Fragment>
