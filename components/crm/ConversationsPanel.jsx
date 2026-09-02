@@ -705,8 +705,12 @@ function ConversationsPanel({
   useEffect(() => {
     if (!selectedConv?.id) return;
     const convId = selectedConv.id;
+    // Sin chequeo de document.visibilityState a propósito: en el PWA de iPhone
+    // (agregado a pantalla de inicio) ese valor se queda mal reportado como "no
+    // visible" aunque la app esté en primer plano, así que el check bloqueaba
+    // el refresh por completo (reportado por Harold 2-sep-2026 para el poll de
+    // la lista, que usaba el mismo check — corregido ahí también).
     const interval = setInterval(() => {
-      if (document.visibilityState !== "visible") return;
       fetchConvMessagesRef.current(convId, { silent: true });
     }, 8000);
     return () => clearInterval(interval);
