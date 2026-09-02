@@ -202,6 +202,7 @@ export default function CRM() {
   const [exitDecisionOpen, setExitDecisionOpen] = useState(false);
   const [pendingExitAction, setPendingExitAction] = useState(null);
   const leadsRequestRef = useRef(0);
+  const whatsConvsRequestRef = useRef(0);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -473,18 +474,20 @@ export default function CRM() {
     }
     setCurrentUser(user);
 
-    // Cargar o crear perfil
-    let { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+    // Cargar perfil propio y lista de vendedores en paralelo (antes eran 2 vueltas
+    // al servidor una tras otra, sumando latencia al arranque de la app).
+    let [{ data: profile }, { data: allProfiles }] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", user.id).single(),
+      supabase.from("profiles").select("*"),
+    ]);
     if (!profile) {
       const { data: newProfile } = await supabase.from("profiles")
         .insert([{ id: user.id, email: user.email, nombre: user.email.split("@")[0], rol: "vendedor" }])
         .select().single();
       profile = newProfile;
+      allProfiles = [...(allProfiles || []), newProfile].filter(Boolean);
     }
     setCurrentProfile(profile);
-
-    // Cargar lista de vendedores (todos los perfiles)
-    const { data: allProfiles } = await supabase.from("profiles").select("*");
     setVendedores(allProfiles || []);
 
     // Preseleccionar el usuario actual como asignado
@@ -608,40 +611,59 @@ export default function CRM() {
   };
 
   const fetchWhatsConvs = async () => {
-    // Mismo bug de fondo que fetchLeads (ver ahí el detalle): sin paginar, Supabase
-    // corta en 1000 filas y las conversaciones más viejas quedan invisibles — ya
-    // confirmado activo (1525 conversaciones en total al momento de este fix).
+    // Antes traía las 2200+ conversaciones completas (3 vueltas de 1000) antes de
+    // pintar cualquier cosa — con el celular abriendo directo en Conversaciones,
+    // eso eran los 5-10s de carga inicial reportados por Harold (2-sep-2026).
+    // Mismo patrón que fetchLeads: pintamos una primera página rápido y el resto
+    // se sigue cargando después, sin bloquear. Ordenado por ultimo_mensaje_at desc,
+    // así que lo más relevante siempre llega en la primera página.
+    const requestId = ++whatsConvsRequestRef.current;
+    const INITIAL_PAGE_SIZE = 300;
     const PAGE_SIZE = 1000;
-    const fetchPaginated = async (selectCols) => {
-      let all = [];
-      let from = 0;
-      for (;;) {
-        const { data, error } = await supabase
-          .from("whatsapp_conversaciones")
-          .select(selectCols)
-          .order("ultimo_mensaje_at", { ascending: false })
-          .range(from, from + PAGE_SIZE - 1);
-        if (error) throw error;
-        all = all.concat(data || []);
-        if (!data || data.length < PAGE_SIZE) break;
-        from += PAGE_SIZE;
-      }
-      return all;
-    };
-    let data;
-    try {
-      data = await fetchPaginated("id, whatsapp, lead_id, estado, ultimo_mensaje_at, modo_humano, tomado_por, fase, visto_at");
-    } catch {
-      try {
-        data = await fetchPaginated("id, whatsapp, lead_id, estado, ultimo_mensaje_at");
-      } catch {
-        showToast("Error cargando conversaciones de WhatsApp", "error");
-        return [];
+    const selectColsFull = "id, whatsapp, lead_id, estado, ultimo_mensaje_at, modo_humano, tomado_por, fase, visto_at";
+    const selectColsFallback = "id, whatsapp, lead_id, estado, ultimo_mensaje_at";
+    const runQuery = (selectCols, from, to) =>
+      supabase
+        .from("whatsapp_conversaciones")
+        .select(selectCols)
+        .order("ultimo_mensaje_at", { ascending: false })
+        .range(from, to);
+
+    let selectCols = selectColsFull;
+    let all;
+    {
+      const { data, error } = await runQuery(selectCols, 0, INITIAL_PAGE_SIZE - 1);
+      if (error) {
+        selectCols = selectColsFallback;
+        const fallback = await runQuery(selectCols, 0, INITIAL_PAGE_SIZE - 1);
+        if (fallback.error) {
+          showToast("Error cargando conversaciones de WhatsApp", "error");
+          return [];
+        }
+        all = fallback.data || [];
+      } else {
+        all = data || [];
       }
     }
-    setWhatsConvs(data || []);
-    fetchUltimosUsuarioMensajes(data || []);
-    return data || [];
+    if (requestId !== whatsConvsRequestRef.current) return all;
+    setWhatsConvs(all);
+    fetchUltimosUsuarioMensajes(all);
+    if (all.length < INITIAL_PAGE_SIZE) return all;
+
+    // Ceder un frame al navegador antes de completar la carga histórica.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    let from = INITIAL_PAGE_SIZE;
+    for (;;) {
+      const { data, error } = await runQuery(selectCols, from, from + PAGE_SIZE - 1);
+      if (requestId !== whatsConvsRequestRef.current) return all;
+      if (error) { showToast("No se pudieron cargar todas las conversaciones", "error"); break; }
+      all = all.concat(data || []);
+      setWhatsConvs(all);
+      fetchUltimosUsuarioMensajes(all);
+      if (!data || data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
+    return all;
   };
 
   // Se usa para dos cosas que necesitan el último mensaje del LEAD (rol
