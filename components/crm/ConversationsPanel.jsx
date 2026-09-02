@@ -1230,7 +1230,18 @@ function ConversationsPanel({
                         <div className={`wa-msg ${isOut ? "out" : "in"}`}>
                           {m.rol === "agente" && <div className="wa-msg-role" style={{ color: "#A8263C" }}>Vendedor</div>}
                           {m.rol === "bot" && <div className="wa-msg-role" style={{ color: WA_TEAL }}>Bot</div>}
-                          {m.contenido}
+                          {m.media_url && (
+                            <a href={m.media_url} target="_blank" rel="noreferrer">
+                              <img
+                                src={m.media_url}
+                                alt={m.media_tipo === "sticker" ? "Sticker" : "Imagen"}
+                                style={{ maxWidth: 220, maxHeight: 220, borderRadius: 6, display: "block", marginBottom: m.contenido && m.contenido !== "[Sticker]" ? 4 : 0 }}
+                              />
+                            </a>
+                          )}
+                          {m.contenido === "__MEDIA__"
+                            ? (m.media_url ? null : "📷 Imagen (no se pudo procesar)")
+                            : m.contenido !== "[Sticker]" && m.contenido}
                           <div className="wa-msg-time">{time}</div>
                         </div>
                       </Fragment>
