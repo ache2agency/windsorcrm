@@ -203,6 +203,7 @@ export default function CRM() {
   const [pendingExitAction, setPendingExitAction] = useState(null);
   const leadsRequestRef = useRef(0);
   const whatsConvsRequestRef = useRef(0);
+  const whatsConvsPollingRef = useRef(false);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -677,7 +678,7 @@ export default function CRM() {
   // (para el punto 1) o las que el chequeo básico (ultimo_mensaje_at vs
   // visto_at) marca como posible no-leída (para el punto 2) — el resto ya
   // está garantizado fuera de ventana / leída sin necesidad de consultarlo.
-  const fetchUltimosUsuarioMensajes = async (convs) => {
+  const fetchUltimosUsuarioMensajes = async (convs, { merge = false } = {}) => {
     const ahora = Date.now();
     const convIds = convs
       .filter((c) => {
@@ -688,7 +689,7 @@ export default function CRM() {
       })
       .map((c) => c.id);
     if (convIds.length === 0) {
-      setUltimoUsuarioAtPorConv({});
+      if (!merge) setUltimoUsuarioAtPorConv({});
       return;
     }
     const mapa = {};
@@ -704,8 +705,66 @@ export default function CRM() {
         if (!mapa[m.conversacion_id]) mapa[m.conversacion_id] = m.created_at;
       }
     }
-    setUltimoUsuarioAtPorConv(mapa);
+    // El polling de la lista (merge: true) solo trae las conversaciones más
+    // recientes — reemplazar el mapa completo borraría el estado "no leído"
+    // de conversaciones viejas que quedaron fuera de esa muestra.
+    if (merge) setUltimoUsuarioAtPorConv((prev) => ({ ...prev, ...mapa }));
+    else setUltimoUsuarioAtPorConv(mapa);
   };
+
+  // Auto-refresh de TODA la lista de conversaciones (no solo la abierta) mientras
+  // Harold está en la sección — antes tenía que salir y volver a entrar para ver
+  // mensajes nuevos de leads distintos al que tenía abierto (reportado 2-sep-2026).
+  // Ojo con repetir el bug de antes (commit a063c65): esto NO debe reemplazar
+  // whatsConvs entero ni tocar ningún estado de texto que el asesor esté
+  // escribiendo — solo trae las conversaciones más recientes (barato, indexado
+  // por ultimo_mensaje_at) y actualiza/reordena en el arreglo existente. Si nada
+  // cambió, ni siquiera dispara un re-render (misma referencia de arreglo).
+  const pollWhatsConvsRecientes = async () => {
+    if (whatsConvsPollingRef.current) return;
+    whatsConvsPollingRef.current = true;
+    try {
+      const { data, error } = await supabase
+        .from("whatsapp_conversaciones")
+        .select("id, whatsapp, lead_id, estado, ultimo_mensaje_at, modo_humano, tomado_por, fase, visto_at")
+        .order("ultimo_mensaje_at", { ascending: false })
+        .limit(100);
+      if (error || !data) return;
+      let huboCambios = false;
+      setWhatsConvs((prev) => {
+        const byId = new Map(prev.map((c) => [c.id, c]));
+        for (const fresh of data) {
+          const old = byId.get(fresh.id);
+          if (
+            !old ||
+            old.ultimo_mensaje_at !== fresh.ultimo_mensaje_at ||
+            old.fase !== fresh.fase ||
+            old.modo_humano !== fresh.modo_humano ||
+            old.visto_at !== fresh.visto_at ||
+            old.estado !== fresh.estado ||
+            old.tomado_por !== fresh.tomado_por
+          ) {
+            byId.set(fresh.id, { ...old, ...fresh });
+            huboCambios = true;
+          }
+        }
+        if (!huboCambios) return prev;
+        return Array.from(byId.values()).sort((a, b) => new Date(b.ultimo_mensaje_at) - new Date(a.ultimo_mensaje_at));
+      });
+      if (huboCambios) fetchUltimosUsuarioMensajes(data, { merge: true });
+    } finally {
+      whatsConvsPollingRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (view !== "convs") return;
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      pollWhatsConvsRecientes();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [view]);
 
   const fetchConvMessages = async (convId, { silent = false } = {}) => {
     if (!silent) setConvMessages([]);
