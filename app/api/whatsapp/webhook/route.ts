@@ -1073,6 +1073,15 @@ const OFERTAS_REGISTRO_VALIDAS = [
   'Habilidades para la práctica psicoterapéutica',
 ]
 
+/** Quita caracteres de formato Unicode invisibles (marcas de dirección de texto LRM/RLM/LRE/PDF,
+ * espacios de ancho cero, BOM) que iOS/WhatsApp insertan al tocar o pegar un número de teléfono.
+ * Sin esto rompen la detección de teléfono en clasificarPartesRegistro() — el número deja de
+ * verse como "solo dígitos" y se cuela como texto suelto (bug real del 2-sep-2026: registros
+ * rechazados o con el nombre corrompido/perdido). */
+function limpiarInvisibles(s: string): string {
+  return s.replace(/\p{Cf}/gu, '')
+}
+
 /** Normaliza un número escrito a mano (10 dígitos sin lada país) — igual que normalizarWhatsapp() en crm.jsx. */
 function normalizarWhatsappManual(num: string): string {
   let n = num.replace(/\s+/g, '').replace(/[^\d+]/g, '')
@@ -1165,6 +1174,12 @@ async function clasificarPartesRegistro(
       nombre = restantes.join(' ')
     }
   }
+
+  // Aplana el nombre a una sola línea — defensa extra por si queda algún salto de línea
+  // suelto (ej. resto de una marca invisible mal partida). El draft de confirmación y su
+  // re-lectura posterior asumen "Nombre:" en una sola línea; un nombre multilínea se trunca
+  // silenciosamente al confirmar (ver bug del 2-sep-2026, caso Héctor).
+  if (nombre) nombre = nombre.replace(/\s+/g, ' ').trim()
 
   return { nombre, correo, whatsappRaw, ofertaRaw, asesorRaw }
 }
@@ -1270,7 +1285,7 @@ async function handleRegistroCommand(
   waNumber: string,
   originalText: string
 ): Promise<Response | null> {
-  const trimmed = originalText.trim()
+  const trimmed = limpiarInvisibles(originalText).trim()
   // Exige además el formato de comas (3+) para no confundir una frase real de un prospecto
   // que por casualidad empiece con "registro" (ej. "Registro de mi hija, ¿es necesario?")
   const esComandoRegistro = /^registro\b/i.test(trimmed) && trimmed.split(',').length >= 4
