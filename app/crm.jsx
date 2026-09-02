@@ -689,7 +689,7 @@ export default function CRM() {
     if (!silent) setConvMessages([]);
     const { data, error } = await supabase
       .from("whatsapp_mensajes")
-      .select("id, rol, contenido, created_at")
+      .select("id, rol, contenido, media_url, media_tipo, created_at")
       .eq("conversacion_id", convId)
       .order("created_at", { ascending: true });
     if (error) {

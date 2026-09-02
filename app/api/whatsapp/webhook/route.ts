@@ -58,7 +58,7 @@ type IncomingWhatsAppMessage = {
   messageSid?: string
   rawPayload: Record<string, unknown>
   referral?: Record<string, unknown>
-  mediaKind?: 'audio' | 'image'
+  mediaKind?: 'audio' | 'image' | 'sticker'
   mediaId?: string
 }
 
@@ -651,8 +651,8 @@ async function parseIncomingWhatsAppMessage(
       const msgType = message.type || ''
       if (mediaTypes.includes(msgType)) {
         const msgAny = message as Record<string, unknown>
-        const mediaKind: 'audio' | 'image' | undefined =
-          msgType === 'audio' || msgType === 'voice' ? 'audio' : msgType === 'image' ? 'image' : undefined
+        const mediaKind: 'audio' | 'image' | 'sticker' | undefined =
+          msgType === 'audio' || msgType === 'voice' ? 'audio' : msgType === 'image' ? 'image' : msgType === 'sticker' ? 'sticker' : undefined
         const mediaObj = mediaKind
           ? (msgAny[msgType === 'voice' ? 'audio' : msgType] as { id?: string } | undefined)
           : undefined
@@ -2116,15 +2116,51 @@ async function transcribeAudioMessage(mediaId: string): Promise<string | null> {
   }
 }
 
-/** Describe una imagen recibida con GPT-4o vision y devuelve un texto usable como mensaje del usuario. */
-async function describeImageMessage(mediaId: string): Promise<string | null> {
+/** Sube una imagen/sticker de WhatsApp a Supabase Storage y regresa una URL firmada de larga
+ * duración, para que el CRM pueda mostrar la imagen real en vez de depender de que la IA la
+ * describa bien. Antes: la imagen se descargaba, se le pedía una descripción a GPT y se
+ * descartaba — el asesor nunca la veía (bug reportado 2-sep-2026, "no se pueden ver las
+ * imágenes/emojis" — los stickers en particular ni descripción tenían, quedaban como el
+ * texto crudo __MEDIA__). No se sube a un bucket público porque a veces son comprobantes
+ * de pago con datos personales. */
+async function subirMediaWhatsapp(
+  buffer: Buffer,
+  mimeType: string,
+  waNumber: string,
+  mediaId: string
+): Promise<string | null> {
+  try {
+    const supabase = createServiceRoleClient()
+    const ext = mimeType.includes('webp') ? 'webp' : mimeType.includes('png') ? 'png' : mimeType.includes('gif') ? 'gif' : 'jpg'
+    const path = `${waNumber.replace(/\D/g, '')}/${mediaId}.${ext}`
+    const { error: uploadError } = await supabase.storage
+      .from('whatsapp-media')
+      .upload(path, buffer, { contentType: mimeType, upsert: true })
+    if (uploadError) {
+      console.error('[subirMediaWhatsapp] upload error', uploadError)
+      return null
+    }
+    const { data: signed, error: signError } = await supabase.storage
+      .from('whatsapp-media')
+      .createSignedUrl(path, 60 * 60 * 24 * 365 * 5) // 5 años — evita tener que refrescarla
+    if (signError) {
+      console.error('[subirMediaWhatsapp] sign error', signError)
+      return null
+    }
+    return signed?.signedUrl || null
+  } catch (e) {
+    console.error('[subirMediaWhatsapp]', e)
+    return null
+  }
+}
+
+/** Describe una imagen (ya descargada) con GPT-4o vision y devuelve un texto usable como mensaje del usuario. */
+async function describeImageBuffer(buffer: Buffer, mimeType: string): Promise<string | null> {
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY
   if (!OPENAI_API_KEY) return null
-  const media = await getMetaMediaBuffer(mediaId)
-  if (!media) return null
   try {
-    const base64 = media.buffer.toString('base64')
-    const dataUrl = `data:${media.mimeType};base64,${base64}`
+    const base64 = buffer.toString('base64')
+    const dataUrl = `data:${mimeType};base64,${base64}`
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
@@ -2148,14 +2184,14 @@ async function describeImageMessage(mediaId: string): Promise<string | null> {
       signal: AbortSignal.timeout(15000),
     })
     if (!res.ok) {
-      console.error('[describeImageMessage] gpt error', await res.text().catch(() => ''))
+      console.error('[describeImageBuffer] gpt error', await res.text().catch(() => ''))
       return null
     }
     const data = await res.json()
     const desc = data?.choices?.[0]?.message?.content?.trim()
     return desc ? `[Imagen] ${desc}` : null
   } catch (e) {
-    console.error('[describeImageMessage]', e)
+    console.error('[describeImageBuffer]', e)
     return null
   }
 }
@@ -2467,18 +2503,29 @@ export async function POST(request: Request) {
       }
     }
 
-    // Notas de voz e imágenes: transcribir / describir antes de procesar, para que
-    // el mensaje fluya como texto normal por el resto del pipeline. Si falla, se
-    // deja el sentinel '__MEDIA__' y sigue el fallback de "no podemos procesar".
+    // Notas de voz: transcribir antes de procesar, para que el mensaje fluya como texto
+    // normal por el resto del pipeline. Imágenes y stickers: se suben a Storage para que
+    // el CRM pueda mostrar la imagen real (antes solo se guardaba la descripción de la IA,
+    // o el sentinel __MEDIA__ crudo si fallaba — bug reportado 2-sep-2026). Si todo falla,
+    // se deja el sentinel '__MEDIA__' y sigue el fallback de "no podemos procesar".
+    let mediaUrlParaGuardar: string | null = null
+    let mediaTipoParaGuardar: string | null = null
     if (incoming.body === '__MEDIA__' && incoming.mediaId) {
-      const resolvedText =
-        incoming.mediaKind === 'audio'
-          ? await transcribeAudioMessage(incoming.mediaId)
-          : incoming.mediaKind === 'image'
-            ? await describeImageMessage(incoming.mediaId)
-            : null
-      if (resolvedText) {
-        incoming = { ...incoming, body: resolvedText }
+      if (incoming.mediaKind === 'audio') {
+        const resolvedText = await transcribeAudioMessage(incoming.mediaId)
+        if (resolvedText) incoming = { ...incoming, body: resolvedText }
+      } else if (incoming.mediaKind === 'image' || incoming.mediaKind === 'sticker') {
+        const media = await getMetaMediaBuffer(incoming.mediaId)
+        if (media) {
+          mediaUrlParaGuardar = await subirMediaWhatsapp(media.buffer, media.mimeType, incoming.waNumber, incoming.mediaId)
+          mediaTipoParaGuardar = incoming.mediaKind
+          if (incoming.mediaKind === 'image') {
+            const resolvedText = await describeImageBuffer(media.buffer, media.mimeType)
+            if (resolvedText) incoming = { ...incoming, body: resolvedText }
+          } else if (mediaUrlParaGuardar) {
+            incoming = { ...incoming, body: '[Sticker]' }
+          }
+        }
       }
     }
 
@@ -2649,14 +2696,23 @@ export async function POST(request: Request) {
         // Registrar mensaje del usuario
         let myMessageId: string | undefined
         if (conversacionId) {
-          const { data: insertedUserMsg } = await supabase.from('whatsapp_mensajes').insert([
-            {
-              conversacion_id: conversacionId,
-              rol: 'usuario',
-              contenido: originalText || '',
-              raw_payload: incoming.rawPayload,
-            },
+          const mensajeBase = {
+            conversacion_id: conversacionId,
+            rol: 'usuario',
+            contenido: originalText || '',
+            raw_payload: incoming.rawPayload,
+          }
+          let { data: insertedUserMsg, error: insertUserMsgError } = await supabase.from('whatsapp_mensajes').insert([
+            mediaUrlParaGuardar ? { ...mensajeBase, media_url: mediaUrlParaGuardar, media_tipo: mediaTipoParaGuardar } : mensajeBase,
           ]).select('id').single()
+
+          // Fallback por si la migración de media_url/media_tipo aún no corrió en esta
+          // base — no perder el mensaje del usuario solo por las columnas nuevas.
+          if (insertUserMsgError && mediaUrlParaGuardar) {
+            console.error('[whatsapp_mensajes] insert con media_url falló, reintentando sin esas columnas', insertUserMsgError)
+            const retry = await supabase.from('whatsapp_mensajes').insert([mensajeBase]).select('id').single()
+            insertedUserMsg = retry.data
+          }
 
           myMessageId = insertedUserMsg?.id
 
