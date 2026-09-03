@@ -10,6 +10,7 @@ import {
   sendMetaWhatsAppMessage,
   sendMetaWhatsAppTemplate,
 } from '@/lib/whatsapp/provider'
+import { obtenerTemplateAprobado, renderizarTemplate } from '@/lib/whatsapp/templates-aprobados'
 
 export async function POST(request: Request) {
   let to: string | undefined
@@ -127,9 +128,14 @@ export async function POST(request: Request) {
 
     if (provider === 'meta') {
       let messageId: string | null = null
+      let contenidoHistorial = body
       if (templateName) {
         const result = await sendMetaWhatsAppTemplate({ to, templateName, parameters: templateParams || [] })
         messageId = result.id
+        const templateDef = obtenerTemplateAprobado(templateName)
+        contenidoHistorial = templateDef
+          ? renderizarTemplate(templateDef.body, templateParams?.[0] || '')
+          : `[Template: ${templateName}]`
       } else {
         const result = await sendMetaWhatsAppMessage({ to, body: body! })
         messageId = result.id
@@ -191,7 +197,7 @@ export async function POST(request: Request) {
           {
             conversacion_id: conversacionId,
             rol: 'agente',
-            contenido: body || `[Template: ${templateName}]`,
+            contenido: contenidoHistorial || `[Template: ${templateName}]`,
           },
         ])
       }

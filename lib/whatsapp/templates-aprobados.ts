@@ -10,6 +10,7 @@ export type TemplateAprobadoKey =
   | 'seguimiento_general'
   | 'windsor_reactivacion_seguimiento'
   | 'windsor_bienvenida_lead_manual'
+  | 'lic_mkt'
 
 export interface TemplateAprobado {
   name: TemplateAprobadoKey
@@ -48,6 +49,12 @@ export const TEMPLATES_APROBADOS: TemplateAprobado[] = [
     category: 'Utility',
     label: 'Reenviar información solicitada',
     body: 'Hola {{1}} 👋 Aquí te comparto la información que nos solicitaste. Toca el botón para recibirla.',
+  },
+  {
+    name: 'lic_mkt',
+    category: 'Marketing',
+    label: 'Interés · Lic. Relaciones Públicas y Mercadotecnia',
+    body: 'Hola {{1}} 👋 Estamos valorando abrir un nuevo grupo para la Licenciatura en Relaciones Públicas y Mercadotecnia en Instituto Windsor. ¿Sigues interesado(a) en inscribirte?',
   },
 ]
 
