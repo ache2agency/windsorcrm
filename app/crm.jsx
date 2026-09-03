@@ -77,6 +77,15 @@ const getProgramaResumen = (curso) => {
   return { group: "otros", key: original, label: original };
 };
 
+const OFERTA_LABELS = {
+  idiomas: "Cursos de idiomas",
+  bachillerato: "Bachillerato",
+  licenciaturas: "Licenciaturas",
+  maestrias: "Maestrías",
+  diplomados: "Diplomados",
+  otros: "Otros programas",
+};
+
 const getInfoTemplateForLead = (lead) => {
   const nombre = lead?.nombre?.split(" ")[0] || "Hola";
   const curso = String(lead?.curso || "").toLowerCase();
@@ -116,6 +125,8 @@ export default function CRM() {
   const [leadTimeline, setLeadTimeline] = useState([]);
   const [leadTimelineLoading, setLeadTimelineLoading] = useState(false);
   const [filterVendedor, setFilterVendedor] = useState("Todos");
+  const [filterFuente, setFilterFuente] = useState("Todos");
+  const [filterOferta, setFilterOferta] = useState("Todos");
   const [search, setSearch] = useState("");
   const [dragId, setDragId] = useState(null);
   const [toast, setToast] = useState(null);
@@ -1308,20 +1319,58 @@ export default function CRM() {
     }
   };
 
+  const getFuenteLead = (l) => {
+    if (l.origen === "meta_ads" || l.origen === "ads") return "meta_ads";
+    if (l.origen === "walkin") return "walkin";
+    if (l.origen === "registro_wa") return "registro_wa";
+    if (l.origen === "manual") return "manual";
+    if (l.origen === "bot" || (!l.origen && l.notas?.includes("automáticamente desde WhatsApp"))) return "bot";
+    return "manual";
+  };
+  const FUENTE_LABELS = {
+    bot: "Bot WhatsApp",
+    manual: "Manual",
+    meta_ads: "Meta Ads",
+    walkin: "Walk-in",
+    registro_wa: "Registro WhatsApp",
+  };
+
+  // Mismo cálculo que el desglose "Por programa" (stats), pero sobre todos los leads y
+  // expuesto como opciones agrupadas para el filtro (valor = key específico, no el group).
+  const ofertaOptions = useMemo(() => {
+    const conteo = { idiomas: {}, bachillerato: {}, licenciaturas: {}, maestrias: {}, otros: {}, diplomados: {} };
+    leads.forEach(l => {
+      const programa = getProgramaResumen(l.curso);
+      if (!programa) return;
+      const bucket = conteo[programa.group];
+      bucket[programa.key] = bucket[programa.key] || { key: programa.key, label: programa.label, count: 0 };
+      bucket[programa.key].count += 1;
+    });
+    return ["idiomas", "bachillerato", "licenciaturas", "maestrias", "diplomados", "otros"]
+      .map((group) => ({
+        group,
+        label: OFERTA_LABELS[group],
+        items: Object.values(conteo[group]).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "es")),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [leads]);
+
   const filteredLeads = useMemo(() => leads.filter(l => {
     // Asesores solo ven sus propios leads
     if (!isAdmin && currentProfile?.id) {
       if (l.asignado_a !== currentProfile.id) return false;
     }
     const matchV = filterVendedor === "Todos" || l.asignado_a === filterVendedor;
+    const matchF = filterFuente === "Todos" || getFuenteLead(l) === filterFuente;
+    const matchO = filterOferta === "Todos" || getProgramaResumen(l.curso)?.key === filterOferta;
     const searchClean = search.replace(/\D/g, '');
     const whatsappClean = (l.whatsapp || '').replace(/\D/g, '');
     const matchS = (l.nombre || '').toLowerCase().includes(search.toLowerCase()) ||
       (l.email || '').toLowerCase().includes(search.toLowerCase()) ||
       (searchClean.length >= 4 && whatsappClean.includes(searchClean)) ||
       (!searchClean && (l.whatsapp || '').toLowerCase().includes(search.toLowerCase()));
-    return matchV && matchS;
-  }), [leads, isAdmin, currentProfile?.id, filterVendedor, search]);
+    return matchV && matchF && matchO && matchS;
+  }), [leads, isAdmin, currentProfile?.id, filterVendedor, filterFuente, filterOferta, search]);
 
   // Conversaciones "atoradas": abiertas, en fase temprana sin resolver, sin actividad hace +3h.
   const FASES_ATORABLES = ["saludo", "programa", "correo", "verano_disambig"];
@@ -2140,6 +2189,22 @@ export default function CRM() {
             <select className="select" style={{ maxWidth: 200, flex: "1 1 160px" }} value={filterVendedor} onChange={e => setFilterVendedor(e.target.value)}>
               <option value="Todos">Todos los vendedores</option>
               {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre || v.email}</option>)}
+            </select>
+          )}
+          {(
+            <select className="select" style={{ maxWidth: 200, flex: "1 1 160px" }} value={filterFuente} onChange={e => setFilterFuente(e.target.value)}>
+              <option value="Todos">Todas las fuentes</option>
+              {Object.entries(FUENTE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          )}
+          {(
+            <select className="select" style={{ maxWidth: 220, flex: "1 1 180px" }} value={filterOferta} onChange={e => setFilterOferta(e.target.value)}>
+              <option value="Todos">Todas las ofertas</option>
+              {ofertaOptions.map((group) => (
+                <optgroup key={group.group} label={group.label}>
+                  {group.items.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+                </optgroup>
+              ))}
             </select>
           )}
           <div style={{ marginLeft: "auto", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>

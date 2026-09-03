@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { TEMPLATES_APROBADOS, renderizarTemplate } from "@/lib/whatsapp/templates-aprobados";
 
 const STAGE_LABELS = {
   primer_contacto: "Primer contacto",
@@ -18,19 +19,29 @@ function fechaCorta(value) {
 }
 
 function ReactivacionCard({ item, onProcessed, onOpenConversation }) {
-  const [mensaje, setMensaje] = useState(item.mensaje || "");
+  const [templateSeleccionado, setTemplateSeleccionado] = useState("");
   const [busy, setBusy] = useState(false);
-  const edited = mensaje.trim() !== (item.mensaje || "").trim();
+  const primerNombre = (item.nombre || "").trim().split(/\s+/)[0] || "ahí";
+  const template = useMemo(
+    () => TEMPLATES_APROBADOS.find((t) => t.name === templateSeleccionado) || null,
+    [templateSeleccionado]
+  );
+  const previewTemplate = template ? renderizarTemplate(template.body, primerNombre) : "";
 
   async function procesar(accion) {
-    if (accion === "enviar" && !mensaje.trim()) return;
+    if (accion === "enviar" && !template) return;
     if (accion === "descartar" && !window.confirm("¿Descartar esta sugerencia? No se enviará ningún mensaje.")) return;
     setBusy(true);
     try {
       const response = await fetch("/api/whatsapp/mensajes-pendientes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: item.id, accion, mensaje_editado: edited ? mensaje : undefined }),
+        body: JSON.stringify({
+          id: item.id,
+          accion,
+          template_name: accion === "enviar" ? template.name : undefined,
+          template_params: accion === "enviar" ? [primerNombre] : undefined,
+        }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "No fue posible procesar la sugerencia.");
@@ -61,11 +72,34 @@ function ReactivacionCard({ item, onProcessed, onOpenConversation }) {
       Último mensaje: “{item.ultimo_usuario_msg.slice(0, 140)}{item.ultimo_usuario_msg.length > 140 ? "…" : ""}”
     </div>}
     <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6 }}>Última respuesta del prospecto: {fechaCorta(item.ultimo_usuario_at)} · Sugerido: {fechaCorta(item.creado_at)}</div>
-    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#475569", marginBottom: 5 }}>Mensaje a aprobar {edited && <span style={{ color: "#2C4A8C" }}>· editado</span>}</label>
-    <textarea value={mensaje} onChange={e => setMensaje(e.target.value)} style={{ width: "100%", minHeight: 88, boxSizing: "border-box", border: edited ? "1.5px solid #2C4A8C" : "1px solid #e2e8f0", borderRadius: 8, padding: 10, font: "inherit", fontSize: 13, color: "#1e293b", background: "#fafcff" }} />
+    {item.mensaje && <div style={{ background: "#f8fafc", color: "#94a3b8", borderRadius: 7, padding: "8px 10px", fontSize: 11, marginBottom: 10, fontStyle: "italic" }}>
+      Sugerencia original (solo referencia, no se envía): “{item.mensaje.slice(0, 160)}{item.mensaje.length > 160 ? "…" : ""}”
+    </div>}
+    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#475569", marginBottom: 5 }}>Template aprobado a enviar</label>
+    <select
+      value={templateSeleccionado}
+      onChange={(e) => setTemplateSeleccionado(e.target.value)}
+      style={{ width: "100%", boxSizing: "border-box", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 10px", font: "inherit", fontSize: 13, color: "#1e293b", background: "#fff", marginBottom: 10 }}
+    >
+      <option value="">Selecciona un template…</option>
+      {TEMPLATES_APROBADOS.map((t) => (
+        <option key={t.name} value={t.name}>{t.label}</option>
+      ))}
+    </select>
+
+    {template && (
+      <>
+        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 5 }}>
+          Vista previa del template aprobado por Meta ({template.category}) — no editable
+        </div>
+        <div style={{ width: "100%", minHeight: 88, boxSizing: "border-box", border: "1.5px solid #7B5EA7", borderRadius: 8, padding: 10, fontSize: 13, color: "#1e293b", background: "#f8f6fc" }}>
+          {previewTemplate}
+        </div>
+      </>
+    )}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
       <button disabled={busy} onClick={() => procesar("descartar")} style={{ border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", borderRadius: 7, padding: "8px 12px", cursor: busy ? "wait" : "pointer", fontSize: 12 }}>Descartar</button>
-      <button disabled={busy || !mensaje.trim()} onClick={() => procesar("enviar")} style={{ border: "none", background: busy ? "#94a3b8" : "#15803d", color: "#fff", borderRadius: 7, padding: "8px 15px", cursor: busy ? "wait" : "pointer", fontSize: 12, fontWeight: 700 }}>{busy ? "Procesando…" : "Aprobar y enviar"}</button>
+      <button disabled={busy || !template} onClick={() => procesar("enviar")} style={{ border: "none", background: busy ? "#94a3b8" : "#15803d", color: "#fff", borderRadius: 7, padding: "8px 15px", cursor: busy ? "wait" : "pointer", fontSize: 12, fontWeight: 700 }}>{busy ? "Procesando…" : "Aprobar y enviar"}</button>
     </div>
   </article>;
 }
@@ -91,7 +125,7 @@ export default function ReactivacionesPanel({ onOpenConversation }) {
 
   return <section style={{ maxWidth: 860, margin: "0 auto" }}>
     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 20 }}>
-      <div><h1 style={{ margin: 0, fontSize: 20, color: "#1e293b" }}>Reactivaciones sugeridas {items.length > 0 && <span style={{ fontSize: 13, background: "#7B5EA7", color: "#fff", borderRadius: 99, padding: "3px 9px", verticalAlign: "middle" }}>{items.length}</span>}</h1><p style={{ margin: "5px 0 0", color: "#64748b", fontSize: 13 }}>Revisa y ajusta cada mensaje antes de enviarlo. Nada se envía automáticamente.</p></div>
+      <div><h1 style={{ margin: 0, fontSize: 20, color: "#1e293b" }}>Reactivaciones sugeridas {items.length > 0 && <span style={{ fontSize: 13, background: "#7B5EA7", color: "#fff", borderRadius: 99, padding: "3px 9px", verticalAlign: "middle" }}>{items.length}</span>}</h1><p style={{ margin: "5px 0 0", color: "#64748b", fontSize: 13 }}>Elige el template aprobado para cada caso antes de enviarlo. Nada se envía automáticamente.</p></div>
       <button onClick={cargar} style={{ border: "1px solid #e2e8f0", background: "#f8fafc", borderRadius: 8, padding: "8px 12px", cursor: "pointer", color: "#475569" }}>↻ Recargar</button>
     </div>
     {items.length === 0 ? <div style={{ textAlign: "center", padding: 42, color: "#64748b", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12 }}><div style={{ fontSize: 34 }}>✓</div><div style={{ marginTop: 8 }}>No hay reactivaciones por revisar.</div></div> : <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>{items.map(item => <ReactivacionCard key={item.id} item={item} onOpenConversation={onOpenConversation} onProcessed={(id) => setItems(prev => prev.filter(x => x.id !== id))} />)}</div>}

@@ -2,10 +2,10 @@ import { createClient, createServiceRoleClient } from '@/utils/supabase/server'
 import {
   normalizePhoneNumber,
   sendMetaWhatsAppTemplate,
-  sendMetaWhatsAppMessage,
   getWhatsAppProvider,
   type WhatsAppProvider,
 } from '@/lib/whatsapp/provider'
+import { obtenerTemplateAprobado, renderizarTemplate } from '@/lib/whatsapp/templates-aprobados'
 
 export const dynamic = 'force-dynamic'
 
@@ -98,10 +98,14 @@ export async function GET() {
 export async function POST(request: Request) {
   const supabase = createServiceRoleClient()
   const body = await request.json()
-  const { id, accion, mensaje_editado } = body
+  const { id, accion, template_name, template_params } = body
 
   if (!id || !['enviar', 'descartar'].includes(accion)) {
     return Response.json({ error: 'Parámetros inválidos' }, { status: 400 })
+  }
+
+  if (accion === 'enviar' && !template_name) {
+    return Response.json({ error: 'Debes seleccionar un template aprobado para enviar' }, { status: 400 })
   }
 
   const { data: msg, error: fetchError } = await supabase
@@ -124,7 +128,6 @@ export async function POST(request: Request) {
   }
 
   // Enviar
-  const textoFinal = (mensaje_editado || msg.mensaje).trim()
   const provider = getWhatsAppProvider()
   const to = normalizePhoneNumber(msg.whatsapp)
 
@@ -141,29 +144,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    let textoParaHistorial = textoFinal
-    if (msg.template_name && !mensaje_editado) {
-      // Obtener params — si no hay en BD, construir con nombre del lead
-      let params: string[]
-      if (msg.template_params) {
-        params = Array.isArray(msg.template_params) ? msg.template_params : JSON.parse(msg.template_params)
-      } else {
-        const primerNombre = (msg.nombre || '').trim().split(/\s+/)[0] || 'amig@'
-        params = [primerNombre]
-      }
-      await sendMetaWhatsAppTemplate({ to, templateName: msg.template_name, parameters: params })
-      // Guardar historial con nombre sustituido (no {{nombre}} literal)
-      textoParaHistorial = textoFinal
-        .replace('{{nombre}}', params[0] || '')
-        .replace('{{1}}', params[0] || '')
-    } else {
-      // Si el texto crudo tiene {{nombre}} sin sustituir, reemplazarlo antes de enviar
-      const primerNombre = (msg.nombre || '').trim().split(/\s+/)[0] || 'amig@'
-      textoParaHistorial = textoFinal
-        .replace('{{nombre}}', primerNombre)
-        .replace('{{1}}', primerNombre)
-      await sendMetaWhatsAppMessage({ to, body: textoParaHistorial })
-    }
+    // Este panel solo envía templates aprobados por Meta — nunca texto libre
+    const templateDef = obtenerTemplateAprobado(template_name)
+    const params: string[] = Array.isArray(template_params) && template_params.length > 0
+      ? template_params
+      : [(msg.nombre || '').trim().split(/\s+/)[0] || 'amig@']
+    await sendMetaWhatsAppTemplate({ to, templateName: template_name, parameters: params })
+    // Guardar historial con el texto real del template enviado (no {{1}} literal)
+    const textoParaHistorial = templateDef
+      ? renderizarTemplate(templateDef.body, params[0] || '')
+      : `[Template: ${template_name}]`
 
     // Guardar en historial de conversación
     if (msg.conversacion_id) {
