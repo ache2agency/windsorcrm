@@ -3392,6 +3392,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         // de fondo que el placeholder colándose en el mensaje de pedir correo, ver más abajo).
         const resp = `¡Claro que sí! 😊 Con gusto resuelvo tus dudas. ¿Qué quisiera saber sobre ${hasLeadProgram(leadSnapshot?.curso) ? leadSnapshot?.curso : 'el programa'}?`
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'dudas', leadId)
+        if (leadId) await supabase.from('leads').update({ stage: 'tercer_contacto' }).eq('id', leadId)
         return buildProviderResponse(provider, resp, waNumber)
       }
       if (/^no\s*tengo\s*dudas[\s\S]*$/i.test(msgTrimBtn)) {
@@ -3406,12 +3407,38 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
         return buildProviderResponse(provider, botMsg, waNumber)
       }
-      if (/^no\s*me\s*interesa[\s\S]*$/i.test(msgTrimBtn)) {
+      if (/^(ya\s*)?no\s*me\s*interesa[\s\S]*$/i.test(msgTrimBtn)) {
         const nombre = leadSnapshot?.nombre ? ` ${leadSnapshot.nombre.split(' ')[0]}` : ''
         const resp = `Entendido${nombre}, no hay problema. Si en algún momento cambias de opinión, aquí estaremos. ¡Que tengas un excelente día! 😊`
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'perdido', leadId)
         if (leadId) await supabase.from('leads').update({ stage: 'perdido' }).eq('id', leadId)
         return buildProviderResponse(provider, resp, waNumber)
+      }
+
+      // ── Interceptor de botones de template windsor_nuevo_ciclo ──────────────
+      // Campaña de reactivación de licenciaturas + idiomas (2026-09-04), ver
+      // scripts/campana-ciclo-escolar.mjs. Botones reales configurados en Meta:
+      // "Me quiero inscribir" / "Tengo dudas" / "Quizás más adelante" / "Ya no
+      // me interesa". "Tengo dudas" no se intercepta aquí: ese texto lo
+      // comparten varios templates y ya lo maneja el interceptor de arriba
+      // (seguimiento_general), que también mueve a tercer_contacto.
+      if (/^quiz[aá]s?\s*m[aá]s\s*adelante[\s\S]*$/i.test(msgTrimBtn)) {
+        const nombre = leadSnapshot?.nombre ? ` ${leadSnapshot.nombre.split(' ')[0]}` : ''
+        const resp = `¡Entendido${nombre}! Aquí seguimos, escríbenos cuando estés list@ para retomarlo. 😊`
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'seguimiento', leadId)
+        if (leadId) await supabase.from('leads').update({ stage: 'archivado' }).eq('id', leadId)
+        return buildProviderResponse(provider, resp, waNumber)
+      }
+      if (/^(me\s*)?quiero\s*inscrib(ir(me)?)?[\s\S]*$/i.test(msgTrimBtn)) {
+        const tipoIns = tipoInscripcion(leadSnapshot?.curso)
+        if (tipoIns === 'desconocido') {
+          return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, leadSnapshot?.nombre, leadSnapshot?.curso)
+        }
+        const botMsg = mensajeInscripcionPara(tipoIns, leadSnapshot?.curso)
+        const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
+        if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
+        return buildProviderResponse(provider, botMsg, waNumber)
       }
 
       // ── Interceptor de botones de template reactivacion_verano ──────────────

@@ -103,7 +103,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Salud, educación, medio ambiente, producción, consumo y convivencia social.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1CuvtEmWZ8TdrI48xYXBxUBPb2PyGveBw/view
+📄 Plan de estudios: https://drive.google.com/file/d/12o2Xiao5gBGMIr1R5nzbNQzViUzuOKPo/view
 
 ¿Cómo te gustaría continuar?
 *A)* Tengo dudas 🤔
@@ -504,6 +504,16 @@ Sáb 8:00–14:00
 
 🗺️ Cómo llegar:
 https://maps.app.goo.gl/y7xdD5AxWtFav6Yc9` },
+    { label: "Uniformes", texto: `🎽 *Uniforme institucional*
+
+Todas nuestras licenciaturas cuentan con uniforme institucional.
+
+💰 Costo aproximado: $1,500 MXN (puede variar según la prenda)
+
+📖 Catálogo completo, incluye el uniforme de cada licenciatura:
+https://drive.google.com/file/d/16t52QPG1FGbNHU0SpQurS7e08ZxSfrH_/view?usp=drive_link
+
+¿Tienes alguna otra duda? Con gusto te ayudamos. 😊` },
   ]},
   { grupo: "Seguimiento", items: [
     { label: "¿Qué programa te interesa?", texto: `Hola 😊 Esperamos que la información te haya sido útil. ¿Hay algún programa que te haya llamado la atención? Estamos para ayudarte.` },
@@ -686,6 +696,7 @@ function ConversationsPanel({
   const [plantillaSeleccionada, setPlantillaSeleccionada] = useState(null);
   const [showRR, setShowRR] = useState(false);
   const [agentMessage, setAgentMessage] = useState("");
+  const [mensajesMarcados, setMensajesMarcados] = useState(() => new Set());
   const messagesEndRef = useRef(null);
   const listRef = useRef(null);
   const [listScrollTop, setListScrollTop] = useState(0);
@@ -1226,12 +1237,38 @@ function ConversationsPanel({
                     const prevDay = i > 0 && convMessages[i - 1].created_at ? dayKeyMx(new Date(convMessages[i - 1].created_at)) : null;
                     const thisDay = m.created_at ? dayKeyMx(new Date(m.created_at)) : null;
                     const showDateSep = thisDay && thisDay !== prevDay;
+                    const marcado = mensajesMarcados.has(m.id);
                     return (
                       <Fragment key={m.id}>
                         {showDateSep && (
                           <div className="wa-date-sep"><span>{formatDateSep(m.created_at)}</span></div>
                         )}
-                        <div className={`wa-msg ${isOut ? "out" : "in"}`}>
+                        <div
+                          className={`wa-msg ${isOut ? "out" : "in"}`}
+                          style={marcado ? { outline: "2px solid #d0342c", outlineOffset: 1 } : undefined}
+                        >
+                          {isOut && (
+                            <button
+                              type="button"
+                              title={marcado ? "Quitar marca de error" : "Marcar como error"}
+                              onClick={() => {
+                                setMensajesMarcados(prev => {
+                                  const next = new Set(prev);
+                                  next.has(m.id) ? next.delete(m.id) : next.add(m.id);
+                                  return next;
+                                });
+                              }}
+                              style={{
+                                position: "absolute", top: 2, left: -4, transform: "translateX(-100%)",
+                                width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer",
+                                background: marcado ? "#d0342c" : "rgba(0,0,0,0.08)",
+                                color: marcado ? "#fff" : "#667781",
+                                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12,
+                              }}
+                            >
+                              🚩
+                            </button>
+                          )}
                           {m.rol === "agente" && <div className="wa-msg-role" style={{ color: "#A8263C" }}>Vendedor</div>}
                           {m.rol === "bot" && <div className="wa-msg-role" style={{ color: WA_TEAL }}>Bot</div>}
                           {m.media_url && m.media_tipo === "document" && (

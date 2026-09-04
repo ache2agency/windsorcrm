@@ -76,7 +76,7 @@ Modalidad: Presencial | Duración: 3 años
 
 *💼 Campo laboral:* Salud, educación, medio ambiente, producción, consumo y convivencia social.
 
-📄 Plan de estudios: https://drive.google.com/file/d/1CuvtEmWZ8TdrI48xYXBxUBPb2PyGveBw/view`,
+📄 Plan de estudios: https://drive.google.com/file/d/12o2Xiao5gBGMIr1R5nzbNQzViUzuOKPo/view`,
 
   'Licenciatura en Inglés': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Inglés:
 

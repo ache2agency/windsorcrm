@@ -44,3 +44,9 @@ yarn-error.log*
 next-env.d.ts
 .env*.local
 tokenMeta.txt
+
+# logs de scripts de campaña (contienen nombre/teléfono real de leads)
+scripts/*-enviados.json
+
+# exports de métricas/uso (Anthropic, WhatsApp, etc.) — no son código
+*.csv
