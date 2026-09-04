@@ -3889,25 +3889,31 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgVeranoInsc, 'inscripcion_pendiente', leadId)
           return buildProviderResponse(provider, msgVeranoInsc, waNumber)
         }
+        // Si el mensaje parece pregunta de seguimiento (no una confirmación corta tipo
+        // "ok"/"listo"), no repetir el checklist completo — dejarlo caer al flujo normal
+        // de GPT. Mismo patrón que ya usa la fase inscripcion_pendiente más arriba; acá
+        // faltaba y el bot repetía el mensaje fijo de documentos ante cualquier pregunta
+        // de seguimiento real (caso real: "puedo checar los horarios", 2026-09-04).
+        const esPreguntaInsc = /\?/.test(originalText) || originalText.trim().length > 20
         // Habilidades para la práctica psicoterapéutica: no usa el flujo A/B de licenciaturas
         // (no pide acta de nacimiento ni certificado de bachillerato) — solo formulario + pago en efectivo
-        if (esHabilidadesPsico(leadSnapshot?.curso)) {
+        if (!esPreguntaInsc && esHabilidadesPsico(leadSnapshot?.curso)) {
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_HABILIDADES_MSG, 'inscripcion', leadId)
           return buildProviderResponse(provider, INSCRIPCION_HABILIDADES_MSG, waNumber)
         }
         // Bachillerato y Diplomados tampoco usan el flujo A/B de licenciaturas —
         // cada uno tiene su propio proceso simple
-        if (esBachillerato(leadSnapshot?.curso)) {
+        if (!esPreguntaInsc && esBachillerato(leadSnapshot?.curso)) {
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_BACHILLERATO_MSG, 'inscripcion', leadId)
           return buildProviderResponse(provider, INSCRIPCION_BACHILLERATO_MSG, waNumber)
         }
-        if (esDiplomado(leadSnapshot?.curso)) {
+        if (!esPreguntaInsc && esDiplomado(leadSnapshot?.curso)) {
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_DIPLOMADO_MSG, 'inscripcion', leadId)
           return buildProviderResponse(provider, INSCRIPCION_DIPLOMADO_MSG, waNumber)
         }
         // Cursos de idiomas (inglés adultos/niños): tampoco usan el flujo A/B de
         // licenciaturas — el examen de ubicación es aparte y opcional
-        if (esInglesIdioma(leadSnapshot?.curso)) {
+        if (!esPreguntaInsc && esInglesIdioma(leadSnapshot?.curso)) {
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_IDIOMA_MSG, 'inscripcion', leadId)
           return buildProviderResponse(provider, INSCRIPCION_IDIOMA_MSG, waNumber)
         }
