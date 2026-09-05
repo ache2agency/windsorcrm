@@ -515,6 +515,52 @@ https://drive.google.com/file/d/16t52QPG1FGbNHU0SpQurS7e08ZxSfrH_/view?usp=drive
 
 ¿Tienes alguna otra duda? Con gusto te ayudamos. 😊` },
   ]},
+  { grupo: "Horarios", items: [
+    { label: "Inglés adultos", texto: `🕐 *Horarios — Inglés para Adultos*
+
+*Presencial:*
+• Matutino: 10:00 - 12:00 hrs
+• Vespertino: 17:00 - 19:00 hrs
+• Sabatino: 09:00 - 13:00 hrs
+
+*Online:*
+• Vespertino: 17:00 - 19:00 hrs
+• Sabatino: 09:00 - 13:00 hrs
+
+¿Tienes alguna otra duda? Con gusto te ayudamos. 😊` },
+    { label: "Inglés niños", texto: `🕐 *Horarios — Inglés para Niños*
+
+*Presencial:*
+• Martes a jueves: 13:00 - 14:00 hrs o 17:00 - 18:00 hrs
+• Sabatino: 09:00 - 13:00 hrs
+
+*Online:*
+• Lunes a jueves: 17:00 - 18:00 hrs
+• Sabatino: 09:00 - 13:00 hrs
+
+¿Tienes alguna otra duda? Con gusto te ayudamos. 😊` },
+    { label: "Italiano", texto: `🕐 *Horario — Italiano*
+
+Martes, miércoles y jueves de 5:00 a 6:00 p.m.
+
+¿Tienes alguna otra duda? Con gusto te ayudamos. 😊` },
+    { label: "Francés", texto: `Para el horario exacto de Francés te conecto con un asesor, que te lo confirma en un momento. 😊` },
+    { label: "Licenciaturas (todas)", texto: `🕐 *Horarios — Licenciaturas*
+Aplica a todas: Inglés, Psicología, Administración Turística y Relaciones Públicas y Mercadotecnia.
+
+• *Matutino:* 8:00 a.m. a 1:00 p.m.
+• *Vespertino:* 2:00 p.m. a 8:00 p.m. (solo se abre si hay suficientes interesados, no garantizado cada cuatrimestre)
+• *Sabatino:* 8:00 a.m. a 5:30 p.m.
+
+Son aproximados y pueden cambiar cada cuatrimestre.
+
+¿Tienes alguna otra duda? Con gusto te ayudamos. 😊` },
+    { label: "Bachillerato", texto: `🕐 *Horario — Bachillerato (Prepa Windsor)*
+
+• *Matutino:* Lunes a viernes, 08:00 - 14:00 hrs
+
+Para el turno vespertino te conecto con un asesor, que te lo confirma en un momento. 😊` },
+  ]},
   { grupo: "Seguimiento", items: [
     { label: "¿Qué programa te interesa?", texto: `Hola 😊 Esperamos que la información te haya sido útil. ¿Hay algún programa que te haya llamado la atención? Estamos para ayudarte.` },
     { label: "Continuar inscripción", texto: `¡Hola! 😊
@@ -685,6 +731,7 @@ function ConversationsPanel({
   moveStage,
   STAGES,
   normalizeStage,
+  marcarMensajeError,
 }) {
   const [mobileView, setMobileView] = useState(() => selectedConv?.id ? "chat" : "list");
   const [showInfoCards, setShowInfoCards] = useState(false);
@@ -696,7 +743,6 @@ function ConversationsPanel({
   const [plantillaSeleccionada, setPlantillaSeleccionada] = useState(null);
   const [showRR, setShowRR] = useState(false);
   const [agentMessage, setAgentMessage] = useState("");
-  const [mensajesMarcados, setMensajesMarcados] = useState(() => new Set());
   const messagesEndRef = useRef(null);
   const listRef = useRef(null);
   const [listScrollTop, setListScrollTop] = useState(0);
@@ -1237,7 +1283,7 @@ function ConversationsPanel({
                     const prevDay = i > 0 && convMessages[i - 1].created_at ? dayKeyMx(new Date(convMessages[i - 1].created_at)) : null;
                     const thisDay = m.created_at ? dayKeyMx(new Date(m.created_at)) : null;
                     const showDateSep = thisDay && thisDay !== prevDay;
-                    const marcado = mensajesMarcados.has(m.id);
+                    const marcado = !!m.marcado_error;
                     return (
                       <Fragment key={m.id}>
                         {showDateSep && (
@@ -1251,13 +1297,7 @@ function ConversationsPanel({
                             <button
                               type="button"
                               title={marcado ? "Quitar marca de error" : "Marcar como error"}
-                              onClick={() => {
-                                setMensajesMarcados(prev => {
-                                  const next = new Set(prev);
-                                  next.has(m.id) ? next.delete(m.id) : next.add(m.id);
-                                  return next;
-                                });
-                              }}
+                              onClick={() => marcarMensajeError(m.id, !marcado)}
                               style={{
                                 position: "absolute", top: 2, left: -4, transform: "translateX(-100%)",
                                 width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer",

@@ -785,7 +785,7 @@ export default function CRM() {
     if (!silent) setConvMessages([]);
     const { data, error } = await supabase
       .from("whatsapp_mensajes")
-      .select("id, rol, contenido, media_url, media_tipo, created_at")
+      .select("id, rol, contenido, media_url, media_tipo, created_at, marcado_error")
       .eq("conversacion_id", convId)
       .order("created_at", { ascending: true });
     if (error) {
@@ -1063,6 +1063,24 @@ export default function CRM() {
     setSelectedConv((prev) => (prev && prev.id === conv.id ? { ...prev, visto_at } : prev));
     setWhatsConvs((prev) => prev.map((c) => (c.id === conv.id ? { ...c, visto_at } : c)));
     if (!visto) showToast("Conversación marcada como no leída");
+  };
+
+  // Marca/desmarca un mensaje del bot como error — queda guardado en Supabase
+  // (no solo en el navegador) para que se pueda revisar qué falló después.
+  // Requiere la migración supabase/migration_mensajes_marcado_error.sql.
+  const marcarMensajeError = async (mensajeId, marcado) => {
+    const marcado_error_at = marcado ? new Date().toISOString() : null;
+    const { error } = await supabase
+      .from("whatsapp_mensajes")
+      .update({ marcado_error: marcado, marcado_error_at })
+      .eq("id", mensajeId);
+    if (error) {
+      showToast("No se pudo guardar la marca — ¿ya se corrió la migración?", "error");
+      return;
+    }
+    setConvMessages((prev) =>
+      prev.map((m) => (m.id === mensajeId ? { ...m, marcado_error: marcado } : m))
+    );
   };
 
   /** Marca en bulk como "perdidas" las conversaciones seleccionadas (limpieza de atoradas viejas sin caso). */
@@ -2859,6 +2877,7 @@ export default function CRM() {
             moveStage={moveStage}
             STAGES={STAGES}
             normalizeStage={normalizeStage}
+            marcarMensajeError={marcarMensajeError}
           />
         )}
 
