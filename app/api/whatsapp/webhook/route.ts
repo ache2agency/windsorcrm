@@ -1801,55 +1801,19 @@ function mensajeCategoriaInteres(categoria: CategoriaInteres, nombre: string): s
   return null
 }
 
-const INSCRIPCION_VERANO_NINOS_MSG = `¡Perfecto! ☀️ El proceso de inscripción a *My Best Summer* es muy sencillo:
+// My Best Summer 2026 ya concluyó (ver reglasNegocio.ts, TEXTO_MY_BEST_SUMMER_CERRADO) —
+// antes estos dos mensajes ofrecían inscripción activa a esa edición ya cerrada (fechas de
+// julio, cuenta bancaria, formulario) apenas alguien decía "quiero inscribirme"/"quiero
+// apartar mi lugar" estando en curso "verano". Ahora redirigen de forma explícita al curso
+// regular de idiomas (abierto todo el año), que es el proceso vigente real (caso real:
+// Tania Itzel, lead de "Verano adultos", 2026-09-04, marcado como error en el CRM).
+const INSCRIPCION_VERANO_NINOS_MSG = `¡Buena noticia! 🎈 La edición de este año de *My Best Summer* ya concluyó, pero tenemos nuestro curso regular de *Inglés para niños* abierto todo el año — te comparto cómo inscribirte:
 
-*📄 Documentos necesarios:*
-• Acta de nacimiento
-• Comprobante de pago
+${INFO_MSGS['Inglés para niños']}${buildCTA('Inglés para niños')}`
 
-*💳 Pago:* Puedes apartar tu lugar con el 50% hoy y cubrir el resto al inicio del curso.
-🏦 Datos bancarios: https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
+const INSCRIPCION_VERANO_ADULTOS_MSG = `¡Buena noticia! 🎈 La edición de este año de *My Best Summer* ya concluyó, pero tenemos nuestro curso regular de *Inglés para adultos* abierto todo el año — te comparto cómo inscribirte:
 
-*📦 Material:* tiene un costo de $300 (ya incluido) y se paga en efectivo directamente en las instalaciones.
-
-*📋 Puedes inscribirte de dos formas:*
-
-*A) En línea* 💻
-Llena el formulario de inscripción y adjunta tus documentos:
-📝 https://forms.gle/fvxiekCtLb7KNz2U8
-Confírmanos aquí por WhatsApp cuando lo hayas completado.
-
-*B) Presencial* 🏫
-Visítanos con tus documentos — el pago lo puedes realizar directamente en las instalaciones, a la cuenta bancaria que te compartimos arriba:
-${TEXTO_PLANTELES}
-🕐 Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
-
-🚨 *¡Cupo limitado!* Asegura tu lugar pronto. 😊`
-
-const INSCRIPCION_VERANO_ADULTOS_MSG = `¡Perfecto! ☀️ El proceso de inscripción a *My Best Summer* es muy sencillo:
-
-*📄 Documentos necesarios:*
-• Acta de nacimiento
-• Comprobante de pago
-
-*💳 Pago:* Puedes apartar tu lugar con el 50% hoy y cubrir el resto al inicio del curso.
-🏦 Datos bancarios: https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
-
-*📦 Manual (solo cursos de inglés):* tiene un costo de $150 y se paga en efectivo directamente en las instalaciones.
-
-*📋 Puedes inscribirte de dos formas:*
-
-*A) En línea* 💻
-Llena el formulario de inscripción y adjunta tus documentos:
-📝 https://forms.gle/fvxiekCtLb7KNz2U8
-Confírmanos aquí por WhatsApp cuando lo hayas completado.
-
-*B) Presencial* 🏫
-Visítanos con tus documentos — el pago lo puedes realizar directamente en las instalaciones, a la cuenta bancaria que te compartimos arriba:
-${TEXTO_PLANTELES}
-🕐 Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
-
-🚨 *¡Cupo limitado!* Asegura tu lugar pronto. 😊`
+${INFO_MSGS['Inglés para adultos']}${buildCTA('Inglés para adultos')}`
 
 const INSCRIPCION_LICS_MSG = `🎉 ¡Felicidades por tomar esta decisión!
 
