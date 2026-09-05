@@ -742,6 +742,7 @@ function ConversationsPanel({
   const [showPlantillasModal, setShowPlantillasModal] = useState(false);
   const [plantillaSeleccionada, setPlantillaSeleccionada] = useState(null);
   const [showRR, setShowRR] = useState(false);
+  const [datosLeadCopiados, setDatosLeadCopiados] = useState(false);
   const [agentMessage, setAgentMessage] = useState("");
   const messagesEndRef = useRef(null);
   const listRef = useRef(null);
@@ -1199,7 +1200,12 @@ function ConversationsPanel({
                 </div>
                 <div className="wa-chat-header-info">
                   <div className="wa-chat-name">{selectedConvLead?.nombre || selectedConv.whatsapp}</div>
-                  <div className="wa-chat-sub">{getModeLabel(selectedConv)} · {getPhaseLabel(selectedConv.fase)}</div>
+                  <div className="wa-chat-sub">
+                    {getModeLabel(selectedConv)} · {getPhaseLabel(selectedConv.fase)}
+                    {tiempoRestanteVentana(ultimoUsuarioAtPorConv?.[selectedConv.id]) && (
+                      <> · ⏳ {tiempoRestanteVentana(ultimoUsuarioAtPorConv?.[selectedConv.id])}</>
+                    )}
+                  </div>
                 </div>
                 <div className="wa-chat-actions">
                   {selectedConvLead && (
@@ -1254,22 +1260,36 @@ function ConversationsPanel({
 
               <div className="wa-info-cards">
                 <div className="wa-info-card">
-                  <div className="wa-info-card-title">Lead</div>
+                  <div className="wa-info-card-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>Lead</span>
+                    <button
+                      onClick={() => {
+                        const texto = [selectedConvLead?.nombre, selectedConvLead?.curso, selectedConv.whatsapp].filter(Boolean).join("\n");
+                        navigator.clipboard.writeText(texto);
+                        setDatosLeadCopiados(true);
+                        setTimeout(() => setDatosLeadCopiados(false), 1500);
+                      }}
+                      title="Copiar nombre, oferta educativa y teléfono para enviarlos a un asesor"
+                      style={{ border: "none", background: "transparent", color: datosLeadCopiados ? "#15803d" : "#667781", fontSize: 10, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                    >
+                      {datosLeadCopiados ? "✓ Copiado" : "⧉ Copiar datos"}
+                    </button>
+                  </div>
                   <div style={{ fontWeight: 600, color: "#111b21", fontSize: 12 }}>{selectedConvLead?.nombre || "Sin nombre"}</div>
-                  <div style={{ color: "#667781", fontSize: 11, marginTop: 2 }}>{selectedConvLead?.email || "Sin email"}</div>
                   <div style={{ color: "#667781", fontSize: 11 }}>{selectedConvLead?.curso || "—"}</div>
+                  <div style={{ color: "#667781", fontSize: 11, marginTop: 2 }}>{selectedConv.whatsapp}</div>
+                  <div style={{ color: "#667781", fontSize: 11, marginTop: 2 }}>{selectedConvLead?.email || "Sin email"}</div>
+                </div>
+                <div className="wa-info-card">
+                  <div className="wa-info-card-title">Responsable</div>
+                  <div style={{ color: "#667781", fontSize: 11 }}>Modo: {selectedConv.modo_humano ? (selectedConvOwner?.nombre || selectedConvOwner?.email || "Humano") : "Bot"}</div>
+                  <div style={{ color: "#667781", fontSize: 11, marginTop: 2 }}>Asignado: {selectedLeadAssigned?.nombre || selectedLeadAssigned?.email || "—"}</div>
                   <div style={{ color: "#667781", fontSize: 11 }}>Stage: {selectedConvLead?.stage || "—"}</div>
                   {selectedConvLead?.created_at && (
                     <div style={{ color: "#667781", fontSize: 11, marginTop: 2 }}>
                       Entró: {new Date(selectedConvLead.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Mexico_City" })}
                     </div>
                   )}
-                </div>
-                <div className="wa-info-card">
-                  <div className="wa-info-card-title">Responsable</div>
-                  <div style={{ fontWeight: 600, color: "#111b21", fontSize: 12 }}>{selectedConvOwner?.nombre || selectedConvOwner?.email || "Sin dueño"}</div>
-                  <div style={{ color: "#667781", fontSize: 11, marginTop: 2 }}>Asignado: {selectedLeadAssigned?.nombre || selectedLeadAssigned?.email || "—"}</div>
-                  <div style={{ color: "#667781", fontSize: 11, marginTop: 2 }}>{selectedConv.whatsapp}</div>
                 </div>
               </div>
 
