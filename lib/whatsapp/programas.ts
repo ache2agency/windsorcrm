@@ -162,7 +162,9 @@ export function esDiplomado(curso: string | null | undefined): boolean {
 }
 
 export function esInglesIdioma(programa: string | null | undefined): boolean {
-  return /ingl[eé]s para (ni[ñn]os?|adultos?)/i.test(programa || '')
+  // "Curso de Inglés" es una etiqueta legacy que quedó guardada en algunos leads.
+  // El proceso de inscripción es el mismo; no debe escalar como programa desconocido.
+  return /ingl[eé]s para (ni[ñn]os?|adultos?)|curso de ingl[eé]s/i.test(programa || '')
 }
 
 /**

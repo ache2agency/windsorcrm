@@ -789,7 +789,7 @@ Modalidad: Presencial | Duración: 3 años
   'Licenciatura en Inglés': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Inglés:
 
 *🎓 Licenciatura en Inglés*
-Modalidad: Presencial | Duración: 3 años (9 cuatrimestres)
+Modalidad: Presencial y online | Duración: 3 años (9 cuatrimestres)
 
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
@@ -1805,6 +1805,74 @@ function mensajeCategoriaInteres(categoria: CategoriaInteres, nombre: string, es
   if (categoria === 'bachillerato') {
     return `${saludo} Tenemos Bachillerato. ¿Te gustaría conocer horarios, costos o el proceso de inscripción?`
   }
+  return null
+}
+
+/**
+ * Preguntas cuya respuesta ya está confirmada y que no conviene dejar al modelo.
+ * Además de evitar escalaciones innecesarias, conserva el contexto cuando el lead
+ * cambia de licenciatura a un curso de inglés. Casos reales reportados con 🚩 en
+ * septiembre de 2026.
+ */
+function respuestaDatoConfirmado(
+  mensaje: string,
+  cursoActual: string | null | undefined,
+  history: Array<{ role: 'user' | 'assistant'; content: string }>
+): { respuesta: string; fase?: string } | null {
+  const texto = quitarAcentos(mensaje).toLowerCase()
+  const contextoUsuario = [cursoActual || '', ...history.filter(m => m.role === 'user').map(m => m.content)]
+    .map(quitarAcentos)
+    .join(' ')
+    .toLowerCase()
+
+  const pideCursoInglesGenerico = /cursos?\s+de\s+ingles/.test(texto) &&
+    !/adult|joven|nino|licenciatura|\blic\b/.test(texto)
+  if (pideCursoInglesGenerico) {
+    return {
+      respuesta: '¡Con gusto! 😊 Tenemos curso de Inglés para adultos y jóvenes (13 años en adelante) y curso de Inglés para niños (4 a 12 años). ¿Cuál te interesa conocer?',
+      fase: 'programa',
+    }
+  }
+
+  const esInglesAdultos = /ingles.*adult|adult.*ingles|adultos? y jovenes/.test(contextoUsuario)
+  const preguntaInicioOCosto = /inici|empiez|comienz|fecha|cu[aá]ndo|cuando|costo|precio|mensualidad|inscripci/.test(texto)
+  if (esInglesAdultos && preguntaInicioOCosto) {
+    if (/octubre|convocatoria|otra.*fecha|proximo.*ciclo/.test(texto)) {
+      return {
+        respuesta: 'Nuestros cursos de Inglés están abiertos todo el año 😊 Sí puedes integrarte en octubre; el profesor te apoya para ponerte al corriente con los temas ya vistos. ¿Prefieres turno matutino, vespertino o sabatino?',
+      }
+    }
+    return {
+      respuesta: 'El curso de Inglés para adultos está abierto todo el año y puedes incorporarte aunque el grupo ya haya iniciado 😊\n\n*Inicio del ciclo actual:* entre semana inició el 7 de septiembre y sabatino el 12 de septiembre.\n\n*Inversión:* inscripción anual $800 (con promoción queda en $400). Mensualidad matutino/vespertino: $1,220 en Básico a Pre-Intermedio o $1,250 desde Intermedio; sabatino: $1,040 o $1,060 según nivel.\n\n¿Te interesa presencial u online?',
+    }
+  }
+
+  const preguntaPagoEnInstalaciones = /pagar.*(instituto|instalaciones|escuela|plantel)|efectivo|pago.*presencial|depositar|transferencia/.test(texto)
+  if (esInglesAdultos && preguntaPagoEnInstalaciones) {
+    return {
+      respuesta: 'Sí 😊 Puedes pagar en *efectivo directamente en nuestras instalaciones* si se te complica hacer el depósito. También puedes realizar transferencia si lo prefieres. Te atendemos en Chilpancingo: *Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00*.',
+    }
+  }
+
+  const esBachillerato = /bachillerato|prepa/.test(String(cursoActual || '').toLowerCase()) || /bachillerato|prepa/.test(contextoUsuario)
+  if (esBachillerato && /matutino/.test(texto) && /horario|hora|de que hora|a que hora/.test(texto)) {
+    return { respuesta: 'El turno matutino de Bachillerato es de *8:00 a.m. a 2:00 p.m.* 😊' }
+  }
+
+  const esLicenciaturaActual = esLicenciatura(cursoActual)
+  if (esLicenciaturaActual && /online|en linea|distancia|virtual/.test(texto)) {
+    if (/licenciatura en ingles/i.test(String(cursoActual || ''))) {
+      return { respuesta: 'Sí 😊 La *Licenciatura en Inglés* se ofrece tanto presencial como *online*. En línea, la materia de Inglés se cursa lunes y martes de 7:00 p.m. a 9:00 p.m.; las materias complementarias se llevan en sesiones sabatinas, aproximadamente de 8:30 a.m. a 3:30 p.m.' }
+    }
+    return { respuesta: 'Sí tenemos licenciaturas en línea: *Licenciatura en Inglés*, *Relaciones Públicas y Mercadotecnia* y *Administración Turística*. Psicología se ofrece únicamente de forma presencial. ¿Cuál te interesa? 😊' }
+  }
+  if (esLicenciaturaActual && /duraci[oó]n|cu[aá]nto tiempo|cuantos a[nñ]os|cu[aá]ntos a[nñ]os/.test(texto)) {
+    return { respuesta: 'La licenciatura tiene una duración de *3 años* (9 cuatrimestres) 😊' }
+  }
+  if (esLicenciaturaActual && /horario|hora|sabatino|matutino|vespertino/.test(texto)) {
+    return { respuesta: 'Los horarios de licenciaturas son: *matutino* de 8:00 a.m. a 1:00 p.m. y *sabatino* de 8:00 a.m. a 5:30 p.m. 😊 Por ahora el turno vespertino no está abierto este periodo.' }
+  }
+
   return null
 }
 
@@ -3606,7 +3674,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         let programaIngles: string | null = null
         if (/^\s*a\s*$/.test(msgLProg) || (/\badultos?\b/i.test(msgTrimProg) && !/verano|summer/i.test(msgLProg))) programaIngles = 'Inglés para adultos'
         else if (/^\s*b\s*$/.test(msgLProg) || (/\bni[ñn]os?\b/i.test(msgTrimProg) && !/verano|summer/i.test(msgLProg))) programaIngles = 'Inglés para niños'
-        else if (/^\s*c\s*$/.test(msgLProg)) programaIngles = 'Licenciatura en Inglés'
+        else if (/^\s*(la\s+)?(opci[oó]n\s+)?c\s*$/i.test(msgTrimProg)) programaIngles = 'Licenciatura en Inglés'
 
         if (programaIngles) {
           if (leadId) {
@@ -3786,7 +3854,12 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           return buildProviderResponse(provider, botMsgAccion, waNumber)
         }
         if (eligeA(originalText)) {
-          // Deja que GPT maneje la duda con RAG — sigue al bloque principal
+          // "A" no es una duda desconocida: es el botón para abrir la fase de
+          // dudas. Antes se delegaba a GPT y, en algunos casos, contestaba con
+          // una escalación vacía ("déjame consultarlo") sin preguntarle nada.
+          const msgDudas = `¡Claro${leadSnapshot?.nombre ? `, ${leadSnapshot.nombre}` : ''}! 😊 ¿Qué duda tienes sobre ${leadSnapshot?.curso || 'el programa'}?`
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgDudas, 'dudas', leadId)
+          return buildProviderResponse(provider, msgDudas, waNumber)
         } else {
           // Todavía no tenemos un nombre válido del lead — un mensaje corto tipo "Berenice Lopez"
           // no debe caer en el heurístico de "parece pregunta" (>12 caracteres) de más abajo,
@@ -4011,7 +4084,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       // ── Interceptor global: cambio de programa (igual que el lab) ────────────
       // Dispara en fases post-correo si se detecta un programa diferente al actual.
       // No dispara ante respuestas cortas de CTA (a, b, si, no).
-      if (['info_enviada', 'dudas', 'accion', 'seguimiento', 'inscripcion', 'clase_prueba'].includes(phase)) {
+      if (['programa', 'info_enviada', 'dudas', 'accion', 'seguimiento', 'inscripcion', 'clase_prueba'].includes(phase)) {
         const esRespuestaCTA = /^\s*[aAbBsSnN][iIoO]?\s*$/.test(originalText)
         // No disparar si la mención del programa es contextual (pregunta sobre descuentos, convenios, o comparaciones)
         const esMencionContextual = /\b(si soy|siendo|como alumno|como estudiante|alumno de|estudiante de|egresado de|si tengo|teniendo|me gradué|yo estudié|estudio en|trabajo en|mi carrera|mi programa|hay descuento para|descuento para alumnos|descuento.*estudiante|beneficio.*alumno)\b/i.test(originalText)
@@ -4052,6 +4125,21 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgVerano, 'accion', leadId)
           return buildProviderResponse(provider, msgVerano, waNumber)
         }
+      }
+
+      // ── Preguntas frecuentes con respuesta confirmada ──────────────────────
+      // Van antes de RAG/GPT: estas preguntas ya causaron escalaciones o respuestas
+      // fuera de contexto, aun teniendo el dato documentado.
+      const datoConfirmado = respuestaDatoConfirmado(originalText, leadSnapshot?.curso, convHistory)
+      if (datoConfirmado) {
+        await logBotMessageAndUpdateFase(
+          supabase,
+          conversacionIdOuter,
+          datoConfirmado.respuesta,
+          datoConfirmado.fase || phase,
+          leadId
+        )
+        return buildProviderResponse(provider, datoConfirmado.respuesta, waNumber)
       }
 
       // ── Interceptor de despedida ─────────────────────────────────────────────
