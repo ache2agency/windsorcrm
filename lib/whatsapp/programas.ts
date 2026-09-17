@@ -162,9 +162,10 @@ export function esDiplomado(curso: string | null | undefined): boolean {
 }
 
 export function esInglesIdioma(programa: string | null | undefined): boolean {
-  // "Curso de Inglés" es una etiqueta legacy que quedó guardada en algunos leads.
-  // El proceso de inscripción es el mismo; no debe escalar como programa desconocido.
-  return /ingl[eé]s para (ni[ñn]os?|adultos?)|curso de ingl[eé]s/i.test(programa || '')
+  // "Curso de Inglés" e "Inglés" a secas son etiquetas legacy que quedaron guardadas en
+  // algunos leads (caso real: Arely, curso="Inglés", 2026-09-06 — no matcheaba y escalaba
+  // como programa desconocido). El proceso de inscripción es el mismo; no debe escalar.
+  return /ingl[eé]s para (ni[ñn]os?|adultos?)|curso de ingl[eé]s|^ingl[eé]s$/i.test((programa || '').trim())
 }
 
 /**

@@ -292,8 +292,14 @@ function getStageForPhase(phase: string | null | undefined) {
     case 'seguimiento':
     case 'convenios':
       return 'interesado'
+    // 'cerrado' es una fase CONVERSACIONAL (la plática terminó cordialmente, ej. el
+    // prospecto dijo "gracias, ok" o "luego confirmo") — NO significa que se inscribió.
+    // Antes esto promovía el stage del lead a 'cerrado', que el CRM pinta como "✅
+    // Inscrito" (LEGACY_STAGE_MAP en app/crm.jsx). Verificado con datos reales: de una
+    // muestra de leads con stage='cerrado', ninguno se había inscrito realmente — solo
+    // se habían despedido de la plática. No tocar el stage de ventas aquí.
     case 'cerrado':
-      return 'cerrado'
+      return null
     case 'perdido':
       return 'perdido'
     default:
@@ -1858,6 +1864,20 @@ function respuestaDatoConfirmado(
   if (esBachillerato && /matutino/.test(texto) && /horario|hora|de que hora|a que hora/.test(texto)) {
     return { respuesta: 'El turno matutino de Bachillerato es de *8:00 a.m. a 2:00 p.m.* 😊' }
   }
+  // Pedido general de información de Bachillerato/Prepa Windsor — el dato SÍ está
+  // documentado en reglasNegocio.ts, pero el modelo lo escaló como necesitaRevision en
+  // vez de usarlo (caso real: "info de la prepa Windsor - UAGro", 2026-09-07, escaló dos
+  // veces seguidas). Responder directo con la ficha ya armada.
+  if (/bachillerato|prepa\s*windsor/.test(texto) && /informaci[oó]n|info\b|cuentan?\s+con|tienen/.test(texto)) {
+    return { respuesta: INFO_MSGS['Bachillerato'] + buildCTA('Bachillerato'), fase: 'accion' }
+  }
+
+  // Horario sabatino de Inglés para niños — documentado en reglasNegocio.ts (9:00-13:00)
+  // pero el modelo lo escaló a "Déjame consultarlo con un asesor" (caso real, 2026-09-07).
+  const esInglesNinos = /ingles.*nin|nin.*ingles/.test(contextoUsuario)
+  if (esInglesNinos && /s[aá]bado|sabatino/.test(texto) && /horario|hora/.test(texto)) {
+    return { respuesta: 'El horario sabatino de Inglés para niños es de *9:00 a.m. a 1:00 p.m.* 😊' }
+  }
 
   const esLicenciaturaActual = esLicenciatura(cursoActual)
   if (esLicenciaturaActual && /online|en linea|distancia|virtual/.test(texto)) {
@@ -2378,7 +2398,11 @@ Tono: amable, directo, como una persona real — no un robot.`
     `Programa de interés: ${params.leadData.curso || 'no identificado aún'}`,
   ].join('\n')
 
+  const hoyMX = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Mexico_City' })
+
   const systemPrompt = `${baseInstructions}
+
+FECHA DE HOY: ${hoyMX}. Úsala si preguntan "¿hasta cuándo?", "¿solo este mes?" o similar sobre vigencia de promociones — nunca inventes ni asumas otro mes (caso real: Arlette, 2026-09-17, el bot dijo que la promoción era "válida únicamente durante agosto 2026" estando ya en septiembre).
 
 DATOS ACTUALES DEL PROSPECTO:
 ${leadContext}
@@ -3935,7 +3959,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgP, 'seguimiento', leadId)
           return buildProviderResponse(provider, msgP, waNumber)
         }
-        if (/ya.*llen[eé]|ya.*hice|ya.*complet|listo|ya.*pagu[eé]|ya.*realic[eé]|ya.*env[ií]|ya.*subi|ya.*adjunt/i.test(originalText)) {
+        if (/ya.*llen[eé]|ya.*hice|ya.*complet|ya\s+(estoy\s+)?listo|ya.*pagu[eé]|ya.*realic[eé]|ya.*env[ií]|ya.*subi|ya.*adjunt/i.test(originalText)) {
           const nombreLead = leadSnapshot?.nombre || ''
           const msg = `¡Perfecto${nombreLead ? ' ' + nombreLead : ''}! 🎉 Ya recibimos tu confirmación. Un asesor revisará tu formulario y te confirmará tu lugar en My Best Summer en breve. ¡Nos vemos en julio! ☀️`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msg, 'seguimiento', leadId)
@@ -3964,6 +3988,17 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           const msgVeranoInsc = cursoLowerInsc.includes('adulto') ? INSCRIPCION_VERANO_ADULTOS_MSG : INSCRIPCION_VERANO_NINOS_MSG
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgVeranoInsc, 'inscripcion_pendiente', leadId)
           return buildProviderResponse(provider, msgVeranoInsc, waNumber)
+        }
+        // Si el lead nunca llegó a tener un programa real identificado (sigue con el
+        // placeholder "WhatsApp/Messenger - Instituto Windsor", típico de quien contesta
+        // "me quiero inscribir" a un broadcast de reactivación sin que el bot alcanzara a
+        // detectar el programa), no caer en INSCRIPCION_DESCONOCIDA_MSG (esa es para cursos
+        // reales no contemplados en las listas) — preguntar primero cuál programa quiere.
+        // Caso real: lead sin nombre, curso="WhatsApp - Instituto Windsor", 2026-09-07.
+        if (!hasLeadProgram(leadSnapshot?.curso)) {
+          const msgPreguntaPrograma = '¡Con gusto! 😊 ¿A qué programa te gustaría inscribirte?'
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgPreguntaPrograma, 'programa', leadId)
+          return buildProviderResponse(provider, msgPreguntaPrograma, waNumber)
         }
         // Si el mensaje parece pregunta de seguimiento (no una confirmación corta tipo
         // "ok"/"listo"), no repetir el checklist completo — dejarlo caer al flujo normal
@@ -4009,7 +4044,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgP, 'inscripcion')
           return buildProviderResponse(provider, msgP, waNumber)
         }
-        if (/ya.*llen[eé]|ya.*hice|ya.*complet|listo|ya.*pagu[eé]|ya.*realic[eé]/i.test(msgI)) {
+        if (/ya.*llen[eé]|ya.*hice|ya.*complet|ya\s+(estoy\s+)?listo|ya.*pagu[eé]|ya.*realic[eé]/i.test(msgI)) {
           const nombreLead = leadSnapshot?.nombre || ''
           const msg = `¡Perfecto${nombreLead ? ' ' + nombreLead : ''}! 🎉 Un asesor revisará tu información y confirmará tu inscripción en breve. ¡Bienvenid@ a la familia Windsor!`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msg, 'seguimiento')
@@ -4403,7 +4438,13 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       } else if (nextFase === 'inscripcion' && phase !== 'inscripcion') {
         // Track B: proceso de inscripción — según lista cerrada de programas, nunca por descarte
         const tipoInsGPT = tipoInscripcion(leadSnapshot?.curso)
-        if (tipoInsGPT === 'desconocido') {
+        if (tipoInsGPT === 'desconocido' && !hasLeadProgram(leadSnapshot?.curso)) {
+          // Curso sigue en el placeholder ("WhatsApp/Messenger - Instituto Windsor") —
+          // no es un programa real no reconocido, es que nunca se identificó. No alertar
+          // como "programa no reconocido", solo preguntar cuál quiere.
+          botMessage = '¡Con gusto! 😊 ¿A qué programa te gustaría inscribirte?'
+          nextFase = 'programa'
+        } else if (tipoInsGPT === 'desconocido') {
           await alertarProgramaNoReconocido(leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
           botMessage = INSCRIPCION_DESCONOCIDA_MSG
           nextFase = 'seguimiento'
@@ -4421,7 +4462,10 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           nextFase = 'seguimiento'
         } else {
           const tipoInsPres = tipoInscripcion(leadSnapshot?.curso)
-          if (tipoInsPres === 'desconocido') {
+          if (tipoInsPres === 'desconocido' && !hasLeadProgram(leadSnapshot?.curso)) {
+            botMessage = '¡Con gusto! 😊 ¿A qué programa te gustaría inscribirte?'
+            nextFase = 'programa'
+          } else if (tipoInsPres === 'desconocido') {
             await alertarProgramaNoReconocido(leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
             botMessage = INSCRIPCION_DESCONOCIDA_MSG
             nextFase = 'seguimiento'
@@ -4452,7 +4496,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           await notifyAsesor(supabase, leadId, 'lead_pide_humano',
             leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
         }
-        if (nextFase === 'inscripcion_confirmada' || (phase === 'inscripcion' && /ya.*llen[eé]|ya.*hice|ya.*complet|listo|ya.*pagu[eé]|ya.*realic[eé]/i.test(originalText))) {
+        if (nextFase === 'inscripcion_confirmada' || (phase === 'inscripcion' && /ya.*llen[eé]|ya.*hice|ya.*complet|ya\s+(estoy\s+)?listo|ya.*pagu[eé]|ya.*realic[eé]/i.test(originalText))) {
           await notifyAsesor(supabase, leadId, 'inscripcion_confirmada',
             leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
         }
