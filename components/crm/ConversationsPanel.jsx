@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect, useMemo, Fragment, memo } from "react";
 import { isConvUnread } from "@/lib/whatsapp/conversation-filters.mjs";
+import { supabase } from "@/lib/supabase";
 
 const RESPUESTAS_RAPIDAS = [
   { grupo: "Idiomas", items: [
@@ -729,6 +730,12 @@ function ConversationsPanel({
   const [showPlantillasModal, setShowPlantillasModal] = useState(false);
   const [plantillaSeleccionada, setPlantillaSeleccionada] = useState(null);
   const [showRR, setShowRR] = useState(false);
+  const [rrCustom, setRrCustom] = useState([]);
+  const [showNuevaRR, setShowNuevaRR] = useState(false);
+  const [nuevaRRGrupo, setNuevaRRGrupo] = useState(RESPUESTAS_RAPIDAS[0]?.grupo || "");
+  const [nuevaRRLabel, setNuevaRRLabel] = useState("");
+  const [nuevaRRTexto, setNuevaRRTexto] = useState("");
+  const [guardandoRR, setGuardandoRR] = useState(false);
   const [datosLeadCopiados, setDatosLeadCopiados] = useState(false);
   const [agentMessage, setAgentMessage] = useState("");
   const messagesEndRef = useRef(null);
@@ -779,6 +786,47 @@ function ConversationsPanel({
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, [mobileView]);
+
+  useEffect(() => {
+    supabase
+      .from("respuestas_rapidas_custom")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .then(({ data }) => setRrCustom(data || []));
+  }, []);
+
+  const respuestasRapidas = useMemo(() => {
+    return RESPUESTAS_RAPIDAS.map((grupo) => ({
+      ...grupo,
+      items: [
+        ...grupo.items,
+        ...rrCustom
+          .filter((r) => r.grupo === grupo.grupo)
+          .map((r) => ({ label: r.label, texto: r.texto, customId: r.id })),
+      ],
+    }));
+  }, [rrCustom]);
+
+  async function agregarRespuestaRapida() {
+    if (!nuevaRRGrupo || !nuevaRRLabel.trim() || !nuevaRRTexto.trim()) return;
+    setGuardandoRR(true);
+    const { data, error } = await supabase
+      .from("respuestas_rapidas_custom")
+      .insert([{ grupo: nuevaRRGrupo, label: nuevaRRLabel.trim(), texto: nuevaRRTexto.trim() }])
+      .select()
+      .single();
+    setGuardandoRR(false);
+    if (error) { alert("No se pudo guardar: " + error.message); return; }
+    setRrCustom((prev) => [...prev, data]);
+    setNuevaRRLabel("");
+    setNuevaRRTexto("");
+    setShowNuevaRR(false);
+  }
+
+  async function borrarRespuestaRapida(id) {
+    setRrCustom((prev) => prev.filter((r) => r.id !== id));
+    await supabase.from("respuestas_rapidas_custom").delete().eq("id", id);
+  }
 
   const handleListScroll = (e) => {
     latestScrollTopRef.current = e.currentTarget.scrollTop;
@@ -1386,22 +1434,86 @@ function ConversationsPanel({
 
               {showRR && (
                 <div style={{ background: "#fff", borderTop: "1px solid #e9edef", maxHeight: 300, overflowY: "auto" }}>
-                  {RESPUESTAS_RAPIDAS.map((grupo) => (
+                  {respuestasRapidas.map((grupo) => (
                     <div key={grupo.grupo}>
                       <div style={{ fontSize: 10, color: "#888", letterSpacing: 1, padding: "8px 14px 4px", fontWeight: 600, textTransform: "uppercase" }}>{grupo.grupo}</div>
                       {grupo.items.map((item) => (
-                        <button
-                          key={item.label}
-                          onClick={() => { setAgentMessage(item.texto); setShowRR(false); }}
-                          style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 14px", background: "none", border: "none", borderBottom: "1px solid #f0f0f0", cursor: "pointer", fontSize: 13, color: "#111" }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = "#f5f5f5"}
-                          onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+                        <div
+                          key={item.customId || item.label}
+                          style={{ display: "flex", alignItems: "stretch", borderBottom: "1px solid #f0f0f0" }}
                         >
-                          ⚡ {item.label}
-                        </button>
+                          <button
+                            onClick={() => { setAgentMessage(item.texto); setShowRR(false); }}
+                            style={{ flex: 1, textAlign: "left", padding: "8px 14px", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#111" }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "#f5f5f5"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+                          >
+                            ⚡ {item.label}
+                          </button>
+                          {item.customId && (
+                            <button
+                              onClick={() => borrarRespuestaRapida(item.customId)}
+                              title="Borrar"
+                              style={{ border: "none", background: "none", cursor: "pointer", padding: "0 12px", fontSize: 13, color: "#999" }}
+                            >
+                              🗑
+                            </button>
+                          )}
+                        </div>
                       ))}
                     </div>
                   ))}
+
+                  <div style={{ borderTop: "1px solid #e9edef" }}>
+                    {showNuevaRR ? (
+                      <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+                        <select
+                          value={nuevaRRGrupo}
+                          onChange={(e) => setNuevaRRGrupo(e.target.value)}
+                          style={{ fontSize: 13, padding: 6, border: "1px solid #ddd", borderRadius: 6 }}
+                        >
+                          {RESPUESTAS_RAPIDAS.map((g) => (
+                            <option key={g.grupo} value={g.grupo}>{g.grupo}</option>
+                          ))}
+                        </select>
+                        <input
+                          value={nuevaRRLabel}
+                          onChange={(e) => setNuevaRRLabel(e.target.value)}
+                          placeholder="Título corto"
+                          style={{ fontSize: 13, padding: 6, border: "1px solid #ddd", borderRadius: 6 }}
+                        />
+                        <textarea
+                          value={nuevaRRTexto}
+                          onChange={(e) => setNuevaRRTexto(e.target.value)}
+                          placeholder="Texto de la respuesta"
+                          rows={3}
+                          style={{ fontSize: 13, padding: 6, border: "1px solid #ddd", borderRadius: 6, resize: "vertical" }}
+                        />
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button
+                            onClick={agregarRespuestaRapida}
+                            disabled={guardandoRR || !nuevaRRLabel.trim() || !nuevaRRTexto.trim()}
+                            style={{ flex: 1, padding: "6px 0", background: "#25D366", border: "none", borderRadius: 6, color: "#fff", fontSize: 13, cursor: "pointer" }}
+                          >
+                            {guardandoRR ? "Guardando..." : "Guardar"}
+                          </button>
+                          <button
+                            onClick={() => { setShowNuevaRR(false); setNuevaRRLabel(""); setNuevaRRTexto(""); }}
+                            style={{ padding: "6px 12px", background: "#f0f2f5", border: "none", borderRadius: 6, fontSize: 13, cursor: "pointer" }}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowNuevaRR(true)}
+                        style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#128C7E", fontWeight: 600 }}
+                      >
+                        + Agregar respuesta
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
               <div className="wa-input-bar">
