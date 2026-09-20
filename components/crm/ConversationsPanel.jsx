@@ -1,7 +1,9 @@
 "use client";
 import { useState, useRef, useEffect, useMemo, Fragment, memo } from "react";
 import { isConvUnread } from "@/lib/whatsapp/conversation-filters.mjs";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
+
+const supabase = createClient();
 
 const RESPUESTAS_RAPIDAS = [
   { grupo: "Idiomas", items: [
