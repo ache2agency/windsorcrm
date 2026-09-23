@@ -34,6 +34,20 @@ const HORAS_TOQUE_1 = 3
 const HORAS_TOQUE_2 = 20
 const HORAS_VENTANA_SEGURA = 23.5
 
+// Mensaje 2 ("¿pudiste revisar la información?" a quien ya tiene la ficha) apagado hasta tener
+// la clasificación con GPT (se despidió / quedó en visitar / alumno actual…) — acordado con
+// Harold 2026-09-23: sin eso puede mandar mensajes sin sentido.
+const MENSAJE_2_ACTIVO = false
+
+// El toque de una fase de captura solo tiene sentido si el ÚLTIMO mensaje del bot fue de verdad
+// esa pregunta. La fase a veces queda "atorada" (ej. 'correo') aunque la plática ya siguió y el
+// lead ya recibió la info — en la primera prueba en producción, 3 de 6 casos eran así.
+const PREGUNTA_PENDIENTE: Record<string, RegExp> = {
+  saludo: /c[oó]mo te llamas|tu nombre/i,
+  correo: /correo/i,
+  programa: /qu[eé] programa|cu[aá]l.{0,40}te interesa/i,
+}
+
 function verifyCronSecret(request: Request): boolean {
   const secret = process.env.CRON_SECRET?.replace(/\\n$/, '').trim()
   if (!secret) return false
@@ -171,6 +185,11 @@ async function run(request: Request) {
     if (toquesPrevios >= 2) { r('omitido', 'ya tiene 2 toques'); continue }
 
     const esCaptura = FASES_CAPTURA.includes(conv.fase)
+    if (esCaptura && !PREGUNTA_PENDIENTE[conv.fase].test(ultimo.contenido || '')) {
+      r('omitido', `fase ${conv.fase} pero el último mensaje del bot no es esa pregunta`)
+      continue
+    }
+    if (!esCaptura && !MENSAJE_2_ACTIVO) { r('omitido', 'mensaje 2 apagado (falta clasificación)'); continue }
     let toque: 1 | 2 | null = null
     if (esCaptura) {
       if (toquesPrevios === 0 && horasDesdeUser >= HORAS_TOQUE_2) toque = 2 // se saltó el toque 1 (p. ej. por la noche)
