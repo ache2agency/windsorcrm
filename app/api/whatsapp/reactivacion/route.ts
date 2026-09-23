@@ -41,6 +41,9 @@ const STAGES_PARA_BUSCAR = [
   'promo_enviada',
   'inscripcion_pendiente',
   'tercer_contacto',
+  // 2026-09-23: leads que ya recibieron la ficha y preguntaron dudas — antes nunca entraban
+  // al seguimiento con template (108 leads solo en septiembre).
+  'interesado',
 ]
 
 type ConvRow = {
@@ -102,6 +105,7 @@ function getTemplatePorEtapa(etapa: string, intento: number): string {
   return 'seguimiento_general'
 }
 
+const HORAS_SEGUIMIENTO_TRAS_REACT_AUTO = 72
 const HORAS_REACTIVACION_BOT = 20
 const HORAS_VENTANA_MAX = 28 // ventana ampliada para cron diario (puede haber hasta 28h de silencio)
 
@@ -349,7 +353,10 @@ export async function POST(request: Request) {
   const defaultProvider = getWhatsAppProvider()
 
   // Reactivación bot a las 20h (dentro de ventana WhatsApp)
-  const resultadosBot = await reactivarConversacionesBot(supabase, defaultProvider)
+  // Desactivado 2026-09-23: reemplazado por /api/whatsapp/reactivacion-ventana (cada hora, envía
+  // solo dentro de la ventana 24h en vez de encolar). Este paso corría 1 vez al día con ventana
+  // 20-28h y nunca alcanzaba a los leads que escriben de noche.
+  const resultadosBot: Awaited<ReturnType<typeof reactivarConversacionesBot>> = []
 
   // Mover a tercer_contacto leads sin respuesta tras 24h en segundo_contacto
   const resultadosTercer = await moverATercerContacto(supabase, defaultProvider)
@@ -429,7 +436,32 @@ export async function POST(request: Request) {
       continue
     }
 
-    if (diasDesde(referenciaSilencio) < diasUmbral) {
+    // Si ya recibió el mensaje automático de reactivación dentro de la ventana 24h
+    // (/api/whatsapp/reactivacion-ventana) y no contestó, el seguimiento con template va
+    // 72h DESPUÉS de ese mensaje, no a los 2-3 días del último mensaje del lead
+    // (definido por Harold, 2026-09-23).
+    let consultaReact = supabase
+      .from('whatsapp_mensajes')
+      .select('created_at')
+      .eq('conversacion_id', conversacionId)
+      .eq('rol', 'bot')
+      .not('raw_payload->>reactivacion_auto', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+    if (ultimoUsuarioAt) consultaReact = consultaReact.gt('created_at', ultimoUsuarioAt.toISOString())
+    const { data: ultimaReactAuto } = await consultaReact.maybeSingle()
+    // 'interesado' solo entra por el flujo nuevo (tras el mensaje automático) — así no se
+    // encola de golpe el histórico de interesados viejos (la fila se limpió el 2026-09-23).
+    if (lead.stage === 'interesado' && !ultimaReactAuto?.created_at) {
+      resultados.push({ lead_id: lead.id, accion: 'omitido', detalle: 'interesado sin reactivación automática previa' })
+      continue
+    }
+    if (ultimaReactAuto?.created_at) {
+      if (msDesde(new Date(ultimaReactAuto.created_at as string)) < HORAS_SEGUIMIENTO_TRAS_REACT_AUTO * 3600_000) {
+        resultados.push({ lead_id: lead.id, accion: 'omitido', detalle: `menos de ${HORAS_SEGUIMIENTO_TRAS_REACT_AUTO}h desde la reactivación automática` })
+        continue
+      }
+    } else if (diasDesde(referenciaSilencio) < diasUmbral) {
       resultados.push({ lead_id: lead.id, accion: 'omitido', detalle: 'silencio dentro del umbral' })
       continue
     }
@@ -521,6 +553,23 @@ export async function POST(request: Request) {
 
     if (yaPendiente) {
       resultados.push({ lead_id: lead.id, accion: 'omitido', detalle: 'ya tiene mensaje pendiente' })
+      continue
+    }
+
+    // Respetar descartes: si Harold ya descartó este mismo intento para este lead, no volver a
+    // encolarlo (sin esto, al limpiar la fila el 2026-09-23 el cron la habría regenerado entera).
+    const { data: yaDescartado } = await supabase
+      .from('mensajes_pendientes')
+      .select('id')
+      .eq('lead_id', lead.id)
+      .eq('estado', 'descartado')
+      .eq('intento', siguienteIntento)
+      .gt('creado_at', referenciaSilencio.toISOString()) // solo descartes de este mismo silencio
+      .limit(1)
+      .maybeSingle()
+
+    if (yaDescartado) {
+      resultados.push({ lead_id: lead.id, accion: 'omitido', detalle: 'intento descartado antes' })
       continue
     }
 

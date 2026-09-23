@@ -1,0 +1,21 @@
+# Reactivación automática de leads dentro de la ventana de 24h de WhatsApp.
+# Corre cada hora (Vercel Cron en este plan solo permite 1 ejecución diaria).
+# El endpoint no envía de noche (fuera de 8:00–21:00 hora México) aunque se llame.
+# Requiere el secret CRON_SECRET del repo = mismo valor que CRON_SECRET en Vercel.
+name: Reactivación ventana 24h
+
+on:
+  schedule:
+    - cron: '5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  reactivar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Llamar /api/whatsapp/reactivacion-ventana
+        run: |
+          curl -sS --fail-with-body -m 300 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://crm.windsor.edu.mx/api/whatsapp/reactivacion-ventana

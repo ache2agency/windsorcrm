@@ -24,6 +24,7 @@ import {
   type OfertaMatchResult,
 } from '@/lib/whatsapp/programas'
 import { REGLAS_NEGOCIO, TEXTO_PLANTELES } from '@/lib/whatsapp/reglasNegocio'
+import { INFO_MSGS, buildCTA, INSCRIPCION_VERANO_NINOS_MSG, INSCRIPCION_VERANO_ADULTOS_MSG } from '@/lib/whatsapp/infoMsgs'
 
 export const maxDuration = 60
 
@@ -229,8 +230,10 @@ function hasLeadName(nombre: string | null | undefined, whatsapp: string | null 
   if (!value || value.length < 2) return false
   if (value === String(whatsapp || '').trim()) return false
   if (/@/.test(value)) return false
-  // Rechazar si tiene más de 4 palabras (nombres reales tienen máx 4)
-  if (value.split(/\s+/).length > 4) return false
+  // Rechazar si tiene más de 4 palabras "de nombre" (nombres reales tienen máx 4). Las
+  // partículas (de, la, del, los, las, y) no cuentan — antes "Angel de la cruz roque"
+  // (5 palabras) se rechazaba y el bot preguntaba "¿Cómo te llamas?" en loop (🚩 2026-09-17).
+  if (value.split(/\s+/).filter(w => !/^(de|la|las|los|del|y)$/i.test(w)).length > 4) return false
   // Rechazar si contiene dígitos
   if (/\d/.test(value)) return false
   // Rechazar si contiene signos de puntuación o interrogación (es una frase)
@@ -730,310 +733,6 @@ async function buildProviderResponse(
   return buildTwiml(message)
 }
 
-// ─── INFO_MSGS: fuente de verdad por programa (igual que el lab) ─────────────
-// Para programas conocidos usamos esto directamente — sin GPT/RAG —
-// para garantizar que siempre incluya promo y sea consistente.
-
-const INFO_MSGS: Record<string, string> = {
-  'Inglés para adultos': `¡Con gusto! 😊 Te comparto la información de nuestro curso de *Inglés para adultos*:
-
-*🎓 Inglés para adultos*
-Dirigido a: 13 años en adelante | Modalidad: Presencial y Online
-Duración: 5 meses (10 meses en sabatino)
-
-*🕐 Horarios presenciales:* Matutino 10-12h, Vespertino 17-19h, Sabatino 9-13h
-*🕐 Horarios online:* Vespertino 17-19h, Sabatino 9-13h
-
-*💰 Inversión:*
-• Inscripción anual: $800 → *$400 con promo* (50% de descuento)
-• Mensualidad matutino/vespertino: $1,220 (Básico, Elemental y Pre-Intermedio) o $1,250 (Intermedio, Intermedio Avanzado y Avanzado)
-• Mensualidad sabatino: $1,040 (Básico, Elemental y Pre-Intermedio) o $1,060 (Intermedio, Intermedio Avanzado y Avanzado)
-• Material (libros): aprox. $900 aparte
-
-🎓 Obtienes diploma con validez oficial.
-
-Las clases inician en *septiembre*, pero *puedes inscribirte desde ahora* para asegurar tu lugar 😊`,
-
-  'Inglés para niños': `¡Con gusto! 😊 Te comparto la información de nuestro curso de *Inglés para niños*:
-
-*🎓 Inglés para niños*
-Dirigido a: 4 a 12 años | Modalidad: Presencial y Online
-Duración: 5 meses (10 meses en sabatino)
-
-*🕐 Horarios presenciales:* Martes a jueves 13-14h o 17-18h, Sabatino 9-13h
-*🕐 Horarios online:* Lunes a jueves 17-18h, Sabatino 9-13h
-
-*💰 Inversión:*
-• Inscripción: $800 → *$400 con promo* (50% de descuento)
-• Mensualidad: $780
-• Material: aprox. $700 aparte
-
-🎓 Obtienes diploma con validez oficial.
-
-Las clases inician en *septiembre*, pero *puedes inscribirte desde ahora* para asegurar tu lugar 😊`,
-
-  'Psicología': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Psicología:
-
-*🎓 Licenciatura en Psicología*
-Modalidad: Presencial | Duración: 3 años
-
-*🕐 Horarios:* Matutino y Sabatino
-
-*💰 Inversión:*
-• Inscripción semestral: $2,300
-• Mensualidad: $2,750
-📌 No incluye credencial de estudiante (trámite por separado)
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$2,300~ → $690 (70% de descuento)
-• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
-
-*💼 Campo laboral:* Salud, educación, medio ambiente, producción, consumo y convivencia social.
-
-📄 Plan de estudios: https://drive.google.com/file/d/12o2Xiao5gBGMIr1R5nzbNQzViUzuOKPo/view`,
-
-  'Licenciatura en Inglés': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Inglés:
-
-*🎓 Licenciatura en Inglés*
-Modalidad: Presencial y online | Duración: 3 años (9 cuatrimestres)
-
-*🕐 Horarios:* Matutino, Vespertino y Sabatino
-
-*💰 Inversión:*
-• Inscripción semestral: $2,300
-• Mensualidad: $2,750
-📌 No incluye credencial de estudiante (trámite por separado)
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$2,300~ → $690 (70% de descuento)
-• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
-
-*💼 Campo laboral:* Docente, traductor, asesor editorial, call centers, centros de investigación y organismos internacionales.
-
-📄 Plan de estudios: https://drive.google.com/file/d/1NZeL0KEroyx0eVFeAKSaxgr5bnjjKR_Z/view`,
-
-  'Licenciatura en Inglés online': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Inglés Online:
-
-*🎓 Licenciatura en Inglés*
-Modalidad: Online | Duración: 3 años (9 cuatrimestres)
-
-*🕐 Horarios:* La materia de inglés se cursa en línea lunes y martes de 7:00pm a 9:00pm. Las materias complementarias se cursan en sesiones sabatinas, con horario por materia de aprox. 8:30am a 3:30pm.
-
-*💰 Inversión:*
-• Inscripción semestral: $2,300
-• Mensualidad: $2,750
-📌 No incluye credencial de estudiante (trámite por separado)
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$2,300~ → $690 (70% de descuento)
-• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
-
-*💼 Campo laboral:* Docente, traductor, asesor editorial, call centers, centros de investigación y organismos internacionales.
-
-📄 Plan de estudios: https://drive.google.com/file/d/1wy4BiHspFFBZ3d1dBfO0ki-koDhR3MNg/view`,
-
-  'Administración turística': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Administración Turística:
-
-*🎓 Licenciatura en Administración Turística*
-Modalidad: Presencial | Duración: 3 años
-
-*🕐 Horarios:* Matutino, Vespertino y Sabatino
-
-*💰 Inversión:*
-• Inscripción semestral: $2,300
-• Mensualidad: $2,750
-📌 No incluye credencial de estudiante (trámite por separado)
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$2,300~ → $690 (70% de descuento)
-• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
-
-*💼 Campo laboral:* Agencias de viajes, hoteles, resorts, operadores turísticos, eventos y convenciones.
-
-📄 Plan de estudios: https://drive.google.com/file/d/18QTS1qOE5DDJuI--RCqhuIv89hPv0DiK/view`,
-
-  'Administración turística online': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Administración Turística Online:
-
-*🎓 Licenciatura en Administración Turística*
-Modalidad: Online | Duración: 3 años
-
-*💰 Inversión:*
-• Inscripción semestral: $2,300
-• Mensualidad: $2,750
-📌 No incluye credencial de estudiante (trámite por separado)
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$2,300~ → $690 (70% de descuento)
-• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
-
-*💼 Campo laboral:* Agencias de viajes, hoteles, resorts, operadores turísticos, eventos y convenciones.
-
-📄 Plan de estudios: https://drive.google.com/file/d/1JEhS0iVIkATLicd6wqGqUXcHyB_lzT4C/view`,
-
-  'Relaciones públicas y mercadotecnia': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Relaciones Públicas y Mercadotecnia:
-
-*🎓 Licenciatura en Relaciones Públicas y Mercadotecnia*
-Modalidad: Presencial | Duración: 3 años
-
-*🕐 Horarios:* Matutino, Vespertino y Sabatino
-
-*💰 Inversión:*
-• Inscripción semestral: $2,300
-• Mensualidad: $2,750
-📌 No incluye credencial de estudiante (trámite por separado)
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$2,300~ → $690 (70% de descuento)
-• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
-
-*✨ Incluye 3 certificaciones:* Marketing digital, creación de páginas web y diseño gráfico.
-
-*💼 Campo laboral:* Agencias de publicidad, marketing, medios de comunicación, gobierno, tecnología, entretenimiento.
-
-📄 Plan de estudios: https://drive.google.com/file/d/1GtQPIwHcopnkvfBh4oQpUNZw0ekkyayf/view`,
-
-  'Relaciones públicas y mercadotecnia online': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Relaciones Públicas y Mercadotecnia Online:
-
-*🎓 Licenciatura en Relaciones Públicas y Mercadotecnia*
-Modalidad: Online | Duración: 3 años
-
-*💰 Inversión:*
-• Inscripción semestral: $2,300
-• Mensualidad: $2,750
-📌 No incluye credencial de estudiante (trámite por separado)
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$2,300~ → $690 (70% de descuento)
-• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
-
-*✨ Incluye 3 certificaciones:* Marketing digital, creación de páginas web y diseño gráfico.
-
-*💼 Campo laboral:* Agencias de publicidad, marketing, medios de comunicación, gobierno, tecnología, entretenimiento.
-
-📄 Plan de estudios: https://drive.google.com/file/d/18VDNvOjsG39KdHr31VxfYHlJJC83TKgt/view`,
-
-  'Bachillerato': `¡Excelente elección! 😊 Te comparto la información de nuestra Prepa Windsor:
-
-*🎓 Bachillerato — Prepa Windsor*
-Modalidad: Presencial | Duración: 2 años
-
-*🕐 Horarios:* Matutino y Vespertino
-
-*💰 Inversión:*
-• Inscripción cuatrimestral: $1,100
-• Mensualidad: $1,800
-📌 No incluye credencial de estudiante (trámite por separado)
-
-*🎉 Promoción del mes:*
-• Inscripción: ~$1,100~ → $550 (50% de descuento)
-• Mensualidad: ~$1,800~ → $1,440 (20% de descuento)
-
-📄 Más información: https://drive.google.com/file/d/1txVAaLEpi-WPTybWtSKKMu3mn6fC5TkK/view`,
-
-  'Cursos de verano niños': `👋 ¡Hola! Gracias por tu interés en *My Best Summer 2026* de Instituto Windsor. ☀️
-
-📅 *Fechas:* Del 20 de julio al 07 de agosto.
-
-👧🧒 Contamos con grupos por edades:
-
-🔹 *Kids* (4 a 6 años)
-• Idiomas (Inglés y Francés)
-• Origami
-• Arte y pintura
-• Ritmo y movimiento musical
-• Repostería
-• Kung Fu
-
-🔹 *Juniors* (7 a 9 años)
-• Idiomas
-• Repostería
-• Robótica
-• Origami
-• Arte y pintura
-• Diseño de videojuegos
-• Ritmo y movimiento musical
-• Kung Fu
-
-🔹 *Seniors* (10 a 12 años)
-• Arte y pintura
-• Robótica
-• Idiomas
-• Kung Fu
-• Origami
-• Repostería
-• Diseño de videojuegos
-
-🕘 *Horario:* De 9:00 a.m. a 1:30 p.m.
-
-🍽️ *Cafetería:* Las instalaciones cuentan con servicio de cafetería, el cual opera de manera independiente. Los paquetes y costos los podrás consultar directamente con ellos — lo que sí podemos confirmar es que ofrecen opciones especiales para los cursos de verano.
-
-🚌 Los viernes realizamos salidas especiales al Zoológico, Museo La Avispa y Bomberos.
-
-📍 *Ubicación:* Calle Sofía Tena #1, Col. Viguri.
-
-💰 *Inversión:* $1,650 MXN + $300 materiales.
-💳 *Pago:* Puedes apartar tu lugar con el 50% y cubrir el resto al inicio del curso.
-
-🚨 *Inscripciones abiertas | Cupo limitado*`,
-
-  'Cursos de verano adultos': `👋 ¡Hola! Gracias por tu interés en *My Best Summer* para Adolescentes y Adultos de Instituto Windsor. 🌟
-
-📅 *Fechas:* Del 20 de julio al 07 de agosto.
-
-Ofrecemos cursos Extra Intensivos de Idiomas para que avances tu nivel en pocas semanas.
-
-🇬🇧 *Inglés*
-
-🔹 Beginner X Intensivo
-🕘 9:00 a.m. a 12:00 p.m. o 1:00 p.m. a 4:00 p.m.
-
-🔹 Elementary X Intensivo
-🕐 1:00 p.m. a 4:00 p.m.
-
-🔹 Pre-Intermediate X Intensivo
-🕐 1:00 p.m. a 4:00 p.m.
-
-🇫🇷 *Francés Intensivo*
-🕐 1:00 p.m. a 3:00 p.m.
-
-🇮🇹 *Italiano Intensivo*
-🕐 1:00 p.m. a 3:00 p.m.
-
-💰 *Inversión:* $1,700 MXN por curso.
-📚 Manual para cursos de inglés: $150 MXN adicionales.
-
-📍 *Ubicación:* Calle Sofía Tena #1, Col. Viguri.
-
-🚨 *Inscripciones abiertas | Cupo limitado*`,
-
-  'Habilidades para la práctica psicoterapéutica': `📚 Te comparto la información de nuestro curso *Habilidades para la práctica psicoterapéutica*:
-
-Existen diversas habilidades básicas para el correcto desarrollo de la labor clínica del psicólogo, que no siempre se desarrollan en la formación tradicional. Este curso desarrolla el análisis, la evaluación, el moldeamiento verbal y la dirección de actividades para brindar intervenciones psicoterapéuticas confiables y eficientes.
-
-*🎯 Objetivo:* Que el estudiante desarrolle habilidades de análisis conductual en el área clínica, para predecir, explicar e intervenir de manera eficiente ante distintos problemas psicológicos.
-
-*📋 Competencias a desarrollar:*
-• Análisis conductual aplicado
-• Análisis de casos clínicos
-• Análisis de la conducta verbal y no verbal
-• Moldeamiento verbal
-• Regulación y autorregulación de las emociones
-• Estrategias conductuales y emocionales en tratamientos multidisciplinares
-
-*👨‍🏫 Responsable:* Psic. Carlos Manuel Palacios Pita
-
-*🗓️ Duración:* 4 módulos de 3 sesiones cada uno (4 semanas), lunes a miércoles de 3:00 p.m. a 4:30 p.m.
-1️⃣ Introducción y habilidades básicas — 20 al 22 de julio
-2️⃣ Análisis funcional aplicado — 27 al 29 de julio
-3️⃣ Moldeamiento verbal — 3 al 5 de agosto
-4️⃣ Autorregulación emocional — 10 al 12 de agosto
-
-*💰 Costo* (incluye constancia):
-• Alumnos Windsor: $300
-• Público en general: $400
-
-🚨 *Cupo limitado:* mínimo 10, máximo 25 participantes.`,
-}
 
 const VALOR_POR_PROGRAMA: Record<string, number> = {
   'Inglés para adultos': 990,
@@ -1424,14 +1123,6 @@ async function handleRegistroCommand(
   return finalizarRegistro(supabase, waNumber, provider, originalText, recordatorio, 'registro_confirmar')
 }
 
-/** CTA siempre en código, nunca delegado a GPT */
-function buildCTA(programa: string | null | undefined): string {
-  if (esInglesIdioma(programa)) {
-    // El examen de ubicación es opcional — nunca debe bloquear la inscripción
-    return `\n\n¿Cómo te gustaría continuar?\n*A)* Tengo dudas 🤔\n*B)* Quiero inscribirme ✍️\n*C)* Agendar mi examen de ubicación gratuito (opcional) 📝`
-  }
-  return `\n\n¿Cómo te gustaría continuar?\n*A)* Tengo dudas 🤔\n*B)* Quiero inscribirme ✍️`
-}
 
 /** Detecta si el mensaje es SOLO la letra de opción (con puntuación simple opcional) —
  * evita falsos positivos de \bx\b contra palabras sueltas comunes en español (ej. la
@@ -1467,7 +1158,7 @@ function detectarEmail(msg: string): string | null {
 function noQuiereEmail(msg: string): boolean {
   const m = msg.toLowerCase()
   if (/no (lo )?ten(go)?|sin correo|no.*correo|no.*email|no.*mail|no quiero|no doy|no hay|no pos|nop/i.test(m)) return true
-  if (/por este medio|por aqu[ií]|as[ií] est[aá] bien|no uso|no manejo/i.test(m)) return true
+  if (/por este medio|por\s*a\s*qu[ií]|as[ií] est[aá] bien|no uso|no manejo/i.test(m)) return true
   if (/\b(solo|s[oó]lo|nada m[aá]s|nom[aá]s)\b.*(informaci[oó]n|info|eso)/i.test(m)) return true
   if (!m.includes('@') && /^(info|siguiente|dale|ok|omite|salta|después|despues|luego|no|nada|sin|omitir|skip)$/i.test(m.trim())) return true
   return false
@@ -1840,6 +1531,35 @@ function respuestaDatoConfirmado(
     }
   }
 
+  const esCursoIngles = /ingles/.test(contextoUsuario) && !/licenciatura en ingles/.test(String(quitarAcentos(cursoActual || '')).toLowerCase())
+
+  // Cuenta bancaria para depositar (alumnos actuales pagando mensualidad, o prospectos). El
+  // link de Drive es el mismo del proceso de inscripción — antes esto se escalaba y un asesor
+  // tenía que mandar el link a mano (🚩 caso Aitana, 2026-09-18).
+  if (/(a|en)\s+(que|cual)\s+cuenta|numero\s+de\s+cuenta|\bclabe\b|datos\s+bancarios|cuenta\s+(bancaria|para\s+(depositar|pagar|transferir))|(donde|a\s+donde)\s+(deposito|depositar|transfiero|transferir)/.test(texto)) {
+    return {
+      respuesta: 'Claro 😊 Haz clic en la liga para descargar la información de nuestra cuenta bancaria:\n\nhttps://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk\n\nCuando hagas tu depósito, compártenos por aquí tu comprobante y el nombre del estudiante.',
+    }
+  }
+
+  // Niveles del curso de inglés — respuesta confirmada por Harold (🚩 2026-09-15: se escaló
+  // "¿hay otro nivel para llegar a B2 o C1?" y el lead esperó 3 días).
+  if (esCursoIngles && (/\b(a1|a2|b1|b2|c1|c2)\b|marco comun|cuantos niveles|que niveles|hasta que nivel|otro nivel|siguiente nivel/.test(texto))) {
+    return {
+      respuesta: 'Sí 😊 Contamos con *seis niveles* basados en el Marco Común Europeo: A1, A2, B1, B2, C1 y C2. Cada nivel tiene una duración de cinco meses.\n\nSi cursaras todos los niveles de manera continua, el programa completo tomaría aproximadamente dos años. También puedes aprovechar los cursos intensivos de verano, en los que se trabaja al doble de ritmo, lo que te permite adelantar un nivel y reducir el tiempo total aproximadamente a un año y medio.',
+    }
+  }
+
+  // Incorporación a Inglés para niños ya iniciado el ciclo — el modelo decía que el curso
+  // "empieza el 7 de septiembre" en futuro y que "no hay nueva incorporación hasta el próximo
+  // ciclo" (🚩 caso Lluvia, 2026-09-21, inscribiendo a sus hijos). Abierto todo el año.
+  const esInglesNinosCtx = esCursoIngles && /\bnin[oa]s?\b|\bhij[oa]s?\b|\bpeque/.test(contextoUsuario)
+  if (esInglesNinosCtx && /incorpor|integr|empezar(i|a)?n?|entrar(i|a)?n?|octubre|proximo ciclo|nuevo grupo/.test(texto)) {
+    return {
+      respuesta: 'Sí 😊 El curso de Inglés para niños está abierto todo el año: el ciclo actual inició el 7 de septiembre (sabatino el 12 de septiembre), pero pueden incorporarse desde la clase a la que lleguen, sin esperar a otro ciclo. El profesor los apoya para ponerse al corriente con los temas ya vistos.\n\nTe esperamos en Chilpancingo: *Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00*.',
+    }
+  }
+
   const esInglesAdultos = /ingles.*adult|adult.*ingles|adultos? y jovenes/.test(contextoUsuario)
   const preguntaInicioOCosto = /inici|empiez|comienz|fecha|cu[aá]ndo|cuando|costo|precio|mensualidad|inscripci/.test(texto)
   if (esInglesAdultos && preguntaInicioOCosto) {
@@ -1881,7 +1601,10 @@ function respuestaDatoConfirmado(
 
   const esLicenciaturaActual = esLicenciatura(cursoActual)
   if (esLicenciaturaActual && /online|en linea|distancia|virtual/.test(texto)) {
-    if (/licenciatura en ingles/i.test(String(cursoActual || ''))) {
+    // quitarAcentos: el curso se guarda como "Licenciatura en Inglés" (con acento) y sin
+    // normalizar nunca coincidía — caía en la lista genérica y luego GPT inventaba que online
+    // "no tiene horario fijo" (🚩 caso Patricia Bernal, 2026-09-22).
+    if (/licenciatura en ingles/i.test(quitarAcentos(String(cursoActual || '')))) {
       return { respuesta: 'Sí 😊 La *Licenciatura en Inglés* se ofrece tanto presencial como *online*. En línea, la materia de Inglés se cursa lunes y martes de 7:00 p.m. a 9:00 p.m.; las materias complementarias se llevan en sesiones sabatinas, aproximadamente de 8:30 a.m. a 3:30 p.m.' }
     }
     return { respuesta: 'Sí tenemos licenciaturas en línea: *Licenciatura en Inglés*, *Relaciones Públicas y Mercadotecnia* y *Administración Turística*. Psicología se ofrece únicamente de forma presencial. ¿Cuál te interesa? 😊' }
@@ -1890,40 +1613,20 @@ function respuestaDatoConfirmado(
     return { respuesta: 'La licenciatura tiene una duración de *3 años* (9 cuatrimestres) 😊' }
   }
   if (esLicenciaturaActual && /horario|hora|sabatino|matutino|vespertino/.test(texto)) {
-    return { respuesta: 'Los horarios de licenciaturas son: *matutino* de 8:00 a.m. a 1:00 p.m. y *sabatino* de 8:00 a.m. a 5:30 p.m. 😊 Por ahora el turno vespertino no está abierto este periodo.' }
+    // Vespertino SÍ está disponible (Harold, 2026-09-23) — antes esta respuesta decía que no
+    // estaba abierto este periodo y contradecía la ficha del programa (🚩 caso Patricia Bernal).
+    const cursoNorm = quitarAcentos(String(cursoActual || '')).toLowerCase()
+    const lineaOnline = /licenciatura en ingles/.test(cursoNorm)
+      ? '\n• *Online:* Inglés lunes y martes de 7:00 p.m. a 9:00 p.m. + materias complementarias los sábados de 8:30 a.m. a 3:30 p.m.'
+      : /psicolog/.test(cursoNorm)
+        ? ''
+        : '\n• También está disponible en modalidad *online*.'
+    return { respuesta: `Los horarios de licenciaturas son:\n\n• *Matutino:* 8:00 a.m. a 1:00 p.m.\n• *Vespertino:* 2:00 p.m. a 8:00 p.m.\n• *Sabatino:* 8:00 a.m. a 5:30 p.m.${lineaOnline}\n\n¿Cuál se te acomoda mejor? 😊` }
   }
 
   return null
 }
 
-// My Best Summer 2026 ya concluyó (ver reglasNegocio.ts, TEXTO_MY_BEST_SUMMER_CERRADO) —
-// antes estos dos mensajes ofrecían inscripción activa a esa edición ya cerrada (fechas de
-// julio, cuenta bancaria, formulario) apenas alguien decía "quiero inscribirme"/"quiero
-// apartar mi lugar" estando en curso "verano". Ahora redirigen de forma explícita al curso
-// regular de idiomas (abierto todo el año), que es el proceso vigente real (caso real:
-// Tania Itzel, lead de "Verano adultos", 2026-09-04, marcado como error en el CRM).
-const VERANO_NINOS_REDIRECT_BASE = `¡Buena noticia! 🎈 La edición de este año de *My Best Summer* ya concluyó, pero tenemos nuestro curso regular de *Inglés para niños* abierto todo el año — te comparto cómo inscribirte:
-
-${INFO_MSGS['Inglés para niños']}`
-
-const VERANO_ADULTOS_REDIRECT_BASE = `¡Buena noticia! 🎈 La edición de este año de *My Best Summer* ya concluyó, pero tenemos nuestro curso regular de *Inglés para adultos* abierto todo el año — te comparto cómo inscribirte:
-
-${INFO_MSGS['Inglés para adultos']}`
-
-const INSCRIPCION_VERANO_NINOS_MSG = VERANO_NINOS_REDIRECT_BASE + buildCTA('Inglés para niños')
-const INSCRIPCION_VERANO_ADULTOS_MSG = VERANO_ADULTOS_REDIRECT_BASE + buildCTA('Inglés para adultos')
-
-// El bug de arriba (Tania Itzel) solo se corrigió para el paso de "quiero inscribirme".
-// Pero INFO_MSGS['Cursos de verano niños'/'adultos'] (definidos arriba, con las fechas de
-// julio-agosto y "Inscripciones abiertas") se siguen usando tal cual en varios otros sitios
-// de este archivo (info general del programa, resend tras capturar correo, etc., todos los
-// cuales agregan su propio buildCTA() aparte — por eso aquí se usa el _BASE sin CTA, igual
-// que el resto de las entradas de INFO_MSGS) — cualquiera de esos sitios le habría mandado a
-// un lead la misma promoción de una temporada ya concluida sin pasar por "inscribirme". Se
-// sobreescriben aquí para que TODOS los consumidores de INFO_MSGS (fuente de verdad única)
-// redirijan al curso regular vigente.
-INFO_MSGS['Cursos de verano niños'] = VERANO_NINOS_REDIRECT_BASE
-INFO_MSGS['Cursos de verano adultos'] = VERANO_ADULTOS_REDIRECT_BASE
 
 const INSCRIPCION_LICS_MSG = `🎉 ¡Felicidades por tomar esta decisión!
 
@@ -2323,7 +2026,7 @@ NO listes el catálogo tú mismo — eso se maneja de forma separada.`,
 
     correo: `El prospecto eligió un programa. ANTES de dar información del programa, pide su correo electrónico brevemente para dar seguimiento personalizado.
 Si el prospecto proporciona un correo válido (debe contener @ y un dominio, ej. nombre@gmail.com), acusa recibo calurosamente — captura el email en el campo "email" del JSON y pon siguienteFase: info_enviada.
-Si el mensaje NO contiene un correo válido (ej. responde "sí", "claro", "ok", "si claro", un nombre, o cualquier cosa sin @), NO avances — vuelve a pedir el correo con amabilidad, explicando que lo necesitas para enviarle la información. Deja "email": null y siguienteFase: correo.
+Si el mensaje NO contiene un correo válido (ej. responde "sí", "claro", "ok", "si claro", un nombre, o cualquier cosa sin @), NO avances — vuelve a pedir el correo con amabilidad, aclarando que es opcional (si no tiene, con gusto le compartimos la información por aquí). NUNCA digas que el correo es obligatorio ni que lo "necesitas". Deja "email": null y siguienteFase: correo.
 Si explícitamente no quiere darlo o dice que no tiene, avanza de todas formas a info_enviada con "email": null.
 No menciones el programa todavía — solo pide el correo.`,
 
@@ -3616,8 +3319,13 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         }
       }
 
-      // Detección global de "inglés" ambiguo — sin importar la fase, si no hay programa capturado aún
-      if (!hasLeadProgram(leadSnapshot?.curso)) {
+      // Detección global de "inglés" ambiguo — sin importar la fase, si no hay programa capturado aún.
+      // EXCEPTO en saludo sin nombre: antes esto se saltaba la captura de nombre/correo y el lead
+      // recibía la ficha completa sin dar ningún dato (🚩 caso +527541038883, 2026-09-23). Ahí lo
+      // maneja el flujo de saludo (pide nombre) y el bloque de "GPT avanza a programa" más abajo
+      // recupera el "inglés" del historial para desambiguar después.
+      const saludoSinNombre = phase === 'saludo' && !hasLeadName(leadSnapshot?.nombre, waNumber)
+      if (!hasLeadProgram(leadSnapshot?.curso) && !saludoSinNombre) {
         const msgLower0 = originalText.toLowerCase()
         if (/ingl[eé]s/i.test(msgLower0) && !/ni[ñn]o|adulto|licenciatura|lic\b/i.test(msgLower0)) {
           const disambig = `Tenemos tres opciones de inglés, ¿cuál te interesa?\n\nA) Inglés para adultos\nB) Inglés para niños\nC) Licenciatura en Inglés`
@@ -3834,6 +3542,21 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       const leadEsVerano = (leadSnapshot?.curso || '').toLowerCase().includes('verano')
       const mensionVerano = /verano|summer|my best summer/i.test(originalText)
       const cambioVerano = leadEsVerano && /ni[ñn]os?|kids?|adultos?|adolescen/i.test(originalText)
+      // Lead con curso de verano viejo que menciona adultos/niños SIN decir "verano": My Best
+      // Summer ya concluyó, así que lo que busca es el curso regular. Cambiar su curso y mandar
+      // la ficha regular directo, sin el aviso de "My Best Summer ya concluyó" que no pidió
+      // (🚩 caso Maribel, 2026-09-18: "me interesa el curso de idiomas para adultos y jóvenes").
+      if (cambioVerano && !mensionVerano && phase !== 'saludo' && phase !== 'correo') {
+        const programaRegular = /ni[ñn]os?|kids?/i.test(originalText) && !/adultos?|j[oó]venes/i.test(originalText)
+          ? 'Inglés para niños'
+          : 'Inglés para adultos'
+        if (leadId) {
+          await supabase.from('leads').update({ curso: programaRegular, ...(getValorPrograma(programaRegular) ? { valor: getValorPrograma(programaRegular) } : {}) }).eq('id', leadId)
+        }
+        const msgRegular = INFO_MSGS[programaRegular] + buildCTA(programaRegular)
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgRegular, 'accion', leadId)
+        return buildProviderResponse(provider, msgRegular, waNumber)
+      }
       if ((mensionVerano || cambioVerano) && phase !== 'saludo' && phase !== 'correo') {
         // detectarPrograma() puede reconocer palabras sueltas (ej. "francés") que no son
         // programas de verano en sí, sino solo actividades dentro del paquete — aquí solo
@@ -4104,6 +3827,16 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           return buildProviderResponse(provider, msgFallback, waNumber)
         }
 
+        // Carrera entre mensajes casi simultáneos: si otro mensaje del lead ya resolvió esta
+        // fase (dijo "no tengo correo" y se le mandó la info), no volver a pedirle el correo
+        // (🚩 2026-09-22, diplomado: dijo "no cuento con correo" + "podría ser por aquí" en el
+        // mismo minuto y el bot le mandó la info Y luego "necesito tu correo").
+        const { data: faseActualCorreo } = await supabase
+          .from('whatsapp_conversaciones').select('fase').eq('id', conversacionIdOuter).maybeSingle()
+        if (faseActualCorreo?.fase && faseActualCorreo.fase !== 'correo') {
+          return Response.json({ ok: true, skipped: 'fase_correo_ya_resuelta' })
+        }
+
         // Aún no dio correo — GPT pide el correo amablemente
         const gptPideCorreo = await askGPT({
           fase: 'correo',
@@ -4351,8 +4084,13 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, askName, 'saludo')
           return buildProviderResponse(provider, askName, waNumber)
         }
-        // "inglés" ambiguo — preguntar cuál de las tres opciones
-        const msgLower2 = originalText.toLowerCase()
+        // "inglés" ambiguo — preguntar cuál de las tres opciones. Si todavía no hay programa,
+        // incluir los mensajes previos del lead: típicamente pidió "info de inglés" en el primer
+        // mensaje y ahora solo está dando su nombre.
+        const sinProgramaAun = !gpt.programa && !hasLeadProgram(leadSnapshot?.curso)
+        const msgLower2 = (sinProgramaAun
+          ? [...convHistory.filter(m => m.role === 'user').map(m => m.content), originalText].join(' ')
+          : originalText).toLowerCase()
         if (/ingl[eé]s/i.test(msgLower2) && !/ni[ñn]o|adulto|licenciatura|lic\b/i.test(msgLower2)) {
           const disambig = `Tenemos tres opciones de inglés, ¿cuál te interesa?\n\nA) Inglés para adultos\nB) Inglés para niños\nC) Licenciatura en Inglés`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, disambig, 'programa')

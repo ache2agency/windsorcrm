@@ -55,6 +55,7 @@ export function normalizarEtapaReactivacion(stage: string | null | undefined): R
     seguimiento: 'segundo_contacto',
     tercer_contacto: 'segundo_contacto',
     promo_enviada: 'promocion_enviada',
+    interesado: 'promocion_enviada', // ya recibió la ficha con la promo del mes
   }
   return map[s] ?? null
 }
