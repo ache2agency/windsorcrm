@@ -12,11 +12,11 @@ const META_TEMPLATES = (nombre) => {
       preview: `Hola ${n} 👋 ¿Pudiste revisar la información que te compartimos sobre Instituto Windsor? Si tienes alguna duda, con gusto te ayudamos. 😊\n\n› Sí, tengo dudas\n› No tengo dudas\n› No me interesa`,
     },
     {
-      id: "windsor_promocion",
+      id: "windsor_promo",
       label: "Promoción",
-      templateName: "windsor_promocion",
+      templateName: "windsor_promo",
       params: (n) => [n],
-      preview: `Hola ${n}, queremos que no te pierdas la promoción vigente en Instituto Windsor. ¿Te gustaría conocer los detalles y apartar tu lugar? 😊`,
+      preview: `Hola ${n} 😊. Tenemos una promoción vigente en Instituto Windsor y nos encantaría que la aprovecharas. ¿Te compartimos los detalles?`,
     },
     {
       id: "windsor_inscripcion_pendiente_",

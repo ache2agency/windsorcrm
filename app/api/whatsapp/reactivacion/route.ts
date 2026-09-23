@@ -101,7 +101,8 @@ async function enviarWhatsApp(
 
 function getTemplatePorEtapa(etapa: string, intento: number): string {
   if (etapa === 'inscripcion_pendiente') return 'windsor_inscripcion_pendiente_'
-  if (intento === 2) return 'windsor_promocion'
+  // Nombre EXACTO del template aprobado en Meta (sin "cion" — ver app/api/seguimientos/route.ts)
+  if (intento === 2) return 'windsor_promo'
   return 'seguimiento_general'
 }
 

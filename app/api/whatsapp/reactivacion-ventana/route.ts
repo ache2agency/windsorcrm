@@ -69,7 +69,8 @@ function planToque(params: {
   trackA: boolean
 }): Plan | null {
   const { fase, toque, nombre, programa, pidioIngles, trackA } = params
-  const saludo = nombre ? `¡Hola ${nombre.split(' ')[0]}! 😊` : '¡Hola! 😊'
+  const primerNombre = nombre ? nombre.split(' ')[0].replace(/[.,;:]+$/, '') : ''
+  const saludo = primerNombre ? `¡Hola ${primerNombre}! 😊` : '¡Hola! 😊'
   const ficha = programa ? INFO_MSGS[programa] : null
   // Ficha sin su propio saludo inicial ("¡Excelente elección! 😊 Te comparto…")
   const fichaSinSaludo = ficha ? ficha.replace(/^[^\n]*\n\n/, '') : null
