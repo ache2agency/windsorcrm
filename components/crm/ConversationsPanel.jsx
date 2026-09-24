@@ -59,7 +59,6 @@ Dirigido a niños de 4 a 12 años
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$800~ → $400 (50% de descuento)
-• ¡Primer mes gratis!
 
 Al terminar obtiene un Diploma con validez oficial.
 
@@ -76,11 +75,11 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,150
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,150~ → $645 (70% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
 • Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Docente, traductor, asesor editorial, call centers, centros de investigación y organismos internacionales.
@@ -142,7 +141,7 @@ Modalidad: Presencial | Duración: 3 años
 • *30% de descuento* en mensualidad
 
 *💰 Precios con promoción:*
-• Inscripción: ~$2,150~ → *$645*
+• Inscripción: ~$2,300~ → *$690*
 • Mensualidad: ~$2,750~ → *$1,925*
 
 ¡Cupo limitado! 😊
@@ -158,11 +157,11 @@ Modalidad: Presencial | Duración: 3 años
 *🕐 Horarios:* Matutino, Vespertino y Sabatino
 
 *💰 Inversión:*
-• Inscripción semestral: $2,200
+• Inscripción semestral: $2,300
 • Mensualidad: $2,750
 
 *🎉 Promoción del mes:*
-• Inscripción: ~$2,200~ → $660 (70% de descuento)
+• Inscripción: ~$2,300~ → $690 (70% de descuento)
 • Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
 
 *💼 Campo laboral:* Agencias de viajes, hoteles, resorts, operadores turísticos, eventos y convenciones.

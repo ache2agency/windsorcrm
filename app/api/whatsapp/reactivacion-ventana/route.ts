@@ -1,6 +1,7 @@
 import { createServiceRoleClient } from '@/utils/supabase/server'
 import { sendMetaWhatsAppMessage } from '@/lib/whatsapp/provider'
 import { detectarPrograma } from '@/lib/whatsapp/programas'
+import { hasLeadName } from '@/lib/whatsapp/nombres'
 import { INFO_MSGS, buildCTA } from '@/lib/whatsapp/infoMsgs'
 import { esTrackA, obtenerMensajeReactivacion20h } from '@/lib/whatsapp/reactivacion-messages'
 
@@ -48,6 +49,26 @@ const PREGUNTA_PENDIENTE: Record<string, RegExp> = {
   programa: /qu[eé] programa|cu[aá]l.{0,40}te interesa/i,
 }
 
+/** La pregunta tiene que estar en el CIERRE del mensaje del bot (último párrafo), no en
+ * cualquier parte: un mensaje con toda la ficha que termina en "¿Cuál es tu nombre?" daba
+ * positivo y el toque decía "para enviarte la información solo necesito tu nombre" a quien
+ * ya la tenía (caso +527451345134, 2026-09-24). */
+function quedoEsperandoDato(fase: string, contenidoBot: string): boolean {
+  const parrafos = contenidoBot.trim().split(/\n\s*\n/)
+  const cierre = parrafos[parrafos.length - 1] || ''
+  return PREGUNTA_PENDIENTE[fase].test(cierre)
+}
+
+/** ¿El bot ya mandó información del programa (precios/ficha) o ya dijo que no lo ofrecemos?
+ * En ambos casos el toque de captura no tiene sentido — "para enviarte la información"
+ * a quien ya la tiene, o a quien pidió algo que no damos (caso +527471776969, secundaria). */
+function yaRecibioInfoONoOfrecemos(mensajesBot: string[]): boolean {
+  return mensajesBot.some((c) =>
+    /\$\s?\d/.test(c) || /inscripci[oó]n|mensualidad|colegiatura/i.test(c) && c.length > 300 ||
+    /no (ofrecemos|contamos con|tenemos|manejamos)/i.test(c)
+  )
+}
+
 function verifyCronSecret(request: Request): boolean {
   const secret = process.env.CRON_SECRET?.replace(/\\n$/, '').trim()
   if (!secret) return false
@@ -60,12 +81,6 @@ function horaMexico(d: Date): number {
   return Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Mexico_City', hour: 'numeric', hour12: false }).format(d)) % 24
 }
 
-function nombreValido(nombre: string | null | undefined, whatsapp: string): boolean {
-  const n = (nombre || '').trim()
-  if (!n || n.length < 2 || n.length > 50 || n === whatsapp) return false
-  if (/[\d@¿?¡!,;]/.test(n)) return false
-  return /^[\p{L}\s'\-.]+$/u.test(n)
-}
 
 function tieneProgramaReal(curso: string | null | undefined): boolean {
   const c = (curso || '').trim().toLowerCase()
@@ -185,8 +200,12 @@ async function run(request: Request) {
     if (toquesPrevios >= 2) { r('omitido', 'ya tiene 2 toques'); continue }
 
     const esCaptura = FASES_CAPTURA.includes(conv.fase)
-    if (esCaptura && !PREGUNTA_PENDIENTE[conv.fase].test(ultimo.contenido || '')) {
-      r('omitido', `fase ${conv.fase} pero el último mensaje del bot no es esa pregunta`)
+    if (esCaptura && !quedoEsperandoDato(conv.fase, ultimo.contenido || '')) {
+      r('omitido', `fase ${conv.fase} pero el último mensaje del bot no termina en esa pregunta`)
+      continue
+    }
+    if (esCaptura && yaRecibioInfoONoOfrecemos(mensajes.slice(0, idxUser).filter(m => m.rol === 'bot').map(m => m.contenido || ''))) {
+      r('omitido', 'el bot ya mandó info/precios o dijo que no ofrecemos el programa')
       continue
     }
     if (!esCaptura && !MENSAJE_2_ACTIVO) { r('omitido', 'mensaje 2 apagado (falta clasificación)'); continue }
@@ -210,7 +229,7 @@ async function run(request: Request) {
     const plan = planToque({
       fase: conv.fase,
       toque,
-      nombre: nombreValido(lead?.nombre, conv.whatsapp) ? lead!.nombre : null,
+      nombre: hasLeadName(lead?.nombre, conv.whatsapp) ? lead!.nombre : null,
       programa: programa || null,
       pidioIngles: /ingl[eé]s/i.test(textoLead),
       trackA: esTrackA(programa),
