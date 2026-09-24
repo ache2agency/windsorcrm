@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import twilio from 'twilio'
-import { createServiceRoleClient } from '@/utils/supabase/server'
+import { createClient, createServiceRoleClient } from '@/utils/supabase/server'
 import {
   getMetaConfig,
   getTwilioConfig,
@@ -12,7 +12,30 @@ import {
 } from '@/lib/whatsapp/provider'
 import { obtenerTemplateAprobado, renderizarTemplate } from '@/lib/whatsapp/templates-aprobados'
 
+// Llamadas internas (scripts de campaña, correcciones manuales por curl) se identifican con
+// el mismo CRON_SECRET de los crons. Se limpia el "\n" literal que deja `vercel env pull`.
+function verifyInternalSecret(request: Request): boolean {
+  const secret = process.env.CRON_SECRET?.replace(/\\n$/, '').trim()
+  if (!secret) return false
+  const auth = request.headers.get('authorization')
+  if (auth?.startsWith('Bearer ')) return auth.slice(7).trim() === secret
+  return request.headers.get('x-cron-secret') === secret
+}
+
 export async function POST(request: Request) {
+  // Antes este endpoint no tenía autenticación: cualquiera con la URL podía mandar WhatsApp
+  // (y templates pagados) desde el número de Windsor. Ahora exige sesión del CRM o el secreto.
+  const esInterno = verifyInternalSecret(request)
+  let sessionUserId: string | null = null
+  if (!esInterno) {
+    const authClient = await createClient()
+    const { data: { user } } = await authClient.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+    sessionUserId = user.id
+  }
+
   let to: string | undefined
   let body: string | undefined
   let leadId: string | undefined
@@ -32,6 +55,8 @@ export async function POST(request: Request) {
       templateParams?: string[]
       modoHumano?: boolean
     })
+    // Con sesión, el asesor es quien está logueado — no lo que diga el body.
+    if (sessionUserId) agentUserId = sessionUserId
 
     if (!to || (!body && !templateName)) {
       return NextResponse.json(

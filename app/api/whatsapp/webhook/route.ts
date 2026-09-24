@@ -23,7 +23,8 @@ import {
   type TipoInscripcion,
   type OfertaMatchResult,
 } from '@/lib/whatsapp/programas'
-import { REGLAS_NEGOCIO, TEXTO_PLANTELES } from '@/lib/whatsapp/reglasNegocio'
+import { REGLAS_NEGOCIO, TEXTO_PLANTELES, TEXTO_HORARIO_ATENCION } from '@/lib/whatsapp/reglasNegocio'
+import { hasLeadName } from '@/lib/whatsapp/nombres'
 import { INFO_MSGS, buildCTA, INSCRIPCION_VERANO_NINOS_MSG, INSCRIPCION_VERANO_ADULTOS_MSG } from '@/lib/whatsapp/infoMsgs'
 
 export const maxDuration = 60
@@ -64,6 +65,43 @@ type IncomingWhatsAppMessage = {
 }
 
 const ADMIN_WA_ALERTA = '527471028306'
+
+function extraerWamid(rawPayload: Record<string, unknown>): string | null {
+  const entry = (rawPayload as { entry?: Array<{ changes?: Array<{ value?: { messages?: Array<{ id?: string }> } }> }> }).entry
+  const id = entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id
+  return typeof id === 'string' && id ? id : null
+}
+
+/** ¿Ya guardamos este mismo mensaje de Meta (mismo wamid)? Busca solo en las
+ * conversaciones de ese número y en los últimos 2 días, para usar el índice
+ * (conversacion_id, rol, created_at) en vez de recorrer toda la tabla. */
+async function mensajeMetaYaProcesado(rawPayload: Record<string, unknown>, waNumber: string): Promise<boolean> {
+  const wamid = extraerWamid(rawPayload)
+  if (!wamid) return false
+  try {
+    const supabase = createServiceRoleClient()
+    const { data: convs } = await supabase
+      .from('whatsapp_conversaciones')
+      .select('id')
+      .eq('whatsapp', waNumber)
+    const ids = (convs || []).map((c) => c.id as string)
+    if (ids.length === 0) return false
+    const { data: existing } = await supabase
+      .from('whatsapp_mensajes')
+      .select('id')
+      .in('conversacion_id', ids)
+      .eq('rol', 'usuario')
+      .gte('created_at', new Date(Date.now() - 2 * 24 * 3600_000).toISOString())
+      .contains('raw_payload', { entry: [{ changes: [{ value: { messages: [{ id: wamid }] } }] }] })
+      .limit(1)
+      .maybeSingle()
+    return Boolean(existing?.id)
+  } catch (err) {
+    // Si la verificación falla, procesar el mensaje: es peor perderlo que duplicarlo.
+    console.error('[WhatsApp dedup] Error verificando wamid:', err)
+    return false
+  }
+}
 
 async function alertarAdminNuevoLead(
   supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
@@ -223,44 +261,6 @@ function buildAgendarLink(tipo: string, nombre?: string | null, email?: string |
 }
 const BOT_SIGNATURE = 'Instituto Windsor'
 
-function hasLeadName(nombre: string | null | undefined, whatsapp: string | null | undefined) {
-  let value = String(nombre || '').trim()
-  // Normalizar: abreviaciones con punto (Ma. → Ma, Dr. → Dr) y punto final
-  value = value.replace(/\b([A-ZÁÉÍÓÚ]{1,3})\.\s*/g, '$1 ').replace(/\.\s*$/, '').trim()
-  if (!value || value.length < 2) return false
-  if (value === String(whatsapp || '').trim()) return false
-  if (/@/.test(value)) return false
-  // Rechazar si tiene más de 4 palabras "de nombre" (nombres reales tienen máx 4). Las
-  // partículas (de, la, del, los, las, y) no cuentan — antes "Angel de la cruz roque"
-  // (5 palabras) se rechazaba y el bot preguntaba "¿Cómo te llamas?" en loop (🚩 2026-09-17).
-  if (value.split(/\s+/).filter(w => !/^(de|la|las|los|del|y)$/i.test(w)).length > 4) return false
-  // Rechazar si contiene dígitos
-  if (/\d/.test(value)) return false
-  // Rechazar si contiene signos de puntuación o interrogación (es una frase)
-  if (/[¿?¡!,;:.\/\\]/.test(value)) return false
-  // Rechazar si contiene emojis o caracteres no válidos en un nombre
-  if (!/^[\p{L}\s'\-]+$/u.test(value)) return false
-  // Rechazar palabras que claramente no son nombres propios
-  // Nota: "buen[oa]?s?" (con la vocal también opcional) para cubrir "Buen día" suelto,
-  // no solo "Buenos días" — caso real confirmado: "Buen día" guardado como nombre.
-  const noNombres = /^(hola|buenas?|buen|d[ií]a|tardes?|noches?|info|informaci[oó]n|costos?|precios?|horarios?|quiero|quisiera|necesito|ayuda|gracias|ok|s[ií]|no|nada|nope|oye|hey|buenos|saludos|permiso|disculp|por\s+favor|favor|buen[oa]?s?\s+d[ií]as?|buen[oa]?s?\s+tardes?|buen[oa]?s?\s+noches?)$/i
-  if (noNombres.test(value.trim())) return false
-  // Rechazar si claramente es la respuesta a OTRA pregunta del flujo (para quién es,
-  // modalidad, costos, petición de reenvío, etc.) colada como si fuera el nombre.
-  // Causa raíz confirmada de nombres corruptos guardados en leads.nombre: "Para adultos",
-  // "De costos", "Para mi hija", "Enviar nuevamente", "Sistema habierto" (ver memoria
-  // windsorcrm: bug nombre corrupto). Un nombre real de pila nunca empieza con "para"
-  // ni contiene estas palabras sueltas.
-  if (/^para\b/i.test(value)) return false
-  const respuestaOtraCosa = /\b(adultos?|ni[ñn]os?|sistema|abiert[oa]|cerrad[oa]|escolarizad[oa]|semiescolarizad[oa]|presencial(es)?|virtual(es)?|modalidad(es)?|en\s*l[ií]nea|online|costos?|precios?|mensualidad(es)?|colegiatur(a|as)|inscripci[oó]n(es)?|descuentos?|becas?|env[ií]a(r|me)?|reenv[ií]a(r|me)?|manda(r|me)?|nuevamente|hij[oa]s?)\b/i
-  if (respuestaOtraCosa.test(value)) return false
-  // Rechazar si el texto coincide con un programa/curso conocido (ej. "Mercadotecnia"):
-  // quien lo escribe está diciendo qué le interesa estudiar, no su nombre. Reutiliza el
-  // mismo detector que usa el resto del flujo para reconocer programas, en vez de
-  // mantener una lista de palabras aparte.
-  if (detectarPrograma(value)) return false
-  return true
-}
 
 function hasLeadEmail(email: string | null | undefined) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim())
@@ -2101,11 +2101,14 @@ Tono: amable, directo, como una persona real — no un robot.`
     `Programa de interés: ${params.leadData.curso || 'no identificado aún'}`,
   ].join('\n')
 
-  const hoyMX = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Mexico_City' })
+  const hoyMX = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Mexico_City' })
+  const horaMX = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Mexico_City' })
 
   const systemPrompt = `${baseInstructions}
 
-FECHA DE HOY: ${hoyMX}. Úsala si preguntan "¿hasta cuándo?", "¿solo este mes?" o similar sobre vigencia de promociones — nunca inventes ni asumas otro mes (caso real: Arlette, 2026-09-17, el bot dijo que la promoción era "válida únicamente durante agosto 2026" estando ya en septiembre).
+FECHA DE HOY: ${hoyMX}, ${horaMX} h (hora de México).
+VISITAS "HOY" (CRÍTICO — caso real 2026-09-23: un miércoles a las 15:38 el bot ofreció "hoy en horario sabatino 9 a 13h"): si el prospecto quiere venir hoy o mañana, revisa qué día de la semana es y a qué hora abre/cierra el plantel según el horario de atención (${TEXTO_HORARIO_ATENCION}). Nunca ofrezcas el horario de sábado entre semana ni un horario que ya pasó; si hoy ya cerró, dile a qué hora puede venir el siguiente día hábil.
+Usa la fecha si preguntan "¿hasta cuándo?", "¿solo este mes?" o similar sobre vigencia de promociones — nunca inventes ni asumas otro mes (caso real: Arlette, 2026-09-17, el bot dijo que la promoción era "válida únicamente durante agosto 2026" estando ya en septiembre).
 
 DATOS ACTUALES DEL PROSPECTO:
 ${leadContext}
@@ -2287,6 +2290,16 @@ export async function POST(request: Request) {
         return incoming.provider === 'twilio'
           ? buildTwiml('')
           : Response.json({ ok: true, deduplicated: true })
+      }
+    }
+
+    // Deduplicación por wamid de Meta — si el webhook tarda (GPT, audio), Meta reintenta
+    // el MISMO mensaje cada ~20s y cada reintento se procesaba como mensaje nuevo: se
+    // guardaba varias veces y el bot contestaba 2 veces distinto (caso real
+    // +527451345134, 2026-09-24: 1 mensaje → 4 registros con el mismo wamid).
+    if (incoming.provider === 'meta' && incoming.waNumber) {
+      if (await mensajeMetaYaProcesado(incoming.rawPayload, incoming.waNumber)) {
+        return Response.json({ ok: true, deduplicated: true })
       }
     }
 
@@ -3056,7 +3069,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         if (looksLikeName) {
           // Limpiar prefijos comunes: "Con X", "Soy X", "Me llamo X", "Es X"
           const nombreCapturado = originalText.trim()
-            .replace(/^\s*(con\s+|soy\s+|me\s+llamo\s+|es\s+)/i, '')
+            .replace(/^\s*(con\s+|soy\s+|me\s+llamo\s+|mi\s+nombre\s+es\s*:?\s+|es\s+)/i, '')
             .replace(/^\s*(la\s+se[ñn]or[ai]\s+|el\s+se[ñn]or\s+|don\s+|do[ñn]a\s+|la\s+se[ñn]orita\s+)/i, '')
             .trim()
           if (leadId) {
@@ -3622,7 +3635,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
 
           if (looksLikeName) {
             const nombreCapturado = originalText.trim()
-              .replace(/^\s*(con\s+|soy\s+|me\s+llamo\s+|es\s+)/i, '')
+              .replace(/^\s*(con\s+|soy\s+|me\s+llamo\s+|mi\s+nombre\s+es\s*:?\s+|es\s+)/i, '')
               .replace(/^\s*(la\s+se[ñn]or[ai]\s+|el\s+se[ñn]or\s+|don\s+|do[ñn]a\s+|la\s+se[ñn]orita\s+)/i, '')
               .trim()
             if (leadId) {

@@ -21,6 +21,9 @@ import { fileURLToPath } from 'url'
 const SEND = process.argv.includes('--send')
 const TEMPLATE_NAME = 'lic_mkt'
 const API_BASE = process.env.CRM_API_BASE || 'https://crm.windsor.edu.mx'
+// /api/whatsapp/send exige sesión o CRON_SECRET desde 2026-09-24 (antes no tenía auth)
+const CRON_SECRET = (process.env.CRON_SECRET || '').replace(/\\n$/, '').trim()
+if (!CRON_SECRET) { console.error('Falta CRON_SECRET en el entorno (.env.local)'); process.exit(1) }
 const EXCLUIR_WHATSAPP = ['+527444243810'] // Luis — canceló su inscripción
 const SENT_LOG_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'campana-lic-mkt-enviados.json')
 
@@ -92,7 +95,7 @@ async function main() {
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/send`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${CRON_SECRET}` },
         body: JSON.stringify({
           to: lead.whatsapp,
           leadId: lead.id,

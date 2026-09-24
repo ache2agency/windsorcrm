@@ -59,7 +59,6 @@ Dirigido a niños de 4 a 12 años
 
 *🎉 Promoción del mes:*
 • Inscripción: ~$800~ → $400 (50% de descuento)
-• ¡Primer mes gratis!
 
 Al terminar obtiene un Diploma con validez oficial.
 
