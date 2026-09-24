@@ -154,9 +154,11 @@ Modalidad: Presencial | Duración: 3 años
 • Mensualidad: $2,750
 📌 No incluye credencial de estudiante (trámite por separado)
 
-*🎉 Promoción del mes:*
-• Inscripción: ~$2,300~ → $690 (70% de descuento)
-• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
+*📅 Próximo grupo:* inicia en *septiembre 2027* (este ciclo no se abrió grupo). Ya puedes inscribirte para apartar tu lugar.
+
+*🎉 Promoción de preinscripción:*
+• Inscripción: ~$2,300~ → *GRATIS*
+• Solo pagas tu primera mensualidad con 30% de descuento: ~$2,750~ → $1,925
 
 *✨ Incluye 3 certificaciones:* Marketing digital, creación de páginas web y diseño gráfico.
 
@@ -174,9 +176,11 @@ Modalidad: Online | Duración: 3 años
 • Mensualidad: $2,750
 📌 No incluye credencial de estudiante (trámite por separado)
 
-*🎉 Promoción del mes:*
-• Inscripción: ~$2,300~ → $690 (70% de descuento)
-• Mensualidad: ~$2,750~ → $1,925 (30% de descuento)
+*📅 Próximo grupo:* inicia en *septiembre 2027* (este ciclo no se abrió grupo). Ya puedes inscribirte para apartar tu lugar.
+
+*🎉 Promoción de preinscripción:*
+• Inscripción: ~$2,300~ → *GRATIS*
+• Solo pagas tu primera mensualidad con 30% de descuento: ~$2,750~ → $1,925
 
 *✨ Incluye 3 certificaciones:* Marketing digital, creación de páginas web y diseño gráfico.
 

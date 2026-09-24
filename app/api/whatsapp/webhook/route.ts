@@ -1607,7 +1607,7 @@ function respuestaDatoConfirmado(
     if (/licenciatura en ingles/i.test(quitarAcentos(String(cursoActual || '')))) {
       return { respuesta: 'Sí 😊 La *Licenciatura en Inglés* se ofrece tanto presencial como *online*. En línea, la materia de Inglés se cursa lunes y martes de 7:00 p.m. a 9:00 p.m.; las materias complementarias se llevan en sesiones sabatinas, aproximadamente de 8:30 a.m. a 3:30 p.m.' }
     }
-    return { respuesta: 'Sí tenemos licenciaturas en línea: *Licenciatura en Inglés*, *Relaciones Públicas y Mercadotecnia* y *Administración Turística*. Psicología se ofrece únicamente de forma presencial. ¿Cuál te interesa? 😊' }
+    return { respuesta: 'Sí tenemos licenciaturas en línea: *Licenciatura en Inglés*, *Administración Turística* y *Relaciones Públicas y Mercadotecnia* (esta última abre su próximo grupo en septiembre 2027). Psicología se ofrece únicamente de forma presencial. ¿Cuál te interesa? 😊' }
   }
   if (esLicenciaturaActual && /duraci[oó]n|cu[aá]nto tiempo|cuantos a[nñ]os|cu[aá]ntos a[nñ]os/.test(texto)) {
     return { respuesta: 'La licenciatura tiene una duración de *3 años* (9 cuatrimestres) 😊' }
@@ -1621,7 +1621,11 @@ function respuestaDatoConfirmado(
       : /psicolog/.test(cursoNorm)
         ? ''
         : '\n• También está disponible en modalidad *online*.'
-    return { respuesta: `Los horarios de licenciaturas son:\n\n• *Matutino:* 8:00 a.m. a 1:00 p.m.\n• *Vespertino:* 2:00 p.m. a 8:00 p.m.\n• *Sabatino:* 8:00 a.m. a 5:30 p.m.${lineaOnline}\n\n¿Cuál se te acomoda mejor? 😊` }
+    // RP y Mercadotecnia no abrió grupo este ciclo (Harold, 2026-09-24): aclararlo junto a los horarios
+    const avisoRP = /mercadotecnia|relaciones publicas/.test(cursoNorm)
+      ? '\n\n📅 Ojo: *Relaciones Públicas y Mercadotecnia* abre su próximo grupo en *septiembre 2027*. Puedes apartar tu lugar desde ahora con *inscripción GRATIS*, pagando solo tu primera mensualidad con 30% de descuento ($1,925).'
+      : ''
+    return { respuesta: `Los horarios de licenciaturas son:\n\n• *Matutino:* 8:00 a.m. a 1:00 p.m.\n• *Vespertino:* 2:00 p.m. a 8:00 p.m.\n• *Sabatino:* 8:00 a.m. a 5:30 p.m.${lineaOnline}${avisoRP}\n\n¿Cuál se te acomoda mejor? 😊` }
   }
 
   return null
