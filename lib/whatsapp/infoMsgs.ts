@@ -24,7 +24,7 @@ Duración: 5 meses (10 meses en sabatino)
 
 🎓 Obtienes diploma con validez oficial.
 
-Las clases inician en *septiembre*, pero *puedes inscribirte desde ahora* para asegurar tu lugar 😊`,
+El ciclo actual inició el *7 de septiembre*, pero *todavía puedes incorporarte*: los profesores te ayudan a ponerte al corriente con los temas vistos 😊`,
 
   'Inglés para niños': `¡Con gusto! 😊 Te comparto la información de nuestro curso de *Inglés para niños*:
 
@@ -42,7 +42,7 @@ Duración: 5 meses (10 meses en sabatino)
 
 🎓 Obtienes diploma con validez oficial.
 
-Las clases inician en *septiembre*, pero *puedes inscribirte desde ahora* para asegurar tu lugar 😊`,
+El ciclo actual inició el *7 de septiembre*, pero *todavía puedes incorporarte*: los profesores te ayudan a ponerte al corriente con los temas vistos 😊`,
 
   'Psicología': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Psicología:
 
@@ -320,19 +320,13 @@ export function buildCTA(programa: string | null | undefined): string {
   return `\n\n¿Cómo te gustaría continuar?\n*A)* Tengo dudas 🤔\n*B)* Quiero inscribirme ✍️`
 }
 
-// My Best Summer 2026 ya concluyó (ver reglasNegocio.ts, TEXTO_MY_BEST_SUMMER_CERRADO) —
-// antes estos dos mensajes ofrecían inscripción activa a esa edición ya cerrada (fechas de
-// julio, cuenta bancaria, formulario) apenas alguien decía "quiero inscribirme"/"quiero
-// apartar mi lugar" estando en curso "verano". Ahora redirigen de forma explícita al curso
-// regular de idiomas (abierto todo el año), que es el proceso vigente real (caso real:
-// Tania Itzel, lead de "Verano adultos", 2026-09-04, marcado como error en el CRM).
-const VERANO_NINOS_REDIRECT_BASE = `¡Buena noticia! 🎈 La edición de este año de *My Best Summer* ya concluyó, pero tenemos nuestro curso regular de *Inglés para niños* abierto todo el año — te comparto cómo inscribirte:
-
-${INFO_MSGS['Inglés para niños'].replace(/^[^\n]*\n\n/, '')}`
-
-const VERANO_ADULTOS_REDIRECT_BASE = `¡Buena noticia! 🎈 La edición de este año de *My Best Summer* ya concluyó, pero tenemos nuestro curso regular de *Inglés para adultos* abierto todo el año — te comparto cómo inscribirte:
-
-${INFO_MSGS['Inglés para adultos'].replace(/^[^\n]*\n\n/, '')}`
+// My Best Summer 2026 ya concluyó. Un lead con curso de verano que vuelve a escribir (p. ej.
+// respondiendo a la campaña de nuevo ciclo) se asume interesado en el curso regular de
+// inglés equivalente — decisión de Harold 2026-09-25: no mencionar que el verano ya pasó,
+// solo ofrecer el curso regular. Antes arrancaba con "¡Buena noticia! La edición de este año
+// de My Best Summer ya concluyó…" aunque el lead no hubiera preguntado por el verano.
+const VERANO_NINOS_REDIRECT_BASE = INFO_MSGS['Inglés para niños']
+const VERANO_ADULTOS_REDIRECT_BASE = INFO_MSGS['Inglés para adultos']
 
 export const INSCRIPCION_VERANO_NINOS_MSG = VERANO_NINOS_REDIRECT_BASE + buildCTA('Inglés para niños')
 export const INSCRIPCION_VERANO_ADULTOS_MSG = VERANO_ADULTOS_REDIRECT_BASE + buildCTA('Inglés para adultos')
@@ -348,3 +342,5 @@ export const INSCRIPCION_VERANO_ADULTOS_MSG = VERANO_ADULTOS_REDIRECT_BASE + bui
 // redirijan al curso regular vigente.
 INFO_MSGS['Cursos de verano niños'] = VERANO_NINOS_REDIRECT_BASE
 INFO_MSGS['Cursos de verano adultos'] = VERANO_ADULTOS_REDIRECT_BASE
+INFO_MSGS['Verano niños'] = VERANO_NINOS_REDIRECT_BASE
+INFO_MSGS['Verano adultos'] = VERANO_ADULTOS_REDIRECT_BASE

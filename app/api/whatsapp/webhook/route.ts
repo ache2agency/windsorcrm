@@ -25,7 +25,7 @@ import {
 } from '@/lib/whatsapp/programas'
 import { REGLAS_NEGOCIO, TEXTO_PLANTELES, TEXTO_HORARIO_ATENCION } from '@/lib/whatsapp/reglasNegocio'
 import { hasLeadName } from '@/lib/whatsapp/nombres'
-import { INFO_MSGS, buildCTA, INSCRIPCION_VERANO_NINOS_MSG, INSCRIPCION_VERANO_ADULTOS_MSG } from '@/lib/whatsapp/infoMsgs'
+import { INFO_MSGS, buildCTA } from '@/lib/whatsapp/infoMsgs'
 
 export const maxDuration = 60
 
@@ -1515,7 +1515,7 @@ function respuestaDatoConfirmado(
   mensaje: string,
   cursoActual: string | null | undefined,
   history: Array<{ role: 'user' | 'assistant'; content: string }>
-): { respuesta: string; fase?: string } | null {
+): { respuesta: string; fase?: string; programa?: string } | null {
   const texto = quitarAcentos(mensaje).toLowerCase()
   const contextoUsuario = [cursoActual || '', ...history.filter(m => m.role === 'user').map(m => m.content)]
     .map(quitarAcentos)
@@ -1589,7 +1589,7 @@ function respuestaDatoConfirmado(
   // vez de usarlo (caso real: "info de la prepa Windsor - UAGro", 2026-09-07, escaló dos
   // veces seguidas). Responder directo con la ficha ya armada.
   if (/bachillerato|prepa\s*windsor/.test(texto) && /informaci[oó]n|info\b|cuentan?\s+con|tienen/.test(texto)) {
-    return { respuesta: INFO_MSGS['Bachillerato'] + buildCTA('Bachillerato'), fase: 'accion' }
+    return { respuesta: INFO_MSGS['Bachillerato'] + buildCTA('Bachillerato'), fase: 'accion', programa: 'Bachillerato' }
   }
 
   // Horario sabatino de Inglés para niños — documentado en reglasNegocio.ts (9:00-13:00)
@@ -1727,9 +1727,11 @@ Listo, ya eres parte de la familia Windsor 🎉🎉🎉
 const INSCRIPCION_DESCONOCIDA_MSG = `¡Perfecto! 🎉 Para darte el proceso de inscripción exacto de tu programa, permíteme confirmarlo un momento con un asesor. En breve te contactamos. 😊`
 
 /** Mensaje de inscripción para un tipo ya conocido (no llamar con 'desconocido': ese caso se maneja aparte, con alerta a Harold). */
-function mensajeInscripcionPara(tipo: Exclude<TipoInscripcion, 'desconocido'>, curso?: string | null): string {
+function mensajeInscripcionPara(tipo: Exclude<TipoInscripcion, 'desconocido'>): string {
   switch (tipo) {
-    case 'verano': return (curso || '').toLowerCase().includes('adulto') ? INSCRIPCION_VERANO_ADULTOS_MSG : INSCRIPCION_VERANO_NINOS_MSG
+    // Verano ya concluyó: quien dice "me quiero inscribir" recibe directo el proceso de idiomas
+    // (antes recibía otra vez la ficha con "B) Quiero inscribirme"). Cubre también Francés/Italiano.
+    case 'verano': return INSCRIPCION_IDIOMA_MSG
     case 'habilidades': return INSCRIPCION_HABILIDADES_MSG
     case 'bachillerato': return INSCRIPCION_BACHILLERATO_MSG
     case 'diplomado': return INSCRIPCION_DIPLOMADO_MSG
@@ -1765,6 +1767,10 @@ async function respondProgramaDesconocido(
 ): Promise<Response> {
   await alertarProgramaNoReconocido(nombre, waNumber, curso)
   await logBotMessageAndUpdateFase(supabase, conversacionId, INSCRIPCION_DESCONOCIDA_MSG, 'seguimiento', leadId)
+  // Todos los que llegan aquí dijeron que se quieren inscribir — sin esto se quedaban en su
+  // stage anterior (p. ej. promocion_enviada) y el asesor no los veía en la columna de
+  // inscripción (campaña windsor_nuevo_ciclo, 2026-09-24: ~5 de 32 casos).
+  if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
   return buildProviderResponse(provider, INSCRIPCION_DESCONOCIDA_MSG, waNumber)
 }
 
@@ -3099,6 +3105,20 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
             .join(' ')
           const categoriaPrevia = detectarCategoriaInteres(contextoPrevioUsuario)
           const esNinosPrevio = /ni[ñn]os?|infantil(es)?|\bkids?\b/i.test(contextoPrevioUsuario)
+          // Categorías con un solo programa posible: no preguntar "¿te gustaría conocer los
+          // detalles?" — el lead ya pidió la información (🚩 +527541061632, 2026-09-25).
+          // Guardar el programa y seguir igual que si lo hubiera nombrado: correo → ficha.
+          const programaUnico = categoriaPrevia === 'idiomas' && esNinosPrevio ? 'Inglés para niños'
+            : categoriaPrevia === 'bachillerato' ? 'Bachillerato'
+            : null
+          if (programaUnico) {
+            if (leadId) await supabase.from('leads').update({ curso: programaUnico, ...(getValorPrograma(programaUnico) ? { valor: getValorPrograma(programaUnico) } : {}) }).eq('id', leadId)
+            return respondProgramaSeleccionado(
+              { supabase, conversacionId: conversacionIdOuter, requestUrl: request.url, leadSnapshot, convHistory, provider, waNumber, leadId },
+              programaUnico,
+              `¡Hola ${nombreCapturado}! 😊 Con gusto te comparto la información de *${programaUnico}*. ¿Me compartes tu correo electrónico para darte seguimiento personalizado? 📧`
+            )
+          }
           const respuestaCategoria = mensajeCategoriaInteres(categoriaPrevia, nombreCapturado, esNinosPrevio)
           if (respuestaCategoria) {
             await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, respuestaCategoria, 'programa')
@@ -3185,7 +3205,8 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       // ── Interceptor de botones de template seguimiento_general ──────────────
       // Maneja las 3 respuestas rápidas del template de reactivación
       const msgTrimBtn = originalText.trim()
-      if (/^(sí,?\s*tengo\s*dudas|si,?\s*tengo\s*dudas)[\s\S]*$/i.test(msgTrimBtn)) {
+      // "Tengo dudas" solo es el botón de windsor_nuevo_ciclo; "Sí, tengo dudas" el de seguimiento_general.
+      if (/^(s[ií],?\s*)?tengo\s*dudas[\s\S]*$/i.test(msgTrimBtn)) {
         // hasLeadProgram() evita mostrar el placeholder "WhatsApp - Instituto Windsor" si por
         // alguna razón este botón llega antes de tener un programa real capturado (mismo bug
         // de fondo que el placeholder colándose en el mensaje de pedir correo, ver más abajo).
@@ -3199,7 +3220,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         if (tipoIns === 'desconocido') {
           return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, leadSnapshot?.nombre, leadSnapshot?.curso)
         }
-        const botMsg = mensajeInscripcionPara(tipoIns, leadSnapshot?.curso)
+        const botMsg = mensajeInscripcionPara(tipoIns)
         const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
         // Asegurar que el stage del lead llegue a inscripcion_pendiente en Kanban
@@ -3229,11 +3250,19 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         return buildProviderResponse(provider, resp, waNumber)
       }
       if (/^(me\s*)?quiero\s*inscrib(ir(me)?)?[\s\S]*$/i.test(msgTrimBtn)) {
+        // Sin programa capturado (placeholder "WhatsApp - Instituto Windsor"): preguntar cuál,
+        // igual que en fase inscripcion, pero ya dejarlo en la columna de inscripción.
+        if (!hasLeadProgram(leadSnapshot?.curso)) {
+          const msgPreguntaPrograma = '¡Con gusto! 😊 ¿A qué programa te gustaría inscribirte?'
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgPreguntaPrograma, 'programa', leadId)
+          if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
+          return buildProviderResponse(provider, msgPreguntaPrograma, waNumber)
+        }
         const tipoIns = tipoInscripcion(leadSnapshot?.curso)
         if (tipoIns === 'desconocido') {
           return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, leadSnapshot?.nombre, leadSnapshot?.curso)
         }
-        const botMsg = mensajeInscripcionPara(tipoIns, leadSnapshot?.curso)
+        const botMsg = mensajeInscripcionPara(tipoIns)
         const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
         if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
@@ -3246,7 +3275,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         if (tipoIns === 'desconocido') {
           return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, leadSnapshot?.nombre, leadSnapshot?.curso)
         }
-        const botMsg = mensajeInscripcionPara(tipoIns, leadSnapshot?.curso)
+        const botMsg = mensajeInscripcionPara(tipoIns)
         const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
         if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
@@ -3612,7 +3641,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           if (tipoIns === 'desconocido') {
             return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, leadSnapshot?.nombre, leadSnapshot?.curso)
           }
-          const botMsgAccion = mensajeInscripcionPara(tipoIns, leadSnapshot?.curso)
+          const botMsgAccion = mensajeInscripcionPara(tipoIns)
           const nextFAccion = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsgAccion, nextFAccion, leadId)
           return buildProviderResponse(provider, botMsgAccion, waNumber)
@@ -3725,9 +3754,8 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         // Si es lead de verano, nunca debe estar en fase inscripcion — redirigir al proceso correcto
         const cursoLowerInsc = (leadSnapshot?.curso || '').toLowerCase()
         if (cursoLowerInsc.includes('verano') || cursoLowerInsc.includes('my best summer')) {
-          const msgVeranoInsc = cursoLowerInsc.includes('adulto') ? INSCRIPCION_VERANO_ADULTOS_MSG : INSCRIPCION_VERANO_NINOS_MSG
-          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgVeranoInsc, 'inscripcion_pendiente', leadId)
-          return buildProviderResponse(provider, msgVeranoInsc, waNumber)
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, INSCRIPCION_IDIOMA_MSG, 'inscripcion_pendiente', leadId)
+          return buildProviderResponse(provider, INSCRIPCION_IDIOMA_MSG, waNumber)
         }
         // Si el lead nunca llegó a tener un programa real identificado (sigue con el
         // placeholder "WhatsApp/Messenger - Instituto Windsor", típico de quien contesta
@@ -3916,6 +3944,17 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       // Van antes de RAG/GPT: estas preguntas ya causaron escalaciones o respuestas
       // fuera de contexto, aun teniendo el dato documentado.
       const datoConfirmado = respuestaDatoConfirmado(originalText, leadSnapshot?.curso, convHistory)
+      // Ficha completa (fase accion) a un lead que aún no da su nombre: se saltaba la captura
+      // de datos (🚩 +527772133102, anuncio "info de la prepa Windsor - UAGro", 2026-09-25) —
+      // mismo bug que el de inglés del 2026-09-23. Guardar el programa y pedir nombre; al
+      // darlo, el flujo de saludo pide correo y manda la ficha.
+      if (datoConfirmado?.programa && saludoSinNombre) {
+        const progDato = datoConfirmado.programa
+        if (leadId) await supabase.from('leads').update({ curso: progDato, ...(getValorPrograma(progDato) ? { valor: getValorPrograma(progDato) } : {}) }).eq('id', leadId)
+        const pideNombre = `¡Excelente elección! 😊 Con gusto te comparto toda la información. ¿Con quién tengo el gusto?`
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, pideNombre, 'saludo', leadId)
+        return buildProviderResponse(provider, pideNombre, waNumber)
+      }
       if (datoConfirmado) {
         await logBotMessageAndUpdateFase(
           supabase,
@@ -4204,7 +4243,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           botMessage = INSCRIPCION_DESCONOCIDA_MSG
           nextFase = 'seguimiento'
         } else {
-          botMessage = mensajeInscripcionPara(tipoInsGPT, leadSnapshot?.curso)
+          botMessage = mensajeInscripcionPara(tipoInsGPT)
           nextFase = tipoInsGPT === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         }
       } else if (nextFase === 'inscripcion_online') {
@@ -4225,7 +4264,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
             botMessage = INSCRIPCION_DESCONOCIDA_MSG
             nextFase = 'seguimiento'
           } else {
-            botMessage = mensajeInscripcionPara(tipoInsPres, leadSnapshot?.curso)
+            botMessage = mensajeInscripcionPara(tipoInsPres)
             nextFase = tipoInsPres === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
           }
         }
