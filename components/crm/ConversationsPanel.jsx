@@ -670,6 +670,18 @@ const PLANTILLA_LABELS = {
 const formatPlantillaLabel = (name) => PLANTILLA_LABELS[name] || name.replace(/_/g, " ");
 const renderPlantillaPreview = (body, nombre) => (body || "").replace(/\{\{\d+\}\}/g, nombre || "amig@");
 
+// Variables en respuestas rápidas: {nombre} = primer nombre del lead, {programa} = su curso.
+// Sin nombre se quita el marcador junto con la coma/espacio previo ("Hola, {nombre} 👋" → "Hola 👋").
+// "WhatsApp - Instituto Windsor" es el placeholder de leads sin programa capturado, no un curso real.
+const renderRespuestaRapida = (texto, lead) => {
+  const primerNombre = (lead?.nombre || "").trim().split(/\s+/)[0] || "";
+  const nombre = primerNombre ? primerNombre.charAt(0).toUpperCase() + primerNombre.slice(1) : "";
+  const curso = lead?.curso && lead.curso !== "WhatsApp - Instituto Windsor" ? lead.curso : "";
+  let out = texto || "";
+  out = nombre ? out.replace(/\{nombre\}/gi, nombre) : out.replace(/[ ,]*\{nombre\}/gi, "");
+  return out.replace(/\{programa\}/gi, curso || "nuestros programas");
+};
+
 function ConversationsPanel({
   filteredWhatsConvs,
   ultimoUsuarioAtPorConv,
@@ -1446,7 +1458,7 @@ function ConversationsPanel({
                           style={{ display: "flex", alignItems: "stretch", borderBottom: "1px solid #f0f0f0" }}
                         >
                           <button
-                            onClick={() => { setAgentMessage(item.texto); setShowRR(false); }}
+                            onClick={() => { setAgentMessage(renderRespuestaRapida(item.texto, selectedConvLead)); setShowRR(false); }}
                             style={{ flex: 1, textAlign: "left", padding: "8px 14px", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#111" }}
                             onMouseEnter={(e) => e.currentTarget.style.background = "#f5f5f5"}
                             onMouseLeave={(e) => e.currentTarget.style.background = "none"}
@@ -1488,7 +1500,7 @@ function ConversationsPanel({
                         <textarea
                           value={nuevaRRTexto}
                           onChange={(e) => setNuevaRRTexto(e.target.value)}
-                          placeholder="Texto de la respuesta"
+                          placeholder="Texto de la respuesta — puedes usar {nombre} y {programa}"
                           rows={3}
                           style={{ fontSize: 13, padding: 6, border: "1px solid #ddd", borderRadius: 6, resize: "vertical" }}
                         />
