@@ -3398,7 +3398,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           : /maestrias?/.test(msgNorm0)
           ? `Tenemos dos maestrías:\n\n• Maestría en Innovación empresarial\n• Maestría en Multiculturalidad y Plurilingüismo\n\n¿Cuál te interesa? 😊`
           : /diplomados?/.test(msgNorm0)
-          ? `Contamos con más de 30 diplomados en distintas áreas. ¿Me puedes decir cuál tema te interesa? Por ejemplo: salud, educación, negocios, tecnología... 😊`
+          ? `Tenemos diplomados en las áreas de:\n\n• Salud\n• Educación\n• Psicología\n• Administración\n• Gobierno y administración pública\n• Tecnología\n\n¿Cuál te interesa? 😊`
           : null
         if (categoriaGenerica0) {
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, categoriaGenerica0, 'programa')
@@ -3532,7 +3532,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           : /maestrias?/.test(msgNormP)
           ? `Tenemos dos maestrías:\n\n• Maestría en Innovación empresarial\n• Maestría en Multiculturalidad y Plurilingüismo\n\n¿Cuál te interesa? 😊`
           : /diplomados?/.test(msgNormP)
-          ? `Contamos con más de 30 diplomados en distintas áreas. ¿Me puedes decir cuál tema te interesa? Por ejemplo: salud, educación, negocios, tecnología... 😊`
+          ? `Tenemos diplomados en las áreas de:\n\n• Salud\n• Educación\n• Psicología\n• Administración\n• Gobierno y administración pública\n• Tecnología\n\n¿Cuál te interesa? 😊`
           : /\b(cursos?|idiomas?)\b/.test(msgNormP)
           ? `Ofrecemos cursos de:\n\n• Inglés para adultos\n• Inglés para niños\n• Francés\n• Italiano\n\n¿Cuál te interesa? 😊`
           : null
@@ -4192,7 +4192,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           : msgTrimGPT.match(/^maestr[ií]as?$/i)
           ? `Tenemos dos maestrías:\n\n• Maestría en Innovación empresarial\n• Maestría en Multiculturalidad y Plurilingüismo\n\n¿Cuál te interesa? 😊`
           : msgTrimGPT.match(/^diplomados?$/i)
-          ? `Contamos con más de 30 diplomados en distintas áreas. ¿Me puedes decir cuál tema te interesa? Por ejemplo: salud, educación, negocios, tecnología... 😊`
+          ? `Tenemos diplomados en las áreas de:\n\n• Salud\n• Educación\n• Psicología\n• Administración\n• Gobierno y administración pública\n• Tecnología\n\n¿Cuál te interesa? 😊`
           : msgTrimGPT.match(/^(cursos?|idiomas?)$/i)
           ? `Ofrecemos cursos de:\n\n• Inglés para adultos\n• Inglés para niños\n• Francés\n• Italiano\n\n¿Cuál te interesa? 😊`
           : null
