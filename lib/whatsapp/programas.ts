@@ -9,22 +9,6 @@ export function quitarAcentos(s: string): string {
 
 export type OfertaMatchResult = { match: string | null; ambiguous: boolean }
 
-/** Busca coincidencia contra el catálogo de diplomados (ver PROGRAMAS_DIPLOMADO abajo).
- * Se revisa ANTES que cualquier otra categoría porque varios nombres de diplomado
- * comparten palabras clave con licenciaturas (ej. "Psicología educativa" contiene
- * "psicolog", "Enseñanza del idioma inglés" contiene "ingles") — sin este orden,
- * esos diplomados se clasificaban mal como la licenciatura correspondiente.
- * Antes esta función no existía: ningún diplomado se reconocía en texto libre,
- * así que leads.curso nunca se actualizaba al hablar de un diplomado a media
- * conversación (caso David, 08-ago-2026, ver windsorcrm_fixes_estructurales_jul24). */
-function detectarDiplomadoEnTexto(norm: string): string | null {
-  for (const nombre of PROGRAMAS_DIPLOMADO) {
-    if (norm.includes(quitarAcentos(nombre).toLowerCase())) return `Diplomado en ${nombre}`
-  }
-  if (/diplomado/.test(norm)) return 'Diplomado'
-  return null
-}
-
 /** Reconoce la oferta educativa por palabras clave. Si reconoce la categoría pero falta
  * el calificador niños/adultos, marca ambiguous en vez de adivinar uno de los dos. */
 export function matchOfertaEducativa(input: string): OfertaMatchResult {
@@ -120,45 +104,116 @@ export function esBachillerato(curso: string | null | undefined): boolean {
 }
 
 // Lista cerrada de los diplomados del catálogo (más el keyword "diplomado" como
-// señal explícita adicional, no un catch-all sobre curso genérico).
+// señal explícita adicional, no un catch-all sobre curso genérico). Debe coincidir
+// con el documento RAG "Diplomados — Instituto Windsor" (d1362a05).
 export const PROGRAMAS_DIPLOMADO = [
-  'Administración de Instituciones de la Salud',
-  'Administración de recursos humanos',
-  'Administración de restaurantes',
-  'Análisis y Evaluación de Políticas Públicas',
-  'Comunicación y Liderazgo en el Sector Público',
-  'Comunicación y Liderazgo empresarial',
-  'Competencias educativas',
-  'Comunicación y Gobierno Digital',
-  'Contabilidad',
-  'Creación y dirección de franquicias',
+  // Salud
+  'Salud pública',
+  'Nutrición y Dietética',
+  'Nutrición deportiva',
   'Ciencias del deporte',
   'Enfermería',
-  'Epidemiología',
-  'Equidad de genero y diversidad sexual',
   'Farmacología',
-  'Gamificación educativa',
+  'Epidemiología',
   'Gerontología',
-  'Innovación y Gobierno Digital',
-  'Mindfulness',
-  'Nutrición deportiva',
-  'Nutrición y Dietética',
-  'Políticas y Procesos de Participación Ciudadana',
-  'Piscología criminológica',
-  'Psicología educativa',
-  'Realidad Virtual',
-  'Salud pública',
-  'Tecnología educativa',
-  'Terapia ocupacional',
-  'Tanatología',
-  'Enseñanza del idioma inglés',
+  // Educación ("Integración de la IA…" va antes que "Inteligencia Artificial")
+  'Integración de la Inteligencia Artificial en la Educación',
   'Enseñanza del idioma español',
+  'Enseñanza del idioma inglés',
+  'Competencias educativas',
+  'Tecnología educativa',
+  'Gamificación educativa',
+  // Psicología
+  'Psicología educativa',
+  'Psicología criminológica',
+  'Equidad de genero y diversidad sexual',
+  'Terapia ocupacional',
+  'Mindfulness',
+  'Tanatología',
+  // Administración
+  'Innovación y Transformación del Talento Humano',
+  'Administración de recursos humanos',
+  'Comunicación Estratégica y Liderazgo Empresarial',
+  'Administración de Instituciones de Salud',
+  'Contabilidad',
+  'Creación y dirección de franquicias',
+  'Administración de restaurantes',
+  // Gobierno y administración pública
+  'Administración Pública',
+  'Innovación y Gobierno Digital',
+  'Comunicación y Liderazgo en el Sector Público',
+  'Políticas y Procesos de Participación Ciudadana',
+  'Análisis y Evaluación de Políticas Públicas',
+  // Tecnología
+  'Realidad Virtual',
+  'Inteligencia Artificial',
+  'Ciberseguridad',
+  'Criptomonedas',
+  'Análisis de Datos',
+  'Machine Learning',
+  'Blockchain',
+  'Cloud Computing',
 ]
 
+// Variantes de nombre que circulan (anuncios, web, typos viejos de esta lista) →
+// nombre canónico. Caso 29-sep-2026: el anuncio dice "Administración de
+// Instituciones de Salud" y la lista decía "de la Salud"; la lista tenía
+// "Piscología criminológica" — ninguno de los dos se reconocía.
+const ALIAS_DIPLOMADO: Array<[string, string]> = [
+  ['Piscología criminológica', 'Psicología criminológica'],
+  ['Administración de Instituciones de la Salud', 'Administración de Instituciones de Salud'],
+  ['Administración en recursos humanos', 'Administración de recursos humanos'],
+  ['Comunicación y Liderazgo empresarial', 'Comunicación Estratégica y Liderazgo Empresarial'],
+  ['Talento Humano', 'Innovación y Transformación del Talento Humano'],
+  ['Inteligencia Artificial en la Educación', 'Integración de la Inteligencia Artificial en la Educación'],
+  ['Enseñanza de inglés', 'Enseñanza del idioma inglés'],
+  ['Enseñanza del inglés', 'Enseñanza del idioma inglés'],
+]
+
+// Temas de tecnología que también se usan en conversación normal ("¿usan
+// inteligencia artificial?"): solo cuentan como diplomado si el mensaje dice
+// "diplomado". Así no secuestran preguntas sobre otros programas.
+const DIPLOMADOS_REQUIEREN_KEYWORD = new Set([
+  'Inteligencia Artificial',
+  'Ciberseguridad',
+  'Criptomonedas',
+  'Análisis de Datos',
+  'Machine Learning',
+  'Blockchain',
+  'Cloud Computing',
+])
+
+function normDiplomado(s: string): string {
+  return quitarAcentos(s).toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+/** Busca coincidencia contra el catálogo de diplomados (ver PROGRAMAS_DIPLOMADO arriba).
+ * Se revisa ANTES que cualquier otra categoría porque varios nombres de diplomado
+ * comparten palabras clave con licenciaturas (ej. "Psicología educativa" contiene
+ * "psicolog", "Enseñanza del idioma inglés" contiene "ingles") — sin este orden,
+ * esos diplomados se clasificaban mal como la licenciatura correspondiente.
+ * Antes esta función no existía: ningún diplomado se reconocía en texto libre,
+ * así que leads.curso nunca se actualizaba al hablar de un diplomado a media
+ * conversación (caso David, 08-ago-2026, ver windsorcrm_fixes_estructurales_jul24). */
+function detectarDiplomadoEnTexto(norm: string): string | null {
+  const conKeyword = /diplomado/.test(norm)
+  for (const [variante, canonico] of ALIAS_DIPLOMADO) {
+    if (norm.includes(normDiplomado(variante))) return `Diplomado en ${canonico}`
+  }
+  for (const nombre of PROGRAMAS_DIPLOMADO) {
+    if (DIPLOMADOS_REQUIEREN_KEYWORD.has(nombre) && !conKeyword) continue
+    if (norm.includes(normDiplomado(nombre))) return `Diplomado en ${nombre}`
+  }
+  if (conKeyword) return 'Diplomado'
+  return null
+}
+
 export function esDiplomado(curso: string | null | undefined): boolean {
-  const c = curso || ''
-  if (PROGRAMAS_DIPLOMADO.includes(c)) return true
-  return /diplomado/i.test(c)
+  const c = normDiplomado(curso || '')
+  if (!c) return false
+  if (PROGRAMAS_DIPLOMADO.some(n => normDiplomado(n) === c)) return true
+  if (ALIAS_DIPLOMADO.some(([v]) => normDiplomado(v) === c)) return true
+  return /diplomado/.test(c)
 }
 
 export function esInglesIdioma(programa: string | null | undefined): boolean {

@@ -148,6 +148,48 @@ const casos: Caso[] = [
     got: matchOfertaEducativa('me interesa el diplomado en psicología educativa').match,
     want: 'Diplomado en Psicología educativa',
   },
+  // Campaña Meta de diplomados (29-sep-2026): el mensaje prellenado de 2 de los 9
+  // anuncios no se reconocía ("Piscología" en la lista y "de la Salud" vs "de Salud").
+  ...([
+    ['Terapia Ocupacional', 'Terapia ocupacional'],
+    ['Epidemiología', 'Epidemiología'],
+    ['Farmacología', 'Farmacología'],
+    ['Psicología Educativa', 'Psicología educativa'],
+    ['Psicología Criminológica', 'Psicología criminológica'],
+    ['Administración de Instituciones de Salud', 'Administración de Instituciones de Salud'],
+    ['Administración de Recursos Humanos', 'Administración de recursos humanos'],
+    ['Administración de Restaurantes', 'Administración de restaurantes'],
+    ['Enseñanza del Idioma Inglés', 'Enseñanza del idioma inglés'],
+  ] as const).map(([anuncio, canonico]) => ({
+    nombre: `mensaje del anuncio de ${anuncio} se reconoce`,
+    got: detectarPrograma(`¿Podrías darme más información sobre el Diplomado en ${anuncio}, por favor?`),
+    want: `Diplomado en ${canonico}`,
+  })),
+  {
+    nombre: 'la variante web "de la Salud" también se reconoce',
+    got: detectarPrograma('info del diplomado en administración de instituciones de la salud'),
+    want: 'Diplomado en Administración de Instituciones de Salud',
+  },
+  {
+    nombre: 'leads viejos guardados con el typo "Piscología criminológica" siguen siendo diplomado',
+    got: tipoInscripcion('Piscología criminológica'),
+    want: 'diplomado',
+  },
+  {
+    nombre: 'diplomado de tecnología se reconoce con la palabra diplomado',
+    got: detectarPrograma('me interesa el diplomado de ciberseguridad'),
+    want: 'Diplomado en Ciberseguridad',
+  },
+  {
+    nombre: 'IA en la educación no se confunde con el de Inteligencia Artificial',
+    got: detectarPrograma('diplomado en integración de la inteligencia artificial en la educación'),
+    want: 'Diplomado en Integración de la Inteligencia Artificial en la Educación',
+  },
+  {
+    nombre: 'mencionar "inteligencia artificial" sin decir diplomado no secuestra la conversación',
+    got: detectarPrograma('¿en la licenciatura en inglés usan inteligencia artificial?'),
+    want: 'Licenciatura en Inglés',
+  },
 ]
 
 let fallos = 0
