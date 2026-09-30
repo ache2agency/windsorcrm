@@ -462,37 +462,57 @@ Visítanos con tus documentos — el pago lo puedes realizar directamente en las
 
 🔵DIPLOMADOS
 
-•Administración de Instituciones de la Salud
-•Administración de recursos humanos
-•Administración de restaurantes
-•Análisis y Evaluación de Políticas Públicas
-•Comunicación y Liderazgo en el Sector Público
-•Comunicación y Liderazgo empresarial
-•Competencias educativas
-•Comunicación y Gobierno Digital
-•Contabilidad
-•Creación y dirección de franquicias
+Salud:
+•Salud pública
+•Nutrición y dietética
+•Nutrición deportiva
 •Ciencias del deporte
 •Enfermería
-•Epidemiología
-•Equidad de género y diversidad sexual
 •Farmacología
-•Gamificación educativa
+•Epidemiología
 •Gerontología
-•Innovación y Gobierno Digital
-•Mindfulness
-•Nutrición deportiva
-•Nutrición y Dietética
-•Políticas y Procesos de Participación Ciudadana
-•Psicología criminológica
-•Psicología educativa
-•Realidad Virtual
-•Salud pública
-•Tecnología educativa
-•Terapia ocupacional
-•Tanatología
+
+Educación:
+•Integración de la Inteligencia Artificial en la Educación
+•Enseñanza del idioma español
 •Enseñanza del idioma inglés
-•Enseñanza del idioma español` },
+•Competencias educativas
+•Tecnología educativa
+•Gamificación educativa
+
+Psicología:
+•Psicología educativa
+•Psicología criminológica
+•Equidad de género y diversidad sexual
+•Terapia ocupacional
+•Mindfulness
+•Tanatología
+
+Administración:
+•Innovación y transformación del talento humano
+•Administración de recursos humanos
+•Comunicación estratégica y liderazgo empresarial
+•Administración de instituciones de salud
+•Contabilidad
+•Creación y dirección de franquicias
+•Administración de restaurantes
+
+Gobierno y administración pública:
+•Administración pública
+•Innovación y gobierno digital
+•Comunicación y liderazgo en el sector público
+•Políticas y procesos de participación ciudadana
+•Análisis y evaluación de políticas públicas
+
+Tecnología:
+•Realidad virtual
+•Inteligencia artificial
+•Ciberseguridad
+•Criptomonedas
+•Análisis de datos
+•Machine learning
+•Blockchain
+•Cloud computing` },
     { label: "Contacto y dirección", texto: `Con gusto te atenderemos en nuestras instalaciones. 😊
 
 📍 Instituto Windsor — Chilpancingo

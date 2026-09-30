@@ -1428,37 +1428,57 @@ const CATALOGO_OFERTA = `¿Cuál de nuestras ofertas educativas te interesa?
 
 🔵DIPLOMADOS
 
-•Administración de Instituciones de la Salud
-•Administración de recursos humanos
-•Administración de restaurantes
-•Análisis y Evaluación de Políticas Públicas
-•Comunicación y Liderazgo en el Sector Público
-•Comunicación y Liderazgo empresarial
-•Competencias educativas
-•Comunicación y Gobierno Digital
-•Contabilidad
-•Creación y dirección de franquicias
+Salud:
+•Salud pública
+•Nutrición y dietética
+•Nutrición deportiva
 •Ciencias del deporte
 •Enfermería
-•Epidemiología
-•Equidad de genero y diversidad sexual
 •Farmacología
-•Gamificación educativa
+•Epidemiología
 •Gerontología
-•Innovación y Gobierno Digital
-•Mindfulness
-•Nutrición deportiva
-•Nutrición y Dietética
-•Políticas y Procesos de Participación Ciudadana
-•Piscología criminológica
-•Psicología educativa
-•Realidad Virtual
-•Salud pública
-•Tecnología educativa
-•Terapia ocupacional
-•Tanatología
+
+Educación:
+•Integración de la Inteligencia Artificial en la Educación
+•Enseñanza del idioma español
 •Enseñanza del idioma inglés
-•Enseñanza del idioma español`
+•Competencias educativas
+•Tecnología educativa
+•Gamificación educativa
+
+Psicología:
+•Psicología educativa
+•Psicología criminológica
+•Equidad de género y diversidad sexual
+•Terapia ocupacional
+•Mindfulness
+•Tanatología
+
+Administración:
+•Innovación y transformación del talento humano
+•Administración de recursos humanos
+•Comunicación estratégica y liderazgo empresarial
+•Administración de instituciones de salud
+•Contabilidad
+•Creación y dirección de franquicias
+•Administración de restaurantes
+
+Gobierno y administración pública:
+•Administración pública
+•Innovación y gobierno digital
+•Comunicación y liderazgo en el sector público
+•Políticas y procesos de participación ciudadana
+•Análisis y evaluación de políticas públicas
+
+Tecnología:
+•Realidad virtual
+•Inteligencia artificial
+•Ciberseguridad
+•Criptomonedas
+•Análisis de datos
+•Machine learning
+•Blockchain
+•Cloud computing`
 
 type CategoriaInteres = 'idiomas' | 'licenciaturas' | 'maestrias' | 'diplomados' | 'bachillerato' | null
 
@@ -1497,7 +1517,7 @@ function mensajeCategoriaInteres(categoria: CategoriaInteres, nombre: string, es
     return `${saludo} Tenemos estas maestrías:\n\n• Innovación Empresarial\n• Multiculturalidad y Plurilingüismo\n\n¿Cuál te interesa conocer?`
   }
   if (categoria === 'diplomados') {
-    return `${saludo} Contamos con varios diplomados. ¿En qué área te gustaría especializarte?\n\n• Salud\n• Educación\n• Administración\n• Psicología\n• Tecnología\n\nCon gusto te comparto las opciones disponibles.`
+    return `${saludo} Contamos con varios diplomados. ¿En qué área te gustaría especializarte?\n\n• Salud\n• Educación\n• Psicología\n• Administración\n• Gobierno y administración pública\n• Tecnología\n\nCon gusto te comparto las opciones disponibles.`
   }
   if (categoria === 'bachillerato') {
     return `${saludo} Tenemos Bachillerato. ¿Te gustaría conocer horarios, costos o el proceso de inscripción?`
@@ -3398,7 +3418,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           : /maestrias?/.test(msgNorm0)
           ? `Tenemos dos maestrías:\n\n• Maestría en Innovación empresarial\n• Maestría en Multiculturalidad y Plurilingüismo\n\n¿Cuál te interesa? 😊`
           : /diplomados?/.test(msgNorm0)
-          ? `Contamos con más de 30 diplomados en distintas áreas. ¿Me puedes decir cuál tema te interesa? Por ejemplo: salud, educación, negocios, tecnología... 😊`
+          ? `Contamos con diplomados en distintas áreas. ¿Me puedes decir cuál tema te interesa? Por ejemplo: salud, educación, psicología, administración, gobierno o tecnología. 😊`
           : null
         if (categoriaGenerica0) {
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, categoriaGenerica0, 'programa')
@@ -3532,7 +3552,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           : /maestrias?/.test(msgNormP)
           ? `Tenemos dos maestrías:\n\n• Maestría en Innovación empresarial\n• Maestría en Multiculturalidad y Plurilingüismo\n\n¿Cuál te interesa? 😊`
           : /diplomados?/.test(msgNormP)
-          ? `Contamos con más de 30 diplomados en distintas áreas. ¿Me puedes decir cuál tema te interesa? Por ejemplo: salud, educación, negocios, tecnología... 😊`
+          ? `Contamos con diplomados en distintas áreas. ¿Me puedes decir cuál tema te interesa? Por ejemplo: salud, educación, psicología, administración, gobierno o tecnología. 😊`
           : /\b(cursos?|idiomas?)\b/.test(msgNormP)
           ? `Ofrecemos cursos de:\n\n• Inglés para adultos\n• Inglés para niños\n• Francés\n• Italiano\n\n¿Cuál te interesa? 😊`
           : null
@@ -4192,7 +4212,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           : msgTrimGPT.match(/^maestr[ií]as?$/i)
           ? `Tenemos dos maestrías:\n\n• Maestría en Innovación empresarial\n• Maestría en Multiculturalidad y Plurilingüismo\n\n¿Cuál te interesa? 😊`
           : msgTrimGPT.match(/^diplomados?$/i)
-          ? `Contamos con más de 30 diplomados en distintas áreas. ¿Me puedes decir cuál tema te interesa? Por ejemplo: salud, educación, negocios, tecnología... 😊`
+          ? `Contamos con diplomados en distintas áreas. ¿Me puedes decir cuál tema te interesa? Por ejemplo: salud, educación, psicología, administración, gobierno o tecnología. 😊`
           : msgTrimGPT.match(/^(cursos?|idiomas?)$/i)
           ? `Ofrecemos cursos de:\n\n• Inglés para adultos\n• Inglés para niños\n• Francés\n• Italiano\n\n¿Cuál te interesa? 😊`
           : null

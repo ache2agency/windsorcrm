@@ -1,25 +1,13 @@
 "use client";
 import { useState } from "react";
+import { PROGRAMAS_DIPLOMADO } from "@/lib/whatsapp/programas";
 
 const PROGRAMAS = [
   { group: "Inglés", options: ["Inglés para adultos", "Inglés para niños", "Francés", "Italiano", "Verano adultos", "Verano niños"] },
   { group: "Licenciaturas", options: ["Licenciatura en Inglés", "Relaciones públicas y mercadotecnia", "Administración turística", "Psicología"] },
   { group: "Maestrías", options: ["Maestría en Innovación empresarial", "Maestría en Multiculturalidad y Plurilingüismo"] },
   { group: "Bachillerato", options: ["Bachillerato"] },
-  { group: "Diplomados", options: [
-    "Administración de Instituciones de la Salud", "Administración de recursos humanos",
-    "Administración de restaurantes", "Análisis y Evaluación de Políticas Públicas",
-    "Comunicación y Liderazgo en el Sector Público", "Comunicación y Liderazgo empresarial",
-    "Competencias educativas", "Comunicación y Gobierno Digital", "Contabilidad",
-    "Creación y dirección de franquicias", "Ciencias del deporte", "Enfermería",
-    "Epidemiología", "Equidad de género y diversidad sexual", "Farmacología",
-    "Gamificación educativa", "Gerontología", "Innovación y Gobierno Digital",
-    "Mindfulness", "Nutrición deportiva", "Nutrición y Dietética",
-    "Políticas y Procesos de Participación Ciudadana", "Psicología criminológica",
-    "Psicología educativa", "Realidad Virtual", "Salud pública", "Tecnología educativa",
-    "Terapia ocupacional", "Tanatología", "Enseñanza del idioma inglés",
-    "Enseñanza del idioma español",
-  ]},
+  { group: "Diplomados", options: PROGRAMAS_DIPLOMADO },,
 ];
 
 export default function NewLeadModal({
