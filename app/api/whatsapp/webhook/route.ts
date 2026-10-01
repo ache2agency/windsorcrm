@@ -26,6 +26,7 @@ import {
 import { REGLAS_NEGOCIO, TEXTO_PLANTELES, TEXTO_HORARIO_ATENCION } from '@/lib/whatsapp/reglasNegocio'
 import { hasLeadName } from '@/lib/whatsapp/nombres'
 import { INFO_MSGS, buildCTA } from '@/lib/whatsapp/infoMsgs'
+import { diplomadoUnicoEnRespuesta, driveIdPlanDiplomado, urlPlanDiplomado, limpiarFormatoWhatsApp } from '@/lib/whatsapp/planesDiplomado'
 
 export const maxDuration = 60
 
@@ -172,7 +173,7 @@ async function logBotMessageAndUpdateFase(
   leadId?: string | null
 ) {
   await supabase.from('whatsapp_mensajes').insert([
-    { conversacion_id: conversacionId, rol: 'bot', contenido: message },
+    { conversacion_id: conversacionId, rol: 'bot', contenido: limpiarFormatoWhatsApp(message) },
   ])
   const update: { ultimo_mensaje_at: string; fase?: string; estado?: string } = {
     ultimo_mensaje_at: new Date().toISOString(),
@@ -711,26 +712,88 @@ async function parseIncomingWhatsAppMessage(
   }
 }
 
+/** Si la respuesta habla de un solo diplomado y a esta conversación nunca se le mandó
+ * su plan de estudios, regresa el mensaje con el link. Se revisa aquí (y no en cada
+ * rama del webhook) porque las respuestas de diplomados salen de muchos caminos:
+ * catálogo por área, ficha, GPT+RAG, dudas. Caso 1-oct-2026: el anuncio de
+ * Tanatología respondía precios y duración pero nunca el PDF. */
+async function planDiplomadoPendiente(
+  message: string,
+  waNumber: string
+): Promise<{ texto: string; conversacionId: string } | null> {
+  // Confirmaciones del registro rápido del staff (canal 2466) mencionan el diplomado
+  // del alumno registrado, pero no son una conversación con el prospecto.
+  if (/Confirma estos datos|Registrado:/.test(message)) return null
+  const nombre = diplomadoUnicoEnRespuesta(message)
+  if (!nombre) return null
+  const driveId = driveIdPlanDiplomado(nombre)
+  const url = urlPlanDiplomado(nombre)
+  if (!driveId || !url || message.includes(driveId)) return null
+  try {
+    const supabase = createServiceRoleClient()
+    const sinMas = waNumber.replace(/^\+/, '')
+    const { data: conv } = await supabase
+      .from('whatsapp_conversaciones')
+      .select('id')
+      .in('whatsapp', [sinMas, '+' + sinMas])
+      .order('ultimo_mensaje_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (!conv?.id) return null
+    const { data: yaEnviado } = await supabase
+      .from('whatsapp_mensajes')
+      .select('id')
+      .eq('conversacion_id', conv.id)
+      .eq('rol', 'bot')
+      .ilike('contenido', `%${driveId}%`)
+      .limit(1)
+      .maybeSingle()
+    if (yaEnviado?.id) return null
+    return { texto: `📄 Plan de estudios del Diplomado en ${nombre}:\n${url}`, conversacionId: conv.id }
+  } catch (e) {
+    console.error('[planDiplomadoPendiente]', e)
+    return null
+  }
+}
+
+async function registrarPlanDiplomado(conversacionId: string, texto: string) {
+  await createServiceRoleClient()
+    .from('whatsapp_mensajes')
+    .insert([{ conversacion_id: conversacionId, rol: 'bot', contenido: texto }])
+}
+
 async function buildProviderResponse(
   provider: WhatsAppProvider,
   message: string,
   waNumber: string
 ) {
+  const mensaje = limpiarFormatoWhatsApp(message)
+  const plan = waNumber ? await planDiplomadoPendiente(mensaje, waNumber) : null
+
   if (provider === 'meta') {
     if (waNumber) {
-      await sendMetaWhatsAppMessage({ to: waNumber, body: message })
+      await sendMetaWhatsAppMessage({ to: waNumber, body: mensaje })
+      if (plan) {
+        await sendMetaWhatsAppMessage({ to: waNumber, body: plan.texto })
+        await registrarPlanDiplomado(plan.conversacionId, plan.texto)
+      }
     }
     return Response.json({ ok: true })
   }
 
   if (provider === 'messenger') {
     if (waNumber) {
-      await sendMessengerMessage({ to: waNumber, body: message })
+      await sendMessengerMessage({ to: waNumber, body: mensaje })
+      if (plan) {
+        await sendMessengerMessage({ to: waNumber, body: plan.texto })
+        await registrarPlanDiplomado(plan.conversacionId, plan.texto)
+      }
     }
     return Response.json({ ok: true })
   }
 
-  return buildTwiml(message)
+  if (plan) await registrarPlanDiplomado(plan.conversacionId, plan.texto)
+  return buildTwiml(plan ? `${mensaje}\n\n${plan.texto}` : mensaje)
 }
 
 

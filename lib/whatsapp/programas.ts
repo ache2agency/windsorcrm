@@ -159,7 +159,7 @@ export const PROGRAMAS_DIPLOMADO = [
 // nombre canónico. Caso 29-sep-2026: el anuncio dice "Administración de
 // Instituciones de Salud" y la lista decía "de la Salud"; la lista tenía
 // "Piscología criminológica" — ninguno de los dos se reconocía.
-const ALIAS_DIPLOMADO: Array<[string, string]> = [
+export const ALIAS_DIPLOMADO: Array<[string, string]> = [
   ['Piscología criminológica', 'Psicología criminológica'],
   ['Administración de Instituciones de la Salud', 'Administración de Instituciones de Salud'],
   ['Administración en recursos humanos', 'Administración de recursos humanos'],
@@ -183,7 +183,7 @@ const DIPLOMADOS_REQUIEREN_KEYWORD = new Set([
   'Cloud Computing',
 ])
 
-function normDiplomado(s: string): string {
+export function normDiplomado(s: string): string {
   return quitarAcentos(s).toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
