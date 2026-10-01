@@ -13,7 +13,9 @@ import {
   tipoInscripcion,
   esLicenciatura,
   esDiplomado,
+  PROGRAMAS_DIPLOMADO,
 } from '../lib/whatsapp/programas'
+import { diplomadoUnicoEnRespuesta, urlPlanDiplomado, limpiarFormatoWhatsApp } from '../lib/whatsapp/planesDiplomado'
 
 type Caso = { nombre: string; got: unknown; want: unknown; bug?: string }
 
@@ -189,6 +191,43 @@ const casos: Caso[] = [
     nombre: 'mencionar "inteligencia artificial" sin decir diplomado no secuestra la conversación',
     got: detectarPrograma('¿en la licenciatura en inglés usan inteligencia artificial?'),
     want: 'Licenciatura en Inglés',
+  },
+  // Caso prueba del anuncio de Tanatología (1-oct-2026) — la respuesta del bot dio
+  // precios y duración pero nunca el plan de estudios del diplomado.
+  {
+    nombre: 'todos los diplomados del catálogo tienen plan de estudios',
+    got: PROGRAMAS_DIPLOMADO.filter(n => !urlPlanDiplomado(n)),
+    want: [],
+  },
+  {
+    nombre: 'respuesta sobre Tanatología → manda su plan',
+    got: diplomadoUnicoEnRespuesta('¡Hola Anel! Claro, aquí tienes más información sobre el **Diplomado en Tanatología**:'),
+    want: 'Tanatología',
+  },
+  {
+    nombre: 'IA en la educación no cuenta también como Inteligencia Artificial',
+    got: diplomadoUnicoEnRespuesta('El Diplomado en Integración de la Inteligencia Artificial en la Educación dura 120 horas'),
+    want: 'Integración de la Inteligencia Artificial en la Educación',
+  },
+  {
+    nombre: 'alias del anuncio (de la Salud) → plan del canónico',
+    got: diplomadoUnicoEnRespuesta('Diplomado en Administración de Instituciones de la Salud'),
+    want: 'Administración de Instituciones de Salud',
+  },
+  {
+    nombre: 'menú con varios diplomados → no manda ningún PDF',
+    got: diplomadoUnicoEnRespuesta('Diplomados de Salud:\n•Tanatología\n•Gerontología\n•Enfermería'),
+    want: null,
+  },
+  {
+    nombre: 'sin la palabra diplomado → no manda PDF',
+    got: diplomadoUnicoEnRespuesta('En la licenciatura llevas materias de contabilidad'),
+    want: null,
+  },
+  {
+    nombre: 'negritas Markdown → formato WhatsApp',
+    got: limpiarFormatoWhatsApp('**Modalidad:**\n### Costos\n*ya bien*'),
+    want: '*Modalidad:*\n*Costos*\n*ya bien*',
   },
 ]
 
