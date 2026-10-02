@@ -4031,8 +4031,20 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       // de datos (🚩 +527772133102, anuncio "info de la prepa Windsor - UAGro", 2026-09-25) —
       // mismo bug que el de inglés del 2026-09-23. Guardar el programa y pedir nombre; al
       // darlo, el flujo de saludo pide correo y manda la ficha.
-      if (datoConfirmado?.programa && saludoSinNombre) {
-        const progDato = datoConfirmado.programa
+      // Diplomados (y cualquier programa ya detectado sin ficha fija) no pasan por
+      // respuestaDatoConfirmado: caían a GPT, que a veces pedía el nombre y a veces mandaba
+      // toda la info sin capturar datos — mismo mensaje del anuncio, resultado al azar
+      // (🚩 +523323969384 vs +527411319500, campaña diplomados 2026-10-02). Solo una vez:
+      // si ya se pidió el nombre y no lo dio, se deja responder normal para no ciclar.
+      const yaPidioNombreConv = convHistory.some(
+        (m) => m.role === 'assistant' && /tengo el gusto|c[oó]mo te llamas/i.test(m.content)
+      )
+      const programaSinNombre = saludoSinNombre
+        ? (datoConfirmado?.programa
+          ?? (hasLeadProgram(leadSnapshot?.curso) && !yaPidioNombreConv ? String(leadSnapshot?.curso) : null))
+        : null
+      if (programaSinNombre) {
+        const progDato = programaSinNombre
         if (leadId) await supabase.from('leads').update({ curso: progDato, ...(getValorPrograma(progDato) ? { valor: getValorPrograma(progDato) } : {}) }).eq('id', leadId)
         const pideNombre = `¡Excelente elección! 😊 Con gusto te comparto toda la información. ¿Con quién tengo el gusto?`
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, pideNombre, 'saludo', leadId)
