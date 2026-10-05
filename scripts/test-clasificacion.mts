@@ -13,8 +13,11 @@ import {
   tipoInscripcion,
   esLicenciatura,
   esDiplomado,
+  cambioDePrograma,
   PROGRAMAS_DIPLOMADO,
 } from '../lib/whatsapp/programas'
+import { noQuiereEmail, esPreguntaDelLead } from '../lib/whatsapp/captura'
+import { construirSystemPrompt } from '../lib/whatsapp/promptBot'
 import { diplomadoUnicoEnRespuesta, urlPlanDiplomado, limpiarFormatoWhatsApp } from '../lib/whatsapp/planesDiplomado'
 
 type Caso = { nombre: string; got: unknown; want: unknown; bug?: string }
@@ -228,6 +231,87 @@ const casos: Caso[] = [
     nombre: 'negritas Markdown → formato WhatsApp',
     got: limpiarFormatoWhatsApp('**Modalidad:**\n### Costos\n*ya bien*'),
     want: '*Modalidad:*\n*Costos*\n*ya bien*',
+  },
+  // ── Diplomado "pegajoso" (🚩 +527411319500, Nutrición, 2-oct-2026): tras la ficha, el bot
+  // perdía el contexto de diplomado y contestaba con datos de licenciatura/presencial.
+  {
+    nombre: '"¿el diplomado es presencial?" no cambia el curso al genérico Diplomado',
+    got: cambioDePrograma('Diplomado en Nutrición y Dietética', '¿el diplomado es presencial?'),
+    want: null,
+    bug: 'diplomados-contexto 3-oct',
+  },
+  {
+    nombre: 'lead de diplomado de psicología que dice "soy psicóloga" sigue en el diplomado',
+    got: cambioDePrograma('Diplomado en Psicología Criminológica', '¿me sirve si soy psicóloga?'),
+    want: null,
+  },
+  {
+    nombre: 'lead de diplomado que pide explícitamente la licenciatura sí cambia',
+    got: cambioDePrograma('Diplomado en Nutrición y Dietética', 'y la licenciatura en psicología cuánto cuesta?'),
+    want: 'Psicología',
+  },
+  {
+    nombre: 'lead de diplomado que nombra otro diplomado sí cambia',
+    got: cambioDePrograma('Diplomado en Nutrición y Dietética', 'y el diplomado en tanatología?'),
+    want: 'Diplomado en Tanatología',
+  },
+  {
+    nombre: 'lead de licenciatura conserva el cambio de programa de siempre',
+    got: cambioDePrograma('Psicología', 'mejor administración turística'),
+    want: 'Administración turística',
+  },
+  {
+    nombre: '"Mándame la información por esté medio" (acento de más) = no quiere dar correo',
+    got: noQuiereEmail('Mándame la información por esté medio porfavor'),
+    want: true,
+    bug: 'diplomados-contexto 3-oct (+527411319500)',
+  },
+  {
+    nombre: '"por aquí está bien" = no quiere dar correo',
+    got: noQuiereEmail('por aquí está bien'),
+    want: true,
+  },
+  {
+    nombre: '"Me puedes explicar el modelo mixto" en fase correo es pregunta',
+    got: esPreguntaDelLead('Me puedes explicar la el modelo mixto'),
+    want: true,
+  },
+  {
+    nombre: '"Y el costó" es pregunta',
+    got: esPreguntaDelLead('Y el costó'),
+    want: true,
+  },
+  {
+    nombre: '"si claro" no es pregunta (sigue pidiendo correo)',
+    got: [esPreguntaDelLead('si claro'), noQuiereEmail('si claro')],
+    want: [false, false],
+  },
+  {
+    nombre: 'un correo no es pregunta',
+    got: esPreguntaDelLead('jose.perez@gmail.com'),
+    want: false,
+  },
+  {
+    nombre: 'prompt de diplomado incluye PROGRAMA ACTIVO y la inscripción sin descuento',
+    got: (() => {
+      const p = construirSystemPrompt({ fase: 'accion', leadData: { nombre: 'José', curso: 'Diplomado en Nutrición y Dietética' }, ragContext: '', savedBotPrompt: '' })
+      return [p.includes('PROGRAMA ACTIVO'), p.includes('$700 MXN aparte'), p.includes('NO TIENE DESCUENTO NUNCA'), p.includes('RECORDATORIO FINAL')]
+    })(),
+    want: [true, true, true, true],
+  },
+  {
+    nombre: 'info_enviada de diplomado no pide tachar la inscripción',
+    got: construirSystemPrompt({ fase: 'info_enviada', leadData: { curso: 'Diplomado en Enseñanza del idioma inglés' }, ragContext: '', savedBotPrompt: '' }).includes('~$PRECIO_ORIGINAL~'),
+    want: false,
+    bug: 'diplomados-contexto 3-oct (+529212670886, $700→$490)',
+  },
+  {
+    nombre: 'prompt de licenciatura no cambia (sin bloque de diplomado, conserva formato de promo)',
+    got: (() => {
+      const p = construirSystemPrompt({ fase: 'info_enviada', leadData: { curso: 'Psicología' }, ragContext: '', savedBotPrompt: '' })
+      return [p.includes('PROGRAMA ACTIVO'), p.includes('~$PRECIO_ORIGINAL~')]
+    })(),
+    want: [false, true],
   },
 ]
 
