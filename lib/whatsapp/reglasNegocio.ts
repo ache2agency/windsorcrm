@@ -5,6 +5,8 @@
 // su propia versión mucho más corta y se desincronizaba con cada fix nuevo.
 // Ver memoria windsorcrm_bug_promo_convenio (LAB BOT desincronizado).
 
+import { esDiplomado } from './programas'
+
 // Iguala cerrado temporalmente para el ciclo escolar que arranca en septiembre de 2026 —
 // cambiar esta constante a true cuando reabra, en vez de tocar cada mensaje que menciona
 // los planteles (antes estaba hardcodeado en 7 lugares distintos y el bot seguía
@@ -21,6 +23,30 @@ export const TEXTO_PLANTELES = IGUALA_ABIERTO
 // +527471337214, 2026-08-14: preguntó si podía pagar en el instituto y el bot respondió
 // solo Lun-Vie). La regla de abajo obliga a copiarlo tal cual, mismo patrón que precios.
 export const TEXTO_HORARIO_ATENCION = `Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00`
+
+// Datos oficiales de los diplomados (decididos por Harold 25-sep / 30-sep / 1-oct-2026; los
+// mismos que el doc RAG d1362a05 y el de promociones 1d492ec3). Vivían SOLO en el RAG, así
+// que cuando GPT contestaba una pregunta de seguimiento sin ese documento en contexto
+// (fase 'correo' sin RAG, o un RAG que trajo chunks de licenciaturas), lo único que tenía
+// en el prompt eran los precios/horarios de licenciatura de estas reglas y los usaba para
+// el diplomado: "modelo mixto", plantel lunes y miércoles, $690 / $1,925 con 30% "durante
+// tu primer año" (🚩 +527411319500, Nutrición, 2-oct-2026), o inventaba 30% en la
+// inscripción $700→$490 (🚩 +529212670886, Enseñanza del Inglés, 3-oct-2026).
+// Si cambian precios/promo, actualizar aquí Y en los docs RAG (ver memoria
+// windsorcrm_diplomados_precios_sep2026).
+export const TEXTO_DATOS_DIPLOMADOS = `Todos los diplomados tienen las MISMAS condiciones:
+- Modalidad: SOLO EN LÍNEA, con clases en vivo por la plataforma del Instituto Windsor. NO hay modalidad presencial, mixta ni semipresencial, y no se asiste al plantel. Si preguntan por presencial o "mixto", aclara con amabilidad que el diplomado es 100% en línea con clases en vivo.
+- Horario: 2 horas a la semana de clase en vivo en línea, de 17:00 a 19:00 hrs; el día de la semana varía según el módulo. Además ~3 horas de autoestudio por semana.
+- Duración: 120 horas, divididas en 3 o 6 meses.
+- Fecha de inicio: abrimos grupo cada mes, así que puede incorporarse al próximo grupo. NUNCA des una fecha concreta de inicio (no hay una publicada).
+- Grupo: 12 a 25 participantes.
+- Calificación aprobatoria: 80% por módulo. Diploma con valor curricular (120 horas) al aprobar y cubrir los pagos.
+- Aval: avalado por el Instituto Windsor; NO tiene RVOE ni validez oficial de la SEP/SEG (la SEP no otorga RVOE a diplomados), pero sí tiene valor curricular.
+- Inversión regular: costo académico $14,900 MXN, en 6 mensualidades de $2,480 o 3 pagos de $4,960. Inscripción: $700 MXN aparte.
+- Promoción vigente (septiembre, octubre y noviembre 2026): 30% de descuento SOLO en las mensualidades → 6 mensualidades de $1,730 o 3 pagos de $3,470 (costo académico $10,430).
+- La INSCRIPCIÓN de diplomado ($700) NO TIENE DESCUENTO NUNCA: no la taches, no le apliques porcentaje, no digas que es gratis.
+- No multipliques ni recalcules: usa exactamente estas cifras.
+- NO APLICAN a diplomados: inscripción $690, mensualidad $1,925, el 70%/30% de licenciaturas, "descuento fijo durante tu primer año", promedio de 9, turnos matutino/vespertino/sabatino, clases en el plantel, fechas de inicio de septiembre, cuatrimestres/semestres, uniforme, RVOE de licenciaturas.`
 
 export const REGLAS_NEGOCIO = `- Formato WhatsApp únicamente: usa *negrita* (un asterisco), nunca **negrita** ni encabezados con #.
 - Mensajes cortos en fases de captura (saludo, correo). Más detallado en info_enviada y dudas.
@@ -74,4 +100,16 @@ export const REGLAS_NEGOCIO = `- Formato WhatsApp únicamente: usa *negrita* (un
 - DATOS BANCARIOS (CRÍTICO — NUNCA INVENTES NI ESCRIBAS NÚMEROS): Jamás escribas un número de cuenta, CLABE, tarjeta o banco de memoria — no existen en tu BASE DE CONOCIMIENTO y cualquier dígito que generes es una alucinación. La única forma válida de dar datos bancarios es el link de Drive que ya está en el proceso de inscripción del programa (se envía en su propio paso). Si el prospecto pide la cuenta/CLABE antes de llegar a ese paso, o pregunta algo de pago que no reconoces con certeza, responde amablemente que se lo confirma un asesor y pon necesitaRevision: true — NUNCA generes tú el dato.
 - LICENCIATURAS DISPONIBLES (lista completa, usa siempre estas 4 — nunca omitas ninguna): *Licenciatura en Inglés* (presencial u online), *Administración Turística* (presencial u online), *Relaciones Públicas y Mercadotecnia* (presencial u online), *Psicología* (presencial). Si preguntan "qué licenciaturas tienen" o piden la lista general, menciona las 4 por nombre — no te bases solo en lo que traiga la BASE DE CONOCIMIENTO para esta lista, ya la tienes aquí completa.
 - HORARIO LICENCIATURA EN INGLÉS ONLINE (CRÍTICO — caso real 2026-09-22: el bot dijo que online "estudias a tu propio ritmo y no tienes un horario fijo", lo cual es FALSO): la modalidad online tiene clases en vivo con horario fijo — la materia de Inglés se cursa *lunes y martes de 7:00 p.m. a 9:00 p.m.* y las materias complementarias en sesiones *sabatinas, aproximadamente de 8:30 a.m. a 3:30 p.m.* NUNCA digas que una licenciatura online es "a tu propio ritmo", "sin horario" o "autodidacta". Si preguntan el horario online de *Administración Turística* o *Relaciones Públicas y Mercadotecnia* y no aparece textual en la BASE DE CONOCIMIENTO, di que un asesor lo confirma y pon necesitaRevision: true.
-- Si el prospecto pregunta por varias licenciaturas o programas en general (sin elegir uno), da solo una vista general muy breve (mención de programas, duración, existencia de promociones) y pide que elija uno específico para darle el detalle completo y exacto. No intentes resumir precios de múltiples programas.`
+- Si el prospecto pregunta por varias licenciaturas o programas en general (sin elegir uno), da solo una vista general muy breve (mención de programas, duración, existencia de promociones) y pide que elija uno específico para darle el detalle completo y exacto. No intentes resumir precios de múltiples programas.
+- DIPLOMADOS (CRÍTICO — son un producto DISTINTO a las licenciaturas; nunca les apliques datos de licenciatura, bachillerato ni idiomas): ${TEXTO_DATOS_DIPLOMADOS.replace(/\n/g, ' ')}`
+
+/** Bloque para el system prompt cuando el programa activo del lead es un diplomado.
+ * Va en el prompt de TODAS las fases (no depende de que el RAG lo traiga) para que el
+ * programa activo y sus datos no se pierdan en preguntas de seguimiento. */
+export function contextoProgramaActivo(curso: string | null | undefined): string {
+  if (!esDiplomado(curso)) return ''
+  const nombre = String(curso).trim()
+  return `PROGRAMA ACTIVO (CRÍTICO): el prospecto está preguntando por *${nombre}*, que es un DIPLOMADO. Todas sus preguntas (costos, modalidad, horario, fechas, duración, validez) se refieren a ESTE diplomado salvo que nombre explícitamente otro programa. Contesta SOLO con estos datos de diplomados:
+${TEXTO_DATOS_DIPLOMADOS}
+Si la BASE DE CONOCIMIENTO o el historial contienen datos de licenciaturas (o una respuesta anterior tuya dio datos distintos a estos), IGNÓRALOS para este diplomado; si ya diste un dato equivocado, corrígelo con amabilidad.`
+}

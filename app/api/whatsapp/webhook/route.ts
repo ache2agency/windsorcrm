@@ -20,10 +20,13 @@ import {
   esInglesIdioma,
   tipoInscripcion,
   detectarPrograma,
+  cambioDePrograma,
   type TipoInscripcion,
   type OfertaMatchResult,
 } from '@/lib/whatsapp/programas'
-import { REGLAS_NEGOCIO, TEXTO_PLANTELES, TEXTO_HORARIO_ATENCION } from '@/lib/whatsapp/reglasNegocio'
+import { TEXTO_PLANTELES } from '@/lib/whatsapp/reglasNegocio'
+import { construirSystemPrompt } from '@/lib/whatsapp/promptBot'
+import { detectarEmail, noQuiereEmail, esPreguntaDelLead } from '@/lib/whatsapp/captura'
 import { hasLeadName } from '@/lib/whatsapp/nombres'
 import { INFO_MSGS, buildCTA } from '@/lib/whatsapp/infoMsgs'
 import { diplomadoUnicoEnRespuesta, driveIdPlanDiplomado, urlPlanDiplomado, limpiarFormatoWhatsApp } from '@/lib/whatsapp/planesDiplomado'
@@ -734,12 +737,16 @@ async function planDiplomadoPendiente(
     const sinMas = waNumber.replace(/^\+/, '')
     const { data: conv } = await supabase
       .from('whatsapp_conversaciones')
-      .select('id')
+      .select('id, fase')
       .in('whatsapp', [sinMas, '+' + sinMas])
       .order('ultimo_mensaje_at', { ascending: false })
       .limit(1)
       .maybeSingle()
     if (!conv?.id) return null
+    // El plan sale junto con la info, después de capturar nombre y correo (PR #35): mientras
+    // la conversación siga en 'saludo' o 'correo' no se manda, aunque la respuesta mencione el
+    // diplomado (🚩 +525554659043: el PDF salió antes de que diera su nombre).
+    if (conv.fase === 'saludo' || conv.fase === 'correo') return null
     const { data: yaEnviado } = await supabase
       .from('whatsapp_mensajes')
       .select('id')
@@ -1212,21 +1219,6 @@ function eligeExamenUbicacion(msg: string): boolean {
 
 /** Detecta programa específico en el mensaje (igual que lab) — nunca retorna "inglés" genérico */
 /** Detecta email en el mensaje */
-function detectarEmail(msg: string): string | null {
-  const match = msg.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)
-  return match ? match[0] : null
-}
-
-/** Detecta si el usuario no quiere dar correo */
-function noQuiereEmail(msg: string): boolean {
-  const m = msg.toLowerCase()
-  if (/no (lo )?ten(go)?|sin correo|no.*correo|no.*email|no.*mail|no quiero|no doy|no hay|no pos|nop/i.test(m)) return true
-  if (/por este medio|por\s*a\s*qu[ií]|as[ií] est[aá] bien|no uso|no manejo/i.test(m)) return true
-  if (/\b(solo|s[oó]lo|nada m[aá]s|nom[aá]s)\b.*(informaci[oó]n|info|eso)/i.test(m)) return true
-  if (!m.includes('@') && /^(info|siguiente|dale|ok|omite|salta|después|despues|luego|no|nada|sin|omitir|skip)$/i.test(m.trim())) return true
-  return false
-}
-
 // ─── CONVENIOS ───────────────────────────────────────────────────────────────
 
 const CONVENIOS_LISTA_MSG = `Sí, contamos con convenios vigentes con las siguientes instituciones:
@@ -1614,7 +1606,11 @@ function respuestaDatoConfirmado(
     }
   }
 
-  const esCursoIngles = /ingles/.test(contextoUsuario) && !/licenciatura en ingles/.test(String(quitarAcentos(cursoActual || '')).toLowerCase())
+  // Lead de diplomado: las respuestas fijas de abajo por CONTEXTO (inglés, bachillerato) no
+  // aplican — "Diplomado en Enseñanza del Idioma Inglés" contiene "ingles" y le habría
+  // contestado niveles/precios del curso de inglés. Solo las que dependen del texto.
+  const cursoEsDiplomado = esDiplomado(cursoActual)
+  const esCursoIngles = !cursoEsDiplomado && /ingles/.test(contextoUsuario) && !/licenciatura en ingles/.test(String(quitarAcentos(cursoActual || '')).toLowerCase())
 
   // Cuenta bancaria para depositar (alumnos actuales pagando mensualidad, o prospectos). El
   // link de Drive es el mismo del proceso de inscripción — antes esto se escalaba y un asesor
@@ -1643,7 +1639,7 @@ function respuestaDatoConfirmado(
     }
   }
 
-  const esInglesAdultos = /ingles.*adult|adult.*ingles|adultos? y jovenes/.test(contextoUsuario)
+  const esInglesAdultos = !cursoEsDiplomado && /ingles.*adult|adult.*ingles|adultos? y jovenes/.test(contextoUsuario)
   const preguntaInicioOCosto = /inici|empiez|comienz|fecha|cu[aá]ndo|cuando|costo|precio|mensualidad|inscripci/.test(texto)
   if (esInglesAdultos && preguntaInicioOCosto) {
     if (/octubre|convocatoria|otra.*fecha|proximo.*ciclo/.test(texto)) {
@@ -1663,7 +1659,7 @@ function respuestaDatoConfirmado(
     }
   }
 
-  const esBachillerato = /bachillerato|prepa/.test(String(cursoActual || '').toLowerCase()) || /bachillerato|prepa/.test(contextoUsuario)
+  const esBachillerato = !cursoEsDiplomado && (/bachillerato|prepa/.test(String(cursoActual || '').toLowerCase()) || /bachillerato|prepa/.test(contextoUsuario))
   if (esBachillerato && /matutino/.test(texto) && /horario|hora|de que hora|a que hora/.test(texto)) {
     return { respuesta: 'El turno matutino de Bachillerato es de *8:00 a.m. a 2:00 p.m.* 😊' }
   }
@@ -1677,7 +1673,7 @@ function respuestaDatoConfirmado(
 
   // Horario sabatino de Inglés para niños — documentado en reglasNegocio.ts (9:00-13:00)
   // pero el modelo lo escaló a "Déjame consultarlo con un asesor" (caso real, 2026-09-07).
-  const esInglesNinos = /ingles.*nin|nin.*ingles/.test(contextoUsuario)
+  const esInglesNinos = !cursoEsDiplomado && /ingles.*nin|nin.*ingles/.test(contextoUsuario)
   if (esInglesNinos && /s[aá]bado|sabatino/.test(texto) && /horario|hora/.test(texto)) {
     return { respuesta: 'El horario sabatino de Inglés para niños es de *9:00 a.m. a 1:00 p.m.* 😊' }
   }
@@ -2099,133 +2095,13 @@ async function askGPT(params: {
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY
   if (!OPENAI_API_KEY) throw new Error('No OPENAI_API_KEY')
 
-  const faseInstruccion: Record<string, string> = {
-    saludo: `Si el prospecto ya mencionó su nombre en este mensaje, extráelo en el campo "nombre" y avanza (siguienteFase: programa).
-CRÍTICO — Nombres falsos: NUNCA extraigas como nombre palabras que no son nombres de persona. Las siguientes palabras NUNCA son nombres: Horarios, Info, Información, Costos, Precios, Hola, Buenas, Buenos, Gracias, Ok, Sí, No, Verano, Summer, Inglés, Licenciatura, Psicología, Bachillerato, Curso, Programa, Ayuda, Duda, Permiso, Saludos, Buenas noches, Buenos días. Si el prospecto manda solo una de estas palabras, NO la guardes como nombre — en su lugar, saluda y pide el nombre.
-Si el prospecto hace una pregunta antes de dar su nombre:
-- Si pregunta por precios, costos, mensualidades o descuentos: NO des precios específicos. Responde: "Tenemos buenas promociones vigentes — dame tu nombre y dime qué programa te interesa para darte los costos exactos 😊" y pide el nombre. Nunca inventes ni calcules precios en esta fase.
-- Para otras preguntas (fechas de inicio, modalidad, duración, actividades): respóndelas brevemente con la BASE y luego pide su nombre para continuar.
-No ignores la pregunta.
-Si pregunta por varias licenciaturas o varios programas en general, menciona brevemente los programas disponibles y que hay promociones vigentes, pero NO intentes resumir precios de múltiples programas (podrías equivocarte). Pide su nombre y que elija un programa para darle el detalle exacto.
-Si aún no ha dado su nombre ni hecho ninguna pregunta, saluda brevemente y pídelo.`,
-
-    programa: `Ya tienes el nombre.
-Si el prospecto dice "inglés" o "ingles" sin especificar más, NO asumas cuál — pregunta cuál de las tres opciones le interesa:
-A) Inglés para adultos  B) Inglés para niños  C) Licenciatura en Inglés
-En ese caso el campo "programa" debe ser null y siguienteFase: programa.
-Si el prospecto mencionó un programa específico y sin ambigüedad (ej: "psicología", "inglés para niños", "maestría en innovación"), extráelo en el campo "programa" y responde brevemente confirmando su elección. siguienteFase: correo.
-Si NO mencionó ningún programa, el campo "programa" debe ser null y pide amablemente que elija uno. siguienteFase: programa.
-NO listes el catálogo tú mismo — eso se maneja de forma separada.`,
-
-    correo: `El prospecto eligió un programa. ANTES de dar información del programa, pide su correo electrónico brevemente para dar seguimiento personalizado.
-Si el prospecto proporciona un correo válido (debe contener @ y un dominio, ej. nombre@gmail.com), acusa recibo calurosamente — captura el email en el campo "email" del JSON y pon siguienteFase: info_enviada.
-Si el mensaje NO contiene un correo válido (ej. responde "sí", "claro", "ok", "si claro", un nombre, o cualquier cosa sin @), NO avances — vuelve a pedir el correo con amabilidad, aclarando que es opcional (si no tiene, con gusto le compartimos la información por aquí). NUNCA digas que el correo es obligatorio ni que lo "necesitas". Deja "email": null y siguienteFase: correo.
-Si explícitamente no quiere darlo o dice que no tiene, avanza de todas formas a info_enviada con "email": null.
-No menciones el programa todavía — solo pide el correo.`,
-
-    info_enviada: `Da la información del programa usando la BASE DE CONOCIMIENTO: duración, costos (inscripción y mensualidad), horarios, modalidad, certificaciones, campo laboral.
-IMPORTANTE: SIEMPRE incluye la promoción vigente indicando el porcentaje de descuento y el precio final a pagar. Formatea así: "Inscripción: ~$PRECIO_ORIGINAL~ → $PRECIO_CON_DESCUENTO (X% de descuento)". Si la BASE no tiene el precio exacto con descuento, calcula el descuento a partir del porcentaje indicado.
-NO incluyas el proceso de inscripción ni links de pago — eso se envía en otro paso.
-SIEMPRE termina el mensaje con exactamente estas opciones, sin excepción:
-A) Tengo dudas sobre el programa
-B) Quiero inscribirme
-(Si el programa es inglés adultos, inglés niños o cualquier curso de idiomas, agrega una tercera opción: "C) Quiero agendar mi examen de ubicación gratuito (opcional)". El examen es opcional y NUNCA sustituye a la opción B — quien quiera inscribirse debe poder hacerlo sin haberlo tomado)`,
-
-    dudas: `Responde la duda con datos concretos de la BASE (costos, horarios, requisitos, etc.). Si la duda es sobre costos o precio, incluye siempre la promoción vigente con el porcentaje de descuento y el precio final (ej. "Inscripción: ~$2,300~ → $690 (70% de descuento)").
-Si la pregunta es ambigua o indirecta, interpreta la intención del prospecto y busca en la BASE el tema más relacionado. Ejemplos:
-- Si menciona que trabaja en alguna institución o pregunta por precio especial → busca convenios
-- Si pregunta si el título "vale" o "sirve" → responde sobre RVOE y reconocimiento oficial
-- Si pregunta qué necesita traer o si hay libros → responde sobre material
-- Si pregunta cuánto tiempo o cuándo termina → responde sobre duración
-Al terminar, vuelve a presentar:
-A) Tengo más dudas
-B) Quiero inscribirme
-(Si es inglés adultos/niños, agrega: C) Quiero agendar mi examen de ubicación gratuito (opcional))
-Si elige A → siguienteFase: dudas. Si elige B → siguienteFase: inscripcion. Si elige C (solo idiomas) → siguienteFase: examen.`,
-
-    accion: `Si el prospecto hace una pregunta (sobre costos, horarios, uniformes, materiales, requisitos, etc.), respóndela primero con datos concretos de la BASE y luego presenta las opciones. Si solo responde con A/B/C o no hace ninguna pregunta, presenta directamente las opciones.
-Opciones a presentar:
-- Si el programa es inglés (niños o adultos): A) Tengo dudas  B) Quiero inscribirme  C) Quiero agendar mi examen de ubicación gratuito (opcional)
-- Para todos los demás programas: A) Tengo dudas  B) Quiero inscribirme
-El examen de ubicación (opción C) es opcional y NUNCA sustituye a la inscripción — no lo ofrezcas como si fuera el único camino.
-Si elige A → siguienteFase: dudas. Si elige B → siguienteFase: inscripcion. Si elige C (solo idiomas) → siguienteFase: examen.`,
-
-    asesor: `INFORMACIÓN DE CONTACTO DE LOS PLANTELES:
-🏢 CHILPANCINGO: Sofía Tena #1, Col. Viguri | Tel: 747 472 8775 / 747 472 2466 / 747 491 4498
-🏢 IGUALA: Ignacio Zaragoza 99, Col. Centro | Tel: 733 334 0498
-Horarios: Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
-
-Flujo:
-1. Si aún no mostraste los horarios: muéstralos y pregunta qué día y hora le viene mejor.
-2. Si ya diste los horarios: pide su número de teléfono.
-3. Si ya tienes el teléfono: confirma que un asesor lo llamará en ~1 hora desde uno de los números de los planteles.
-Captura el teléfono en el campo "telefono" del JSON.`,
-
-    seguimiento: `Responde cualquier pregunta del prospecto usando la BASE DE CONOCIMIENTO.
-Si menciona un programa diferente al que tenía, da información sobre ese nuevo programa con entusiasmo.
-Si pregunta sobre costos, horarios, requisitos, modalidad — responde con detalle usando la BASE.
-Si la pregunta es ambigua o indirecta, interpreta la intención y busca en la BASE el tema más relacionado. Ejemplos:
-- Si menciona que trabaja en alguna institución o pide precio especial → busca convenios vigentes
-- Si pregunta si el título "vale" o "sirve" → responde sobre RVOE y reconocimiento oficial
-- Si pregunta qué necesita traer o si hay libros → responde sobre material
-- Si pregunta cuánto tiempo o cuándo termina → responde sobre duración
-Si quiere inscribirse → siguienteFase: inscripcion. Si quiere el examen de ubicación (opcional, solo inglés) → siguienteFase: examen.
-Si no hay una pregunta clara, recuérdale amablemente el siguiente paso según su programa.`,
-    inscripcion_pendiente: `El lead está completando su inscripción a My Best Summer. Si hace una pregunta, respóndela PRIMERO antes de recordar los pasos:
-- Diploma/certificado: "Sí, al concluir el nivel recibes un *Diploma avalado por la SEP* 🎓"
-- Examen de colocación: "El examen es en línea, solo necesitas tu dispositivo con internet 📱 Te compartimos el link al inscribirte"
-- Días del curso: lunes a viernes | Niños: 9:00–13:30 | Adultos: 9:00–12:00 o 13:00–16:00
-- Materiales/útiles: el costo de $400 MXN de materiales ya incluye todo lo necesario
-Si confirma que ya pagó o completó el formulario → siguienteFase: seguimiento.`,
-    cerrado: 'La conversación está cerrada. Pregunta amablemente si puedes ayudarle en algo más. Si el prospecto pide hablar con alguien, quiere más información o retoma el interés, pon requestedHuman: true y siguienteFase: asesor.',
-    perdido: 'El prospecto no estaba interesado. Si vuelve a escribir, responde con amabilidad.',
-  }
-
   const savedBotPrompt = await getBotPrompt()
-
-  const baseInstructions = savedBotPrompt ||
-    `Eres un asesor comercial de Instituto Windsor (escuela en México) que atiende prospectos por WhatsApp.
-Tu objetivo es generar confianza y llevar al prospecto a inscribirse.
-Tono: amable, directo, como una persona real — no un robot.`
-
-  const leadContext = [
-    `Nombre: ${params.leadData.nombre || 'no capturado aún'}`,
-    `Email: ${params.leadData.email || 'no capturado aún'}`,
-    `Programa de interés: ${params.leadData.curso || 'no identificado aún'}`,
-  ].join('\n')
-
-  const hoyMX = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Mexico_City' })
-  const horaMX = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Mexico_City' })
-
-  const systemPrompt = `${baseInstructions}
-
-FECHA DE HOY: ${hoyMX}, ${horaMX} h (hora de México).
-VISITAS "HOY" (CRÍTICO — caso real 2026-09-23: un miércoles a las 15:38 el bot ofreció "hoy en horario sabatino 9 a 13h"): si el prospecto quiere venir hoy o mañana, revisa qué día de la semana es y a qué hora abre/cierra el plantel según el horario de atención (${TEXTO_HORARIO_ATENCION}). Nunca ofrezcas el horario de sábado entre semana ni un horario que ya pasó; si hoy ya cerró, dile a qué hora puede venir el siguiente día hábil.
-Usa la fecha si preguntan "¿hasta cuándo?", "¿solo este mes?" o similar sobre vigencia de promociones — nunca inventes ni asumas otro mes (caso real: Arlette, 2026-09-17, el bot dijo que la promoción era "válida únicamente durante agosto 2026" estando ya en septiembre).
-
-DATOS ACTUALES DEL PROSPECTO:
-${leadContext}
-
-FASE ACTUAL: ${params.fase}
-QUÉ HACER AHORA: ${faseInstruccion[params.fase] ?? 'Responde de forma natural y útil.'}
-
-${params.ragContext ? `BASE DE CONOCIMIENTO (úsala si es relevante):\n${params.ragContext}\n` : ''}
-REGLAS:
-${REGLAS_NEGOCIO}
-- "siguienteFase": saludo, programa, correo, info_enviada, dudas, accion, asesor, inscripcion, clase_prueba, cerrado, perdido, seguimiento.
-
-Responde ÚNICAMENTE con JSON válido:
-{
-  "respuesta": "mensaje que se enviará al prospecto por WhatsApp",
-  "siguienteFase": "fase_siguiente",
-  "nombre": null,
-  "email": null,
-  "programa": null,
-  "telefono": null,
-  "requestedHuman": false,
-  "noInterest": false,
-  "necesitaRevision": false
-}`
+  const systemPrompt = construirSystemPrompt({
+    fase: params.fase,
+    leadData: params.leadData,
+    ragContext: params.ragContext,
+    savedBotPrompt,
+  })
 
   console.log('[BOT PROMPT] fase:', params.fase)
   console.log('[BOT SYSTEM PROMPT]', systemPrompt)
@@ -3911,8 +3787,14 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       if (phase === 'correo') {
         const emailDetectado = detectarEmail(originalText)
         const quiereSkip = noQuiereEmail(originalText)
+        // Pregunta concreta en vez del correo ("¿es presencial?", "y el costo"): se toma como
+        // "mándame la info por aquí". Antes se volvía a pedir el correo con GPT SIN base de
+        // conocimiento y la fase nunca salía de 'correo' — todas las preguntas siguientes se
+        // contestaban inventando (🚩 +527411319500, Diplomado en Nutrición, 2-oct-2026:
+        // "modelo mixto", plantel lunes y miércoles, $690/$1,925, "inicia el 7 de noviembre").
+        const preguntaEnCorreo = !emailDetectado && !quiereSkip && hasLeadProgram(leadSnapshot?.curso) && esPreguntaDelLead(originalText)
 
-        if (emailDetectado || quiereSkip) {
+        if (emailDetectado || quiereSkip || preguntaEnCorreo) {
           // Guardar email si se detectó
           if (emailDetectado && leadId) {
             await supabase.from('leads').update({ email: emailDetectado }).eq('id', leadId)
@@ -3945,7 +3827,9 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           const gptCorreo = await askGPT({
             fase: 'info_enviada',
             leadData: { nombre: leadSnapshot?.nombre, email: emailDetectado || leadSnapshot?.email, curso: cursoInfo },
-            userMessage: 'Dame información del programa',
+            userMessage: preguntaEnCorreo
+              ? `Dame información del programa. Además pregunto: ${originalText}`
+              : 'Dame información del programa',
             ragContext: ragCorreo,
             history: convHistory,
           })
@@ -3985,8 +3869,10 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         // No disparar si la mención del programa es contextual (pregunta sobre descuentos, convenios, o comparaciones)
         const esMencionContextual = /\b(si soy|siendo|como alumno|como estudiante|alumno de|estudiante de|egresado de|si tengo|teniendo|me gradué|yo estudié|estudio en|trabajo en|mi carrera|mi programa|hay descuento para|descuento para alumnos|descuento.*estudiante|beneficio.*alumno)\b/i.test(originalText)
         if (!esRespuestaCTA && !esMencionContextual) {
-          // Usa detectarPrograma() como única fuente de verdad (sin duplicar lógica)
-          const programaNuevoPC = detectarPrograma(originalText)
+          // cambioDePrograma() usa detectarPrograma() como única fuente de verdad, pero con el
+          // diplomado "pegajoso": "¿el diplomado es presencial?" ya no cambia el curso al
+          // genérico 'Diplomado', ni "¿me sirve si soy psicóloga?" a la Lic. en Psicología.
+          const programaNuevoPC = cambioDePrograma(leadSnapshot?.curso, originalText)
           const programaActualPC = (leadSnapshot?.curso || '').toLowerCase().trim()
           if (
             programaNuevoPC &&
@@ -4077,20 +3963,26 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       try {
         const ragUrl = new URL('/api/rag/query', new URL(request.url).origin)
         const isInfoPhase = ['info_enviada', 'dudas', 'correo', 'seguimiento'].includes(phase)
-        const matchCount = isInfoPhase ? 15 : 5
         // Usa detectarPrograma() como única fuente de verdad (sin duplicar lógica) —
         // antes había una copia local aquí sin Bachillerato/Prepa, así que una pregunta
         // de seguimiento sobre Bachillerato caía al curso genérico del lead y el RAG
         // contestaba de forma genérica en vez de específica (ver bug reportado 2026-08-06,
         // caso +527472532394: el bot daba vueltas repitiendo el catálogo completo).
-        const queryPrograma = (phase === 'dudas' || phase === 'seguimiento')
-          ? (detectarPrograma(originalText) || leadSnapshot?.curso || '')
+        // Diplomado activo: el RAG se consulta SIEMPRE con el nombre del diplomado (en
+        // cualquier fase, incluida 'accion', donde caen las preguntas tras la ficha) y GPT
+        // recibe los chunks crudos — no el resumen de /api/rag/query, que contesta la pregunta
+        // sin saber que es un diplomado y mezclaba datos de licenciaturas (🚩 +527411319500).
+        const diplomadoActivo = esDiplomado(leadSnapshot?.curso)
+        const preguntaConPrograma = phase === 'dudas' || phase === 'seguimiento' || diplomadoActivo
+        const queryPrograma = preguntaConPrograma
+          ? (cambioDePrograma(leadSnapshot?.curso, originalText) || leadSnapshot?.curso || '')
           : leadSnapshot?.curso || ''
-        const ragQuestion = queryPrograma && (phase === 'dudas' || phase === 'seguimiento')
+        const ragQuestion = queryPrograma && preguntaConPrograma
           ? `${queryPrograma} en Instituto Windsor: ${originalText}`
           : isInfoPhase && leadSnapshot?.curso
           ? `${leadSnapshot.curso} en Instituto Windsor: costos, horarios, duración, modalidad, certificaciones, campo laboral`
           : (leadSummary ? `${leadSummary}\n\n${originalText}` : originalText)
+        const matchCount = isInfoPhase || diplomadoActivo ? 15 : 5
         const ragRes = await fetch(ragUrl.toString(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -4099,8 +3991,8 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         })
         if (ragRes.ok) {
           const ragData = await ragRes.json()
-          // Para info_enviada usamos contexto crudo para evitar doble resumen
-          ragContext = phase === 'info_enviada'
+          // Para info_enviada (y diplomados) usamos contexto crudo para evitar doble resumen
+          ragContext = phase === 'info_enviada' || diplomadoActivo
             ? (typeof ragData?.context === 'string' ? ragData.context : ragData?.answer || '')
             : (ragData?.answer || '')
         }
@@ -4212,7 +4104,11 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       if (gpt.email && leadId) {
         await supabase.from('leads').update({ email: gpt.email }).eq('id', leadId)
       }
-      if (gpt.programa && leadId) {
+      // Diplomado activo: GPT a veces "extrae" otro programa de una pregunta de seguimiento
+      // (ej. "Nutrición", "Psicología"); solo se cambia el curso si el MENSAJE del lead nombra
+      // otro programa de forma explícita (cambioDePrograma), nunca por la extracción de GPT.
+      const mantenerDiplomado = esDiplomado(leadSnapshot?.curso) && !cambioDePrograma(leadSnapshot?.curso, originalText)
+      if (gpt.programa && leadId && !mantenerDiplomado) {
         const cursoCanonico = canonicalizarPrograma(gpt.programa, originalText)
         await supabase.from('leads').update({ curso: cursoCanonico, ...(getValorPrograma(cursoCanonico) ? { valor: getValorPrograma(cursoCanonico) } : {}) }).eq('id', leadId)
       }
@@ -4231,7 +4127,15 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         // Si venimos de saludo sin nombre válido, volver a pedir nombre (no mostrar catálogo con teléfono)
         const nombreValido = hasLeadName(gpt.nombre || leadSnapshot?.nombre, waNumber)
         if (phase === 'saludo' && !nombreValido) {
-          const askName = '¿Cómo te llamas? 😊 Así puedo ayudarte mejor.'
+          // Si el lead hizo una pregunta antes de dar su nombre, GPT (instrucción de fase
+          // saludo) la contesta brevemente y pide el nombre en el mismo mensaje — usar esa
+          // respuesta. Antes se descartaba y se mandaba el "¿Cómo te llamas?" fijo, la pregunta
+          // quedaba sin respuesta y el lead la repetía, lo que provocaba un segundo pedido de
+          // nombre (🚩 +525554659043, Diplomado en Farmacología, 2-oct-2026).
+          const gptPideNombre = /tengo el gusto|c[oó]mo te llamas|tu nombre/i.test(gpt.respuesta)
+          const askName = gptPideNombre && esPreguntaDelLead(originalText)
+            ? gpt.respuesta
+            : '¿Cómo te llamas? 😊 Así puedo ayudarte mejor.'
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, askName, 'saludo')
           return buildProviderResponse(provider, askName, waNumber)
         }
@@ -4258,9 +4162,11 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         // lead sí mencionaba un programa real. Sin este filtro, ese placeholder se colaba tal cual
         // en el mensaje visible al lead ("Para contarte todo sobre *WhatsApp - Instituto Windsor*").
         // Caso real: Ana Mariela Trejo Palacios (+527911112666), 2026-08-10.
-        const programaGPT = gpt.programa || (hasLeadProgram(leadSnapshot?.curso) ? leadSnapshot?.curso : null)
+        const programaGPT = mantenerDiplomado
+          ? leadSnapshot?.curso
+          : gpt.programa || (hasLeadProgram(leadSnapshot?.curso) ? leadSnapshot?.curso : null)
         if (programaGPT && leadId) {
-          const cursoCanonico = canonicalizarPrograma(programaGPT, originalText)
+          const cursoCanonico = mantenerDiplomado ? String(programaGPT) : canonicalizarPrograma(programaGPT, originalText)
           await supabase.from('leads').update({ curso: cursoCanonico, ...(getValorPrograma(cursoCanonico) ? { valor: getValorPrograma(cursoCanonico) } : {}) }).eq('id', leadId)
           // Si el lead ya tiene correo capturado (de este mensaje vía GPT o de antes),
           // no volver a pedirlo — ir directo a la info del programa
@@ -4393,6 +4299,17 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           await notifyAsesor(supabase, leadId, 'examen_confirmado',
             leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
         }
+      }
+
+      // Saludo sin nombre con programa ya detectado: GPT contestó la pregunta del lead pero a
+      // veces olvida pedir el nombre — garantizarlo para que la captura no se salte (PR #35).
+      if (
+        phase === 'saludo' && nextFase === 'saludo' &&
+        hasLeadProgram(leadSnapshot?.curso) &&
+        !hasLeadName(gpt.nombre || leadSnapshot?.nombre, waNumber) &&
+        !/tengo el gusto|c[oó]mo te llamas|tu nombre/i.test(botMessage)
+      ) {
+        botMessage = `${botMessage.trim()}\n\n¿Con quién tengo el gusto? 😊`
       }
 
       await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMessage, nextFase, leadId)

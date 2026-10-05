@@ -275,3 +275,33 @@ export function detectarPrograma(msg: string): string | null {
   if (/verano|summer|my best summer/.test(norm) && /adult|adolescen|joven|teen/.test(norm)) return 'Cursos de verano adultos'
   return null
 }
+
+/** Nombra otro programa de forma explícita (no solo de pasada). Sirve para distinguir
+ * "quiero la licenciatura en psicología" (cambio real) de "¿me sirve si soy psicólogo?"
+ * dicho por alguien que pregunta por un diplomado de psicología. */
+function nombraOtroProgramaExplicito(norm: string): boolean {
+  return /licenciatura|\blic\b|carrera|maestr|bachiller|prepa|ingles para|cursos? de (ingles|idioma|frances|italiano)|frances|italian|verano|summer/.test(norm)
+}
+
+/** Programa del que habla este mensaje, considerando el programa activo del lead.
+ * Regresa el programa al que hay que cambiar, o null si el lead sigue en el mismo.
+ *
+ * El diplomado es "pegajoso": una vez que el lead está en un diplomado, el mensaje solo
+ * cambia de programa si nombra otro diplomado concreto u otro programa de forma explícita.
+ * Antes, cualquier pregunta tipo "¿el diplomado es presencial?" devolvía el genérico
+ * 'Diplomado' (≠ 'Diplomado en Nutrición y Dietética') y el interceptor de "cambio de
+ * programa" sobrescribía leads.curso; y "¿me sirve si soy psicóloga?" lo mandaba a la
+ * Licenciatura en Psicología — el bot perdía el contexto de diplomado y contestaba con
+ * datos de licenciatura (🚩 +527411319500, Nutrición, 2-oct-2026). */
+export function cambioDePrograma(cursoActual: string | null | undefined, msg: string): string | null {
+  const nuevo = detectarPrograma(msg)
+  if (!nuevo) return null
+  const actual = (cursoActual || '').trim()
+  if (normDiplomado(nuevo) === normDiplomado(actual)) return null
+  if (esDiplomado(actual)) {
+    // "el diplomado", "los diplomados" sin nombre concreto: es el mismo
+    if (nuevo === 'Diplomado') return null
+    if (!esDiplomado(nuevo) && !nombraOtroProgramaExplicito(quitarAcentos(msg).toLowerCase())) return null
+  }
+  return nuevo
+}

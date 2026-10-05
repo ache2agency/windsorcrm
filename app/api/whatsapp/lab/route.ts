@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { detectarPrograma, canonicalizarPrograma } from '@/lib/whatsapp/programas'
-import { REGLAS_NEGOCIO, TEXTO_PLANTELES } from '@/lib/whatsapp/reglasNegocio'
+import { REGLAS_NEGOCIO, TEXTO_PLANTELES, contextoProgramaActivo } from '@/lib/whatsapp/reglasNegocio'
 
 export const maxDuration = 60
 
@@ -486,7 +486,7 @@ async function gpt(params: {
 DATOS DEL PROSPECTO:
 Nombre: ${params.nombre || 'no capturado aún'}
 Programa de interés: ${params.programa || 'no identificado aún'}
-
+${contextoProgramaActivo(params.programa) ? `\n${contextoProgramaActivo(params.programa)}\n` : ''}
 TAREA: ${params.instruccion}
 
 ${params.ragContext ? `BASE DE CONOCIMIENTO (usa esta información):\n${params.ragContext}\n` : ''}
