@@ -44,7 +44,7 @@ const MENSAJE_2_ACTIVO = false
 // esa pregunta. La fase a veces queda "atorada" (ej. 'correo') aunque la plática ya siguió y el
 // lead ya recibió la info — en la primera prueba en producción, 3 de 6 casos eran así.
 const PREGUNTA_PENDIENTE: Record<string, RegExp> = {
-  saludo: /c[oó]mo te llamas|tu nombre/i,
+  saludo: /c[oó]mo te llamas|tu nombre|con qui[eé]n tengo el gusto/i,
   correo: /correo/i,
   programa: /qu[eé] programa|cu[aá]l.{0,40}te interesa/i,
 }
