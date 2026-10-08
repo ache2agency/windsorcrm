@@ -1945,8 +1945,11 @@ Al finalizar, en la parte superior de la pantalla tendrás tu puntaje — toma u
 
 Una vez que lo termines, te agendaremos tu clase de prueba gratuita. 🎓`
 
-function buildClasePruebaMsg(nombre?: string | null, email?: string | null, programa?: string | null, telefono?: string | null): string {
-  const link = buildAgendarLink('clase_prueba', nombre, email, programa, telefono)
+// Las clases de prueba se agendan en Confirmafy (Harold, 2026-10-08), no en /agendar del CRM.
+const CLASE_PRUEBA_LINK = 'https://confirmafy.com/iwindsor'
+
+function buildClasePruebaMsg(): string {
+  const link = CLASE_PRUEBA_LINK
   return `¡Excelente! 🎉 Ahora te invitamos a vivir una *clase de prueba gratuita*.
 
 Tendrás la oportunidad de conocer a tu profesor(a), la metodología y a tus futuros compañeros — sin compromiso.
@@ -3982,6 +3985,16 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         ? (datoConfirmado?.programa
           ?? (hasLeadProgram(leadSnapshot?.curso) && !yaPidioNombreConv ? String(leadSnapshot?.curso) : null))
         : null
+      // Anuncio genérico de idiomas ("me interesa el curso de idiomas para adultos y jóvenes"):
+      // el curso queda en el placeholder, así que no hay programa detectado y GPT mandaba toda la
+      // info sin pedir nombre (🚩 +527471189000, 2026-10-08). Pedir nombre primero, una sola vez.
+      const anuncioIdiomasSinNombre = saludoSinNombre && !yaPidioNombreConv &&
+        /curso(s)? de idiomas|idiomas para (adultos|j[oó]venes|ni[nñ]os)/i.test(originalText)
+      if (!programaSinNombre && anuncioIdiomasSinNombre) {
+        const pideNombre = `¡Hola! 😊 Con gusto te comparto toda la información de nuestros cursos de idiomas. ¿Con quién tengo el gusto?`
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, pideNombre, 'saludo', leadId)
+        return buildProviderResponse(provider, pideNombre, waNumber)
+      }
       if (programaSinNombre) {
         const progDato = programaSinNombre
         if (leadId) await supabase.from('leads').update({ curso: progDato, ...(getValorPrograma(progDato) ? { valor: getValorPrograma(progDato) } : {}) }).eq('id', leadId)
@@ -4281,7 +4294,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         botMessage = EXAMEN_UBICACION_MSG
       } else if (nextFase === 'clase_prueba') {
         // Track A idiomas: invitar a clase de prueba (después del examen)
-        botMessage = buildClasePruebaMsg(leadSnapshot?.nombre, leadSnapshot?.email, leadSnapshot?.curso, leadSnapshot?.whatsapp)
+        botMessage = buildClasePruebaMsg()
         nextFase = 'clase_prueba'
       } else if (nextFase === 'inscripcion' && phase !== 'inscripcion') {
         // Track B: proceso de inscripción — según lista cerrada de programas, nunca por descarte
