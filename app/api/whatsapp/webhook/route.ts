@@ -30,6 +30,7 @@ import { detectarEmail, noQuiereEmail, esPreguntaDelLead } from '@/lib/whatsapp/
 import { hasLeadName } from '@/lib/whatsapp/nombres'
 import { INFO_MSGS, buildCTA } from '@/lib/whatsapp/infoMsgs'
 import { diplomadoUnicoEnRespuesta, driveIdPlanDiplomado, urlPlanDiplomado, limpiarFormatoWhatsApp } from '@/lib/whatsapp/planesDiplomado'
+import { enviarPushATodos } from '@/lib/push'
 
 export const maxDuration = 60
 
@@ -399,6 +400,43 @@ const NOTIFY_LABELS: Record<NotifyEvent, string> = {
   lead_perdido_reescribio: '⚠️ Lead marcado como perdido/cerrado volvió a escribir',
 }
 
+function recortarPush(texto: string | null | undefined, max = 120): string {
+  const limpio = String(texto || '').replace(/\s+/g, ' ').trim()
+  if (!limpio) return 'Mensaje nuevo'
+  return limpio.length > max ? `${limpio.slice(0, max - 1)}…` : limpio
+}
+
+function tituloLead(leadNombre: string | null | undefined, leadWhatsapp: string | null | undefined): string {
+  return leadNombre || leadWhatsapp || 'Mensaje nuevo'
+}
+
+async function enviarPushSeguro(payload: { title: string; body: string; url?: string }) {
+  try {
+    await enviarPushATodos(payload)
+  } catch (e) {
+    console.error('[push] error aislado, webhook continua:', e)
+  }
+}
+
+async function pushMensajeEntrante(params: {
+  leadNombre?: string | null
+  profileName?: string | null
+  waNumber?: string | null
+  body?: string | null
+  mediaKind?: IncomingWhatsAppMessage['mediaKind']
+}) {
+  const cuerpo = params.body && params.body !== '__MEDIA__'
+    ? params.body
+    : params.mediaKind
+      ? `Envió ${params.mediaKind}`
+      : 'Mensaje nuevo'
+  await enviarPushSeguro({
+    title: tituloLead(params.leadNombre || params.profileName, params.waNumber),
+    body: recortarPush(cuerpo),
+    url: '/',
+  })
+}
+
 async function notifyAsesor(
   supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
   leadId: string,
@@ -422,6 +460,14 @@ async function notifyAsesor(
       ].filter(Boolean).join(' | '),
       meta: { source: 'bot', evento },
     }])
+
+    if (evento === 'lead_pide_humano') {
+      await enviarPushSeguro({
+        title: tituloLead(leadNombre, leadWhatsapp),
+        body: recortarPush(`Pidió hablar con un asesor${leadPrograma ? ` · ${leadPrograma}` : ''}`),
+        url: '/',
+      })
+    }
 
     // 2. Obtener el asesor asignado al lead y su número de WhatsApp
     const { data: lead } = await supabase
@@ -2487,6 +2533,13 @@ export async function POST(request: Request) {
           const insertedUserMsg = insertedUserMsgResult.data
 
           myMessageId = insertedUserMsg?.id
+          await pushMensajeEntrante({
+            leadNombre: leadSnapshot?.nombre,
+            profileName,
+            waNumber,
+            body: originalText,
+            mediaKind: incoming.mediaKind,
+          })
 
           // actualizar timestamp de último mensaje
           await supabase
