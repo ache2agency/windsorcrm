@@ -114,6 +114,23 @@ const getInfoTemplateForLead = (lead) => {
   return `Hola ${nombre}. Gracias por tu interés en Instituto Windsor. Con gusto te compartimos información general del programa que nos solicitaste. Si deseas, también podemos ayudarte con el siguiente paso desde aquí: ${AGENDAR_LINK}`;
 };
 
+async function obtenerSuscripcionPush() {
+  try {
+    let reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) {
+      reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((resolve) => setTimeout(() => resolve(undefined), 3000)),
+      ]);
+    }
+    if (!reg) return undefined;
+    return await reg.pushManager.getSubscription();
+  } catch {
+    return undefined;
+  }
+}
+
+const PUSH_ENDPOINT_KEY = "windsor_push_endpoint";
 
 export default function CRM() {
   const [leads, setLeads] = useState([]);
@@ -133,6 +150,10 @@ export default function CRM() {
   const [toast, setToast] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [currentProfile, setCurrentProfile] = useState(null);
+  const [pushPermission, setPushPermission] = useState(
+    typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported"
+  );
+  const [pushActivo, setPushActivo] = useState(null);
   const [vendedores, setVendedores] = useState([]);
   const [newLead, setNewLead] = useState({ nombre: "", email: "", whatsapp: "", curso: CURSOS[0], valor: "", notas: "", asignado_a: "" });
   const [chatOpen, setChatOpen] = useState(false);
@@ -378,6 +399,29 @@ export default function CRM() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setPushActivo(false);
+      return;
+    }
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    let guardado = null;
+    try { guardado = localStorage.getItem(PUSH_ENDPOINT_KEY); } catch {}
+    if (guardado) setPushActivo(true);
+
+    obtenerSuscripcionPush()
+      .then((sub) => {
+        if (sub) {
+          setPushActivo(true);
+          try { localStorage.setItem(PUSH_ENDPOINT_KEY, sub.endpoint); } catch {}
+        } else if (sub === null) {
+          setPushActivo(false);
+          try { localStorage.removeItem(PUSH_ENDPOINT_KEY); } catch {}
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!selectedLead?.id) {
       setLeadTimeline([]);
       setLeadTimelineLoading(false);
@@ -512,6 +556,83 @@ export default function CRM() {
     fetchCitas(user.id, profile?.rol === "admin");
     fetchWhatsConvs();
   };
+
+  const urlBase64ToUint8Array = (base64String) => {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+  };
+
+  const activarNotificaciones = async (userId) => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+      showToast("Este navegador no permite notificaciones. En iPhone abre el CRM desde el icono de la pantalla de inicio.", "error");
+      return;
+    }
+    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapidPublicKey || !userId) {
+      showToast("No se pudieron activar las notificaciones (falta configuración).", "error");
+      return;
+    }
+
+    try {
+      const subExistente = await obtenerSuscripcionPush();
+      if (subExistente) {
+        const res0 = await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subscription: subExistente, userId }),
+        });
+        if (!res0.ok) throw new Error("No se pudo guardar la suscripcion");
+        try { localStorage.setItem(PUSH_ENDPOINT_KEY, subExistente.endpoint); } catch {}
+        setPushActivo(true);
+        showToast("Notificaciones activas en este dispositivo");
+        return;
+      }
+
+      const permission = await Notification.requestPermission();
+      setPushPermission(permission);
+      if (permission !== "granted") {
+        setPushActivo(false);
+        showToast("Las notificaciones estan bloqueadas. Activalas en Ajustes del telefono y vuelve a intentar.", "error");
+        return;
+      }
+
+      await navigator.serviceWorker.register("/sw.js");
+      const registration = await navigator.serviceWorker.ready;
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        });
+      }
+
+      const res = await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription, userId }),
+      });
+      if (!res.ok) throw new Error("No se pudo guardar la suscripcion");
+      try { localStorage.setItem(PUSH_ENDPOINT_KEY, subscription.endpoint); } catch {}
+      setPushActivo(true);
+      showToast("Notificaciones activas en este dispositivo");
+    } catch (e) {
+      console.error("Error activando notificaciones push:", e);
+      setPushActivo(false);
+      showToast("No se pudieron activar las notificaciones. Intenta de nuevo.", "error");
+    }
+  };
+
+  const pushLabel =
+    pushActivo ? "Notificaciones activas"
+    : pushActivo === null ? "Notificaciones"
+    : pushPermission === "denied" ? "Notificaciones bloqueadas"
+    : "Activar notificaciones";
+  const pushTitle =
+    pushActivo ? "Este dispositivo recibe una notificacion con cada mensaje nuevo. Toca para volver a registrarlo."
+    : pushPermission === "denied" ? "El telefono bloqueo las notificaciones: activalas en Ajustes y vuelve a tocar aqui."
+    : "Recibe una notificacion cada vez que llegue un mensaje nuevo";
 
   const fetchLeads = async (userId = currentUser?.id, admin = currentProfile?.rol === "admin") => {
     setLoading(true);
@@ -2142,12 +2263,21 @@ export default function CRM() {
           {/* Desktop user */}
           <div className="desktop-user" style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 11, color: "#555" }}>{currentProfile?.email || currentUser?.email}</span>
+            <button
+              className="btn btn-ghost"
+              title={pushTitle}
+              style={{ fontSize: 11, color: pushActivo ? "#ffffff" : "rgba(255,255,255,0.7)", border: `1px solid ${pushActivo ? "#72d99a" : "rgba(255,255,255,0.25)"}` }}
+              onClick={() => activarNotificaciones(currentUser?.id)}
+            >
+              {pushLabel}
+            </button>
             <button className="btn btn-ghost" style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.25)" }} onClick={() => setShowAyuda(true)}>? Ayuda</button>
             <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ NUEVO LEAD</button>
           </div>
 
           {/* Mobile: hamburger + nuevo lead */}
           <div className="mobile-only">
+            <button className="btn btn-ghost" title={pushTitle} onClick={() => activarNotificaciones(currentUser?.id)} style={{ fontSize: 16, padding: "6px 10px", color: "#fff", border: `1px solid ${pushActivo ? "#72d99a" : "rgba(255,255,255,0.25)"}` }}>🔔</button>
             <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ fontSize: 18, padding: "6px 12px" }}>+</button>
             <button className="hamburger-btn" onClick={() => setMobileMenuOpen(o => !o)} aria-label="Menú">
               {mobileMenuOpen
