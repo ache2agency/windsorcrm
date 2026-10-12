@@ -187,6 +187,9 @@ export default function CRM() {
   const [revisionGenerating, setRevisionGenerating] = useState(false);
   const [whatsConvs, setWhatsConvs] = useState([]);
   const [ultimoUsuarioAtPorConv, setUltimoUsuarioAtPorConv] = useState({});
+  // Último mensaje del bot/asesor por conversación: si el del prospecto es más
+  // reciente, nadie le ha contestado (reloj ⏰ en la lista).
+  const [ultimaRespuestaAtPorConv, setUltimaRespuestaAtPorConv] = useState({});
   const [selectedConv, setSelectedConv] = useState(null);
   const [convMessages, setConvMessages] = useState([]);
   const [convSearch, setConvSearch] = useState("");
@@ -832,36 +835,46 @@ export default function CRM() {
     if (convIds.length === 0) {
       return;
     }
-    const mapa = {};
-    for (const chunk of chunkArray(convIds, 200)) {
-      let pendientes = chunk;
-      while (pendientes.length) {
-        const { data: msgs, error } = await supabase
-          .from("whatsapp_mensajes")
-          .select("conversacion_id, created_at")
-          .in("conversacion_id", pendientes)
-          .eq("rol", "usuario")
-          .order("created_at", { ascending: false })
-          .limit(1000);
-        if (error || !msgs?.length) break;
-        for (const m of msgs) {
-          if (!mapa[m.conversacion_id]) mapa[m.conversacion_id] = m.created_at;
+    const ultimoPorConv = async (filtrarRol) => {
+      const mapa = {};
+      for (const chunk of chunkArray(convIds, 200)) {
+        let pendientes = chunk;
+        while (pendientes.length) {
+          const { data: msgs, error } = await filtrarRol(
+            supabase
+              .from("whatsapp_mensajes")
+              .select("conversacion_id, created_at")
+              .in("conversacion_id", pendientes)
+          )
+            .order("created_at", { ascending: false })
+            .limit(1000);
+          if (error || !msgs?.length) break;
+          for (const m of msgs) {
+            if (!mapa[m.conversacion_id]) mapa[m.conversacion_id] = m.created_at;
+          }
+          // Un chat muy activo puede ocupar las 1000 filas. Consultar los IDs
+          // aún pendientes evita ocultar no leídos de conversaciones más antiguas.
+          pendientes = pendientes.filter((id) => !mapa[id]);
+          if (msgs.length < 1000) break;
         }
-        // Un chat muy activo puede ocupar las 1000 filas. Consultar los IDs
-        // aún pendientes evita ocultar no leídos de conversaciones más antiguas.
-        pendientes = pendientes.filter((id) => !mapa[id]);
-        if (msgs.length < 1000) break;
       }
-    }
+      return mapa;
+    };
+    const [mapaUsuario, mapaRespuesta] = await Promise.all([
+      ultimoPorConv((q) => q.eq("rol", "usuario")),
+      ultimoPorConv((q) => q.neq("rol", "usuario")),
+    ]);
     // Las páginas iniciales y el polling pueden terminar fuera de orden.
     // Conservar siempre la fecha más reciente por conversación.
-    setUltimoUsuarioAtPorConv((prev) => {
+    const fusionar = (mapa) => (prev) => {
       const next = { ...prev };
       for (const [id, date] of Object.entries(mapa)) {
         if (!next[id] || new Date(date) > new Date(next[id])) next[id] = date;
       }
       return next;
-    });
+    };
+    setUltimoUsuarioAtPorConv(fusionar(mapaUsuario));
+    setUltimaRespuestaAtPorConv(fusionar(mapaRespuesta));
   };
 
   // Auto-refresh de TODA la lista de conversaciones (no solo la abierta) mientras
@@ -3012,6 +3025,7 @@ export default function CRM() {
             key={selectedConv?.id || "no-selected-conv"}
             filteredWhatsConvs={filteredWhatsConvs}
             ultimoUsuarioAtPorConv={ultimoUsuarioAtPorConv}
+            ultimaRespuestaAtPorConv={ultimaRespuestaAtPorConv}
             convSearch={convSearch}
             setConvSearch={setConvSearch}
             convInboxFilter={convInboxFilter}

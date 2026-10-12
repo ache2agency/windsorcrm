@@ -693,10 +693,22 @@ const renderPlantillaPreview = (body, nombre) => (body || "").replace(/\{\{\d+\}
 // Variables en respuestas rápidas: {nombre} = primer nombre del lead, {programa} = su curso.
 // Sin nombre se quita el marcador junto con la coma/espacio previo ("Hola, {nombre} 👋" → "Hola 👋").
 // "WhatsApp - Instituto Windsor" es el placeholder de leads sin programa capturado, no un curso real.
+const cursoDeLead = (lead) => (lead?.curso && lead.curso !== "WhatsApp - Instituto Windsor" ? lead.curso : "");
+
+// El prospecto escribió al último y nadie (bot ni asesor) le ha contestado.
+// Se espera 2 min para no parpadear mientras el bot responde.
+const ESPERA_RELOJ_MS = 2 * 60 * 1000;
+const esperandoRespuesta = (ultimoUsuarioAt, ultimaRespuestaAt) => {
+  if (!ultimoUsuarioAt) return false;
+  const usuario = new Date(ultimoUsuarioAt).getTime();
+  if (Date.now() - usuario < ESPERA_RELOJ_MS) return false;
+  return !ultimaRespuestaAt || usuario > new Date(ultimaRespuestaAt).getTime();
+};
+
 const renderRespuestaRapida = (texto, lead) => {
   const primerNombre = (lead?.nombre || "").trim().split(/\s+/)[0] || "";
   const nombre = primerNombre ? primerNombre.charAt(0).toUpperCase() + primerNombre.slice(1) : "";
-  const curso = lead?.curso && lead.curso !== "WhatsApp - Instituto Windsor" ? lead.curso : "";
+  const curso = cursoDeLead(lead);
   let out = texto || "";
   out = nombre ? out.replace(/\{nombre\}/gi, nombre) : out.replace(/[ ,]*\{nombre\}/gi, "");
   return out.replace(/\{programa\}/gi, curso || "nuestros programas");
@@ -705,6 +717,7 @@ const renderRespuestaRapida = (texto, lead) => {
 function ConversationsPanel({
   filteredWhatsConvs,
   ultimoUsuarioAtPorConv,
+  ultimaRespuestaAtPorConv,
   convSearch,
   setConvSearch,
   convInboxFilter,
@@ -944,6 +957,10 @@ function ConversationsPanel({
         .wa-item-name { font-size: 14px; font-weight: 600; color: #111b21; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
         .wa-item-time { font-size: 11px; color: #8696a0; flex-shrink: 0; }
         .wa-item-row2 { display: flex; align-items: center; gap: 6px; }
+        .wa-item-row3 { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+        .wa-item-curso { flex: 1; min-width: 0; font-size: 12px; color: #54656f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .wa-item-owner { font-size: 10px; color: #8696a0; flex-shrink: 0; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .wa-esperando { font-size: 13px; line-height: 1; flex-shrink: 0; }
         .wa-item-preview { font-size: 12px; color: #667781; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
         .wa-badge { font-size: 10px; border-radius: 999px; padding: 1px 7px; font-weight: 600; flex-shrink: 0; }
         .wa-ventana-badge { font-size: 9px; border-radius: 999px; padding: 1px 6px; font-weight: 600; flex-shrink: 0; white-space: nowrap; }
@@ -1192,7 +1209,7 @@ function ConversationsPanel({
           <div className="wa-convs-count">{filteredWhatsConvs.length} conversaciones</div>
 
           {(() => {
-            const ROW_HEIGHT = 68;
+            const ROW_HEIGHT = 86;
             const OVERSCAN = 8;
             const total = filteredWhatsConvs.length;
             const startIndex = Math.min(Math.max(0, total - 1), Math.max(0, Math.floor(listScrollTop / ROW_HEIGHT) - OVERSCAN));
@@ -1215,6 +1232,8 @@ function ConversationsPanel({
                 const ultimoUsuarioAt = ultimoUsuarioAtPorConv?.[c.id];
                 const restanteVentana = tiempoRestanteVentana(ultimoUsuarioAt);
                 const unread = isConvUnread(c, ultimoUsuarioAt);
+                const esperando = esperandoRespuesta(ultimoUsuarioAt, ultimaRespuestaAtPorConv?.[c.id]);
+                const curso = cursoDeLead(leadsById.get(c.lead_id));
                 return (
                   <div
                     key={c.id}
@@ -1248,6 +1267,7 @@ function ConversationsPanel({
                       <div className="wa-item-row2">
                         <span className="wa-item-preview">{c.provider === "messenger" ? `💬 Messenger` : `${getModeIcon(c)} ${c.whatsapp}`}</span>
                         {unread && <span className="wa-unread-dot" title="No leído" />}
+                        {esperando && <span className="wa-esperando" title="Esperando respuesta: el prospecto escribió al último y nadie le ha contestado" aria-label="Esperando respuesta">⏰</span>}
                         {c.seguimiento_manual && <span className="wa-followup-marker" title="Pendiente de seguimiento" aria-label="Pendiente de seguimiento">★</span>}
                         {restanteVentana && (
                           <span
@@ -1262,9 +1282,13 @@ function ConversationsPanel({
                           {getPhaseLabel(c.fase)}
                         </span>
                       </div>
-                      {owner && (
-                        <div style={{ fontSize: 10, color: "#8696a0", marginTop: 1 }}>{owner.nombre || owner.email}</div>
-                      )}
+                      {/* Altura fija (ROW_HEIGHT): el asesor va en esta misma línea, no en una cuarta */}
+                      <div className="wa-item-row3">
+                        <span className="wa-item-curso" title={curso || "Sin oferta educativa capturada"}>
+                          {curso ? `🎓 ${curso}` : "🎓 —"}
+                        </span>
+                        {owner && <span className="wa-item-owner">{owner.nombre || owner.email}</span>}
+                      </div>
                     </div>
                   </div>
                 );
