@@ -19,10 +19,39 @@ import {
 import { noQuiereEmail, esPreguntaDelLead } from '../lib/whatsapp/captura'
 import { construirSystemPrompt } from '../lib/whatsapp/promptBot'
 import { diplomadoUnicoEnRespuesta, urlPlanDiplomado, limpiarFormatoWhatsApp } from '../lib/whatsapp/planesDiplomado'
+import { hasLeadName } from '../lib/whatsapp/nombres'
 
 type Caso = { nombre: string; got: unknown; want: unknown; bug?: string }
 
 const casos: Caso[] = [
+  {
+    nombre: 'nombre válido María José sí se guarda',
+    got: hasLeadName('María José', '+527470000000'),
+    want: true,
+  },
+  {
+    nombre: 'nombre válido Juan sí se guarda',
+    got: hasLeadName('Juan', '+527470000000'),
+    want: true,
+  },
+  {
+    nombre: 'primer mensaje "Costo del curso" no se guarda como nombre',
+    got: hasLeadName('Costo del curso', '+527470000000'),
+    want: false,
+    bug: 'windsorcrm_nombre_primer_mensaje_2026-10-12',
+  },
+  {
+    nombre: 'primer mensaje "Que cursos tiene" no se guarda como nombre',
+    got: hasLeadName('Que cursos tiene', '+527470000000'),
+    want: false,
+    bug: 'windsorcrm_nombre_primer_mensaje_2026-10-12',
+  },
+  {
+    nombre: 'primer mensaje "Cuñado inician" no se guarda como nombre',
+    got: hasLeadName('Cuñado inician', '+527470000000'),
+    want: false,
+    bug: 'windsorcrm_nombre_primer_mensaje_2026-10-12',
+  },
   // Caso Karen Nava (15-jul) — "habilidades para la práctica psicoterapéutica"
   // se confundía con "Psicología" genérico, lo que la routeaba al flujo de
   // licenciatura equivocado y terminó en el bot inventando datos bancarios.

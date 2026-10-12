@@ -16,7 +16,7 @@ export function hasLeadName(nombre: string | null | undefined, whatsapp: string 
   // "Me interresa", "Ok gracias" se guardaron como nombre (casos 2026-09-24: +527474991567,
   // +527472077733). La lista de abajo (noNombres) solo atrapaba la palabra sola.
   const primeraPalabra = quitarAcentos(value.split(/\s+/)[0].toLowerCase())
-  if (/^(gracias|muchas|ok|okay|oki|va|vale|sale|claro|perfecto|excelente|listo|bien|hola|ola|buenas?|buenos|me|mi|te|yo|ya|si|no|quiero|quisiera|necesito|info|informacion|interesa|interesad[oa]|estoy|tengo|tienen|cuanto|cual|que|como|donde|cuando|para|por|en|el|los|las|un|una)$/.test(primeraPalabra)) return false
+  if (/^(gracias|muchas|ok|okay|oki|va|vale|sale|claro|perfecto|excelente|listo|bien|hola|ola|buenas?|buenos|me|mi|te|yo|ya|si|no|quiero|quisiera|necesito|info|informacion|informes?|interesa|interesad[oa]|estoy|tengo|tienen|costo|costos|precio|precios|curso|cursos|cuanto|cual|que|como|donde|cuando|cuñado|inicia|inician|empieza|empiezan|para|por|en|el|los|las|un|una)$/.test(primeraPalabra)) return false
   if (/inter+es/i.test(quitarAcentos(value))) return false
   if (/@/.test(value)) return false
   // Rechazar si tiene más de 4 palabras "de nombre" (nombres reales tienen máx 4). Las
@@ -32,7 +32,7 @@ export function hasLeadName(nombre: string | null | undefined, whatsapp: string 
   // Rechazar palabras que claramente no son nombres propios
   // Nota: "buen[oa]?s?" (con la vocal también opcional) para cubrir "Buen día" suelto,
   // no solo "Buenos días" — caso real confirmado: "Buen día" guardado como nombre.
-  const noNombres = /^(hola|buenas?|buen|d[ií]a|tardes?|noches?|info|informaci[oó]n|costos?|precios?|horarios?|quiero|quisiera|necesito|ayuda|gracias|ok|s[ií]|no|nada|nope|oye|hey|buenos|saludos|permiso|disculp|por\s+favor|favor|buen[oa]?s?\s+d[ií]as?|buen[oa]?s?\s+tardes?|buen[oa]?s?\s+noches?)$/i
+  const noNombres = /^(hola|buenas?|buen|d[ií]a|tardes?|noches?|info|informaci[oó]n|informes?|costos?|precios?|cursos?|horarios?|quiero|quisiera|necesito|ayuda|gracias|ok|s[ií]|no|nada|nope|oye|hey|buenos|saludos|permiso|disculp|por\s+favor|favor|buen[oa]?s?\s+d[ií]as?|buen[oa]?s?\s+tardes?|buen[oa]?s?\s+noches?)$/i
   if (noNombres.test(value.trim())) return false
   // Rechazar si claramente es la respuesta a OTRA pregunta del flujo (para quién es,
   // modalidad, costos, petición de reenvío, etc.) colada como si fuera el nombre.
@@ -41,7 +41,7 @@ export function hasLeadName(nombre: string | null | undefined, whatsapp: string 
   // windsorcrm: bug nombre corrupto). Un nombre real de pila nunca empieza con "para"
   // ni contiene estas palabras sueltas.
   if (/^para\b/i.test(value)) return false
-  const respuestaOtraCosa = /\b(adultos?|ni[ñn]os?|sistema|abiert[oa]|cerrad[oa]|escolarizad[oa]|semiescolarizad[oa]|presencial(es)?|virtual(es)?|modalidad(es)?|en\s*l[ií]nea|online|costos?|precios?|mensualidad(es)?|colegiatur(a|as)|inscripci[oó]n(es)?|descuentos?|becas?|env[ií]a(r|me)?|reenv[ií]a(r|me)?|manda(r|me)?|nuevamente|hij[oa]s?)\b/i
+  const respuestaOtraCosa = /\b(adultos?|ni[ñn]os?|sistema|abiert[oa]|cerrad[oa]|escolarizad[oa]|semiescolarizad[oa]|presencial(es)?|virtual(es)?|modalidad(es)?|en\s*l[ií]nea|online|informes?|cursos?|costos?|precios?|mensualidad(es)?|colegiatur(a|as)|inscripci[oó]n(es)?|descuentos?|becas?|horarios?|inicia(n|r)?|empieza(n|r)?|comienza(n|r)?|fecha(s)?|env[ií]a(r|me)?|reenv[ií]a(r|me)?|manda(r|me)?|nuevamente|hij[oa]s?)\b/i
   if (respuestaOtraCosa.test(value)) return false
   // Rechazar si el texto coincide con un programa/curso conocido (ej. "Mercadotecnia"):
   // quien lo escribe está diciendo qué le interesa estudiar, no su nombre. Reutiliza el
