@@ -13,6 +13,7 @@ import SeguimientosPanel from "@/components/crm/SeguimientosPanel";
 import ReactivacionesPanel from "@/components/crm/ReactivacionesPanel";
 import { chunkArray } from "@/lib/db-utils";
 import { esDiplomado } from "@/lib/whatsapp/programas";
+import { etiquetaFase } from "@/lib/whatsapp/fases";
 const supabase = createClient();
 
 const STAGES = [
@@ -1419,7 +1420,7 @@ export default function CRM() {
           body: renderedBody,
           leadId: selectedConvLead?.id || null,
           agentUserId: currentUser?.id || null,
-          fase: "seguimiento",
+          fase: "con_asesor",
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1468,7 +1469,7 @@ export default function CRM() {
           body: message,
           leadId: lead.id,
           agentUserId: currentUser?.id || null,
-          fase: "seguimiento",
+          fase: "con_asesor",
         }),
       });
 
@@ -1505,7 +1506,7 @@ export default function CRM() {
                 ultimo_mensaje_at: now,
                 modo_humano: true,
                 tomado_por: currentUser?.id || null,
-                fase: "seguimiento",
+                fase: "con_asesor",
                 estado: "abierta",
               }
             : conv
@@ -1583,7 +1584,8 @@ export default function CRM() {
   const atoradasCount = useMemo(() => whatsConvs.filter(esAtorada).length, [whatsConvs]);
 
   const conversationPhaseOptions = useMemo(
-    () => ["todas", ...Array.from(new Set(whatsConvs.map((c) => c.fase).filter(Boolean)))],
+    // Por etiqueta: varias fases internas comparten nombre (p. ej. "Inscribiéndose").
+    () => ["todas", ...Array.from(new Set(whatsConvs.map((c) => c.fase).filter(Boolean).map(etiquetaFase)))],
     [whatsConvs]
   );
   const conversacionesVentanaActiva = useMemo(() => {
@@ -1611,7 +1613,7 @@ export default function CRM() {
       convModeFilter === "todos" ||
       (convModeFilter === "humano" ? !!conv.modo_humano : !conv.modo_humano);
     const matchesPhase =
-      convPhaseFilter === "todas" || (conv.fase || "—") === convPhaseFilter;
+      convPhaseFilter === "todas" || etiquetaFase(conv.fase) === convPhaseFilter;
     // La ventana de WhatsApp se abre por el ÚLTIMO mensaje del prospecto,
     // no por una respuesta posterior del bot o del asesor.
     const ultimoUsuarioAt = ultimoUsuarioAtPorConv[conv.id];
@@ -1627,20 +1629,7 @@ export default function CRM() {
   const selectedConvOwner = vendedores.find((v) => v.id === selectedConv?.tomado_por) || null;
   const selectedLeadAssigned = vendedores.find((v) => v.id === selectedConvLead?.asignado_a) || null;
 
-  const getPhaseLabel = (fase) => {
-    const labels = {
-      saludo: "Saludo",
-      programa: "Programa",
-      correo: "Correo",
-      info_enviada: "Info enviada",
-      dudas: "Dudas",
-      accion: "Acción",
-      seguimiento: "Seguimiento",
-      cerrado: "Cerrado",
-      perdido: "Perdido",
-    };
-    return labels[fase] || fase || "Sin fase";
-  };
+  const getPhaseLabel = (fase) => etiquetaFase(fase);
 
   const getModeLabel = (conv) => conv?.modo_humano ? "Humano" : "Bot";
 
@@ -1680,8 +1669,10 @@ export default function CRM() {
     if (upcomingCita) {
       return `Confirmar ${upcomingCita.tipo === "clase_prueba" ? "clase muestra" : upcomingCita.tipo === "asesoria" ? "asesoría" : upcomingCita.tipo === "examen_ubicacion" ? "examen de ubicación" : "proceso de inscripción"} del ${upcomingCita.fecha} a las ${upcomingCita.hora?.slice(0, 5) || "hora pendiente"}.`;
     }
+    if (relatedConv?.fase === "pendiente" || relatedConv?.fase === "asesor") return "Atender ya: el lead está esperando a una persona.";
+    if (relatedConv?.fase === "inscribiendo") return "Confirmar pago y documentos para cerrar la inscripción.";
     if (relatedConv?.fase === "dudas") return "Responder dudas y llevar al prospecto al siguiente paso.";
-    if (relatedConv?.fase === "accion" || relatedConv?.fase === "seguimiento") return "Cerrar con CTA claro: asesoría, examen de ubicación o inscripción.";
+    if (relatedConv?.fase === "accion" || relatedConv?.fase === "seguimiento" || relatedConv?.fase === "con_asesor") return "Cerrar con CTA claro: asesoría, examen de ubicación o inscripción.";
     if (currentStage === "primer_contacto") return "Hacer primer contacto y confirmar interés real.";
     if (currentStage === "examen_ubicacion") return "Invitar o confirmar examen de ubicación.";
     if (currentStage === "clase_muestra") return "Agendar o confirmar clase muestra.";

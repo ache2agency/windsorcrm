@@ -11,6 +11,7 @@ import {
   sendMetaWhatsAppTemplate,
 } from '@/lib/whatsapp/provider'
 import { obtenerTemplateAprobado, renderizarTemplate } from '@/lib/whatsapp/templates-aprobados'
+import { FASES_ESPERAN_ASESOR } from '@/lib/whatsapp/fases'
 
 // Llamadas internas (scripts de campaña, correcciones manuales por curl) se identifican con
 // el mismo CRON_SECRET de los crons. Se limpia el "\n" literal que deja `vercel env pull`.
@@ -107,7 +108,8 @@ export async function POST(request: Request) {
         .maybeSingle()
 
       const faseActual = (existingConv as { fase?: string } | null)?.fase || 'saludo'
-      const nuevaFase = fase || faseActual
+      // Si el lead esperaba a una persona (Pendiente) y un asesor le escribe, pasa a 'con_asesor'.
+      const nuevaFase = fase || (FASES_ESPERAN_ASESOR.includes(faseActual) ? 'con_asesor' : faseActual)
       let conversacionId = (existingConv as { id?: string } | null)?.id || null
 
       if (!conversacionId) {
@@ -179,7 +181,8 @@ export async function POST(request: Request) {
 
       // Si la fase actual es inicial y no se pasó fase explícita, avanzar a 'accion'
       const faseActual = (existingConv as { fase?: string } | null)?.fase || 'saludo'
-      const nuevaFase = fase || faseActual
+      // Si el lead esperaba a una persona (Pendiente) y un asesor le escribe, pasa a 'con_asesor'.
+      const nuevaFase = fase || (FASES_ESPERAN_ASESOR.includes(faseActual) ? 'con_asesor' : faseActual)
 
       let conversacionId = (existingConv as { id?: string } | null)?.id || null
 
@@ -284,7 +287,7 @@ export async function POST(request: Request) {
               lead_id: leadId,
               estado: 'abierta',
               ultimo_mensaje_at: now,
-              fase: fase || 'seguimiento',
+              fase: fase || 'con_asesor',
               modo_humano: modoHumano,
               tomado_por: agentUserId || null,
             },
@@ -299,7 +302,7 @@ export async function POST(request: Request) {
             lead_id: leadId,
             estado: 'abierta',
             ultimo_mensaje_at: now,
-            fase: fase || 'seguimiento',
+            fase: fase || 'con_asesor',
             modo_humano: true,
             tomado_por: agentUserId || null,
           })

@@ -36,6 +36,16 @@ function faseATexto(fase: string | null): { estado: string; accion: string } {
       return { estado: 'Quiere clase de prueba 🔥', accion: '👉 Agéndala hoy' }
     case 'seguimiento':
       return { estado: 'Bot en seguimiento', accion: '👉 Esperando respuesta' }
+    case 'inscribiendo':
+      return { estado: 'Se está inscribiendo 🔥', accion: '👉 Confirma pago y documentos' }
+    case 'pendiente':
+      return { estado: 'El bot no reconoció su programa ⚠️', accion: '👉 Atiéndelo tú' }
+    case 'con_asesor':
+      return { estado: 'Lo atiende un asesor', accion: '' }
+    case 'vacante':
+      return { estado: 'Busca trabajo (vacante)', accion: '' }
+    case 'archivado':
+      return { estado: 'Pidió retomarlo más adelante 📦', accion: '' }
     case 'asesor':
       return { estado: 'Pidió hablar con asesor 👋', accion: '👉 Te está esperando, llámale' }
     case 'perdido':
