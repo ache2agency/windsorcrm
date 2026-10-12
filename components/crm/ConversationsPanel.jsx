@@ -1138,7 +1138,7 @@ function ConversationsPanel({
             </select>
             <select value={convPhaseFilter} onChange={(e) => setConvPhaseFilter(e.target.value)}>
               {conversationPhaseOptions.map((p) => (
-                <option key={p} value={p}>{p === "todas" ? "Todas las fases" : getPhaseLabel(p)}</option>
+                <option key={p} value={p}>{p === "todas" ? "Todas las fases" : p}</option>
               ))}
             </select>
           </div>

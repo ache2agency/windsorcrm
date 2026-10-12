@@ -128,7 +128,7 @@ async function reactivarConversacionesBot(
     .eq('modo_humano', false)
     .gte('ultimo_mensaje_at', limiteMin)
     .lte('ultimo_mensaje_at', limiteMax)
-    .not('fase', 'in', '("cerrado","perdido","seguimiento","inscrito")')
+    .not('fase', 'in', '("cerrado","perdido","seguimiento","inscrito","inscribiendo","pendiente","con_asesor","vacante","archivado")')
 
   for (const conv of conversaciones || []) {
     // Messenger no tiene templates pre-aprobados como WhatsApp — no encolar reactivación automática
