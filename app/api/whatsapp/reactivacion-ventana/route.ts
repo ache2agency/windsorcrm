@@ -4,6 +4,7 @@ import { detectarPrograma } from '@/lib/whatsapp/programas'
 import { hasLeadName } from '@/lib/whatsapp/nombres'
 import { INFO_MSGS, buildCTA } from '@/lib/whatsapp/infoMsgs'
 import { esTrackA, obtenerMensajeReactivacion20h } from '@/lib/whatsapp/reactivacion-messages'
+import { buildMensajeReactivacionDiplomado20h } from '@/lib/whatsapp/reactivacion-diplomados'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -140,11 +141,15 @@ function planToque(params: {
 
   if (fase === 'programa') {
     if (toque === 1) return { mensaje: `${saludo} ¿Qué programa te interesa? Con gusto te comparto toda la información.` }
+    const mensajeDiplomado = buildMensajeReactivacionDiplomado20h({ curso: programa, nombre, whatsapp: null })
+    if (mensajeDiplomado) return { mensaje: mensajeDiplomado, nuevaFase: 'accion' }
     return { mensaje: obtenerMensajeReactivacion20h('programa', trackA, nombre || 'ahí') }
   }
 
   // Resto de fases: un solo toque a las 20h
   if (toque === 1) return null
+  const mensajeDiplomado = buildMensajeReactivacionDiplomado20h({ curso: programa, nombre, whatsapp: null })
+  if (mensajeDiplomado) return { mensaje: mensajeDiplomado, nuevaFase: 'accion' }
   return { mensaje: obtenerMensajeReactivacion20h(fase, trackA, nombre || 'ahí') }
 }
 
