@@ -10,7 +10,9 @@ export async function POST(req: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
-  const { question, match_count } = await req.json()
+  // solo_contexto: el bot de WhatsApp solo usa los fragmentos (context) y arma su propia
+  // respuesta; generar 'answer' con gpt-4o ahí era gasto tirado (~3,300 llamadas/mes).
+  const { question, match_count, solo_contexto } = await req.json()
   if (!question) return NextResponse.json({ error: 'El campo question es obligatorio' }, { status: 400 })
   const matchCount = typeof match_count === 'number' ? Math.min(match_count, 20) : 5
 
@@ -54,6 +56,7 @@ export async function POST(req: Request) {
   }
 
   const context = (matches as DocumentMatch[]).map((m) => m.contenido).join('\n\n')
+  if (solo_contexto) return NextResponse.json({ answer: '', context, matches })
 
   // Responder con GPT
   const chatController = new AbortController()
