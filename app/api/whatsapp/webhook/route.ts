@@ -2216,7 +2216,7 @@ async function buildProgramInfoMessage(
     const ragRes = await fetch(ragUrl.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: `${programa} en Instituto Windsor: costos, horarios, duración, modalidad, certificaciones, campo laboral`, match_count: 15 }),
+      body: JSON.stringify({ question: `${programa} en Instituto Windsor: costos, horarios, duración, modalidad, certificaciones, campo laboral`, match_count: 15, solo_contexto: true }),
       signal: AbortSignal.timeout(8000),
     })
     if (ragRes.ok) {
@@ -2944,7 +2944,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         const ragResQR = await fetch(ragUrlQR.toString(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: `${curso} en Instituto Windsor: costos, horarios, duración, modalidad`, match_count: 15 }),
+          body: JSON.stringify({ question: `${curso} en Instituto Windsor: costos, horarios, duración, modalidad`, match_count: 15, solo_contexto: true }),
           signal: AbortSignal.timeout(8000),
         })
         if (ragResQR.ok) {
@@ -3880,7 +3880,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
             const ragResC = await fetch(ragUrlC.toString(), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ question: `${cursoInfo} en Instituto Windsor: costos, horarios, duración, modalidad`, match_count: 15 }),
+              body: JSON.stringify({ question: `${cursoInfo} en Instituto Windsor: costos, horarios, duración, modalidad`, match_count: 15, solo_contexto: true }),
               signal: AbortSignal.timeout(8000),
             })
             if (ragResC.ok) {
@@ -4060,7 +4060,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         const ragRes = await fetch(ragUrl.toString(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: ragQuestion, match_count: matchCount }),
+          body: JSON.stringify({ question: ragQuestion, match_count: matchCount, solo_contexto: phase === 'info_enviada' || diplomadoActivo }),
           signal: AbortSignal.timeout(8000),
         })
         if (ragRes.ok) {
