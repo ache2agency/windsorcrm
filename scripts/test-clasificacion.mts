@@ -19,7 +19,8 @@ import {
 import { noQuiereEmail, esPreguntaDelLead } from '../lib/whatsapp/captura'
 import { construirSystemPrompt } from '../lib/whatsapp/promptBot'
 import { diplomadoUnicoEnRespuesta, urlPlanDiplomado, limpiarFormatoWhatsApp } from '../lib/whatsapp/planesDiplomado'
-import { buildMensajeReactivacionDiplomado20h } from '../lib/whatsapp/reactivacion-diplomados'
+import { buildMensajeReactivacionDiplomado20h, buildMensajeDudasDiplomado20h } from '../lib/whatsapp/reactivacion-diplomados'
+import { obtenerMensajeReactivacion20h } from '../lib/whatsapp/reactivacion-messages'
 import { DATOS_DIPLOMADOS } from '../lib/whatsapp/reglasNegocio'
 
 type Caso = { nombre: string; got: unknown; want: unknown; bug?: string }
@@ -363,6 +364,24 @@ const casos: Caso[] = [
       whatsapp: '+527470000000',
     }),
     want: null,
+  },
+  {
+    nombre: 'toque 20h a diplomado que ya tiene la info solo pregunta dudas (sin precios)',
+    got: (() => {
+      const msg = buildMensajeDudasDiplomado20h({ curso: 'Diplomado en Tanatología', nombre: 'María José', whatsapp: '+527470000000' }) || ''
+      return [msg.startsWith('¡Hola María!'), msg.includes('*Diplomado en Tanatología*'), msg.includes('duda'), /\$\s?\d/.test(msg)]
+    })(),
+    want: [true, true, true, false],
+  },
+  {
+    nombre: 'inscripcion_pendiente usa el texto de inscripción, no el genérico',
+    got: obtenerMensajeReactivacion20h('inscripcion_pendiente', false, 'Juan').includes('inscripción'),
+    want: true,
+  },
+  {
+    nombre: 'reactivación 20h sin nombre no dice "Hola ahí"',
+    got: obtenerMensajeReactivacion20h('inscripcion', false, 'ahí'),
+    want: '¡Hola! 😊 ¿Cómo vas con tu inscripción? Si te atoraste en algún paso (el formulario, los documentos o el pago), dime en cuál y te ayudo a terminarlo.',
   },
 ]
 

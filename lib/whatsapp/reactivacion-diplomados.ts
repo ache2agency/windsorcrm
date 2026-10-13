@@ -27,11 +27,29 @@ export function buildMensajeReactivacionDiplomado20h(params: {
     : ''
   const saludo = primerNombre ? `¡Hola ${primerNombre}! 😊` : '¡Hola! 😊'
 
-  return `${saludo} Te comparto de nuevo la información del *Diplomado en ${diplomado}*:
+  return `${saludo} Te comparto por aquí la información del *Diplomado en ${diplomado}*:
 
 *Inversión regular:* ${DATOS_DIPLOMADOS.inversionRegular}
 🎉 ${DATOS_DIPLOMADOS.promocionVigente}
 *Plan de estudios:* ${planUrl}
 
 Es 100% en línea con clases en vivo y empiezas en cuanto te inscribes. ¿Qué duda tienes?`
+}
+
+/** Toque 20 h para quien YA recibió la info del diplomado: no se reenvía la ficha, solo se
+ * pregunta si quedó alguna duda (Harold 13-oct). */
+export function buildMensajeDudasDiplomado20h(params: {
+  curso: string | null | undefined
+  nombre: string | null | undefined
+  whatsapp: string | null | undefined
+}): string | null {
+  const diplomado = nombreCanonicoDiplomado(params.curso)
+  if (!diplomado) return null
+
+  const primerNombre = hasLeadName(params.nombre, params.whatsapp)
+    ? String(params.nombre).trim().split(/\s+/)[0].replace(/[.,;:]+$/, '')
+    : ''
+  const saludo = primerNombre ? `¡Hola ${primerNombre}! 😊` : '¡Hola! 😊'
+
+  return `${saludo} ¿Pudiste revisar la información del *Diplomado en ${diplomado}*? ¿Te quedó alguna duda? Con gusto te ayudo.`
 }

@@ -4,7 +4,7 @@ import { detectarPrograma } from '@/lib/whatsapp/programas'
 import { hasLeadName } from '@/lib/whatsapp/nombres'
 import { INFO_MSGS, buildCTA } from '@/lib/whatsapp/infoMsgs'
 import { esTrackA, obtenerMensajeReactivacion20h } from '@/lib/whatsapp/reactivacion-messages'
-import { buildMensajeReactivacionDiplomado20h } from '@/lib/whatsapp/reactivacion-diplomados'
+import { buildMensajeDudasDiplomado20h, buildMensajeReactivacionDiplomado20h } from '@/lib/whatsapp/reactivacion-diplomados'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -30,7 +30,7 @@ export const maxDuration = 300
  */
 
 const FASES_CAPTURA = ['saludo', 'correo', 'programa']
-const FASES_REACTIVABLES = [...FASES_CAPTURA, 'accion', 'dudas', 'info_enviada', 'inscripcion', 'inscripcion_pendiente', 'convenios']
+const FASES_REACTIVABLES = [...FASES_CAPTURA, 'accion', 'dudas', 'info_enviada', 'inscripcion', 'inscripcion_pendiente', 'inscribiendo', 'convenios']
 const STAGES_EXCLUIDOS = ['archivado', 'perdido', 'inscrito', 'cerrado']
 const HORAS_TOQUE_1 = 3
 const HORAS_TOQUE_2 = 20
@@ -135,6 +135,9 @@ function planToque(params: {
     if (fichaSinSaludo && programa) {
       return { mensaje: `${saludo} Te comparto por aquí la información de *${programa}*:\n\n${fichaSinSaludo}${buildCTA(programa)}`, nuevaFase: 'accion' }
     }
+    // Diplomado identificado: a las 20 h se manda la info aunque no haya dado correo
+    const infoDiplomado = buildMensajeReactivacionDiplomado20h({ curso: programa, nombre, whatsapp: null })
+    if (infoDiplomado) return { mensaje: infoDiplomado, nuevaFase: 'accion' }
     // Programas sin ficha fija (maestrías, diplomados…): la info la arma el webhook con RAG.
     return { mensaje: `${saludo} Si prefieres no dar correo no hay problema — responde *por aquí* y te mando la información por WhatsApp.` }
   }
@@ -148,8 +151,12 @@ function planToque(params: {
 
   // Resto de fases: un solo toque a las 20h
   if (toque === 1) return null
-  const mensajeDiplomado = buildMensajeReactivacionDiplomado20h({ curso: programa, nombre, whatsapp: null })
-  if (mensajeDiplomado) return { mensaje: mensajeDiplomado, nuevaFase: 'accion' }
+  // Diplomado que ya recibió la info: solo preguntar si quedó duda (no reenviar la ficha).
+  // En inscripción no aplica: ahí va el mensaje de proceso de inscripción.
+  if (!/^inscri/.test(fase)) {
+    const dudasDiplomado = buildMensajeDudasDiplomado20h({ curso: programa, nombre, whatsapp: null })
+    if (dudasDiplomado) return { mensaje: dudasDiplomado }
+  }
   return { mensaje: obtenerMensajeReactivacion20h(fase, trackA, nombre || 'ahí') }
 }
 
