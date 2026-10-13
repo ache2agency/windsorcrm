@@ -34,19 +34,39 @@ export const TEXTO_HORARIO_ATENCION = `Lun–Vie 8:00–14:00 y 17:00–20:00 | 
 // inscripción $700→$490 (🚩 +529212670886, Enseñanza del Inglés, 3-oct-2026).
 // Si cambian precios/promo, actualizar aquí Y en los docs RAG (ver memoria
 // windsorcrm_diplomados_precios_sep2026).
+export const DATOS_DIPLOMADOS = {
+  modalidad:
+    'SOLO EN LÍNEA, con clases en vivo por la plataforma del Instituto Windsor. NO hay modalidad presencial, mixta ni semipresencial, y no se asiste al plantel. Si preguntan por presencial o "mixto", aclara con amabilidad que el diplomado es 100% en línea con clases en vivo.',
+  horario:
+    '2 horas a la semana de clase en vivo en línea, de 17:00 a 19:00 hrs; el día de la semana varía según el módulo. Además ~3 horas de autoestudio por semana.',
+  duracion: '120 horas, divididas en 3 o 6 meses.',
+  fechaInicio: 'abrimos grupo cada mes, así que puede incorporarse al próximo grupo. NUNCA des una fecha concreta de inicio (no hay una publicada).',
+  grupo: '12 a 25 participantes.',
+  calificacion: '80% por módulo. Diploma con valor curricular (120 horas) al aprobar y cubrir los pagos.',
+  aval: 'avalado por el Instituto Windsor; NO tiene RVOE ni validez oficial de la SEP/SEG (la SEP no otorga RVOE a diplomados), pero sí tiene valor curricular.',
+  inversionRegular: 'costo académico $14,900 MXN, en 6 mensualidades de $2,480 o 3 pagos de $4,960. Inscripción: $700 MXN aparte.',
+  promocionVigente:
+    'Promoción vigente (septiembre, octubre y noviembre 2026): 30% de descuento SOLO en las mensualidades → 6 mensualidades de $1,730 o 3 pagos de $3,470 (costo académico $10,430).',
+  inscripcionSinDescuento:
+    'La INSCRIPCIÓN de diplomado ($700) NO TIENE DESCUENTO NUNCA: no la taches, no le apliques porcentaje, no digas que es gratis.',
+  noRecalcular: 'No multipliques ni recalcules: usa exactamente estas cifras.',
+  noAplican:
+    'NO APLICAN a diplomados: inscripción $690, mensualidad $1,925, el 70%/30% de licenciaturas, "descuento fijo durante tu primer año", promedio de 9, turnos matutino/vespertino/sabatino, clases en el plantel, fechas de inicio de septiembre, cuatrimestres/semestres, uniforme, RVOE de licenciaturas.',
+} as const
+
 export const TEXTO_DATOS_DIPLOMADOS = `Todos los diplomados tienen las MISMAS condiciones:
-- Modalidad: SOLO EN LÍNEA, con clases en vivo por la plataforma del Instituto Windsor. NO hay modalidad presencial, mixta ni semipresencial, y no se asiste al plantel. Si preguntan por presencial o "mixto", aclara con amabilidad que el diplomado es 100% en línea con clases en vivo.
-- Horario: 2 horas a la semana de clase en vivo en línea, de 17:00 a 19:00 hrs; el día de la semana varía según el módulo. Además ~3 horas de autoestudio por semana.
-- Duración: 120 horas, divididas en 3 o 6 meses.
-- Fecha de inicio: abrimos grupo cada mes, así que puede incorporarse al próximo grupo. NUNCA des una fecha concreta de inicio (no hay una publicada).
-- Grupo: 12 a 25 participantes.
-- Calificación aprobatoria: 80% por módulo. Diploma con valor curricular (120 horas) al aprobar y cubrir los pagos.
-- Aval: avalado por el Instituto Windsor; NO tiene RVOE ni validez oficial de la SEP/SEG (la SEP no otorga RVOE a diplomados), pero sí tiene valor curricular.
-- Inversión regular: costo académico $14,900 MXN, en 6 mensualidades de $2,480 o 3 pagos de $4,960. Inscripción: $700 MXN aparte.
-- Promoción vigente (septiembre, octubre y noviembre 2026): 30% de descuento SOLO en las mensualidades → 6 mensualidades de $1,730 o 3 pagos de $3,470 (costo académico $10,430).
-- La INSCRIPCIÓN de diplomado ($700) NO TIENE DESCUENTO NUNCA: no la taches, no le apliques porcentaje, no digas que es gratis.
-- No multipliques ni recalcules: usa exactamente estas cifras.
-- NO APLICAN a diplomados: inscripción $690, mensualidad $1,925, el 70%/30% de licenciaturas, "descuento fijo durante tu primer año", promedio de 9, turnos matutino/vespertino/sabatino, clases en el plantel, fechas de inicio de septiembre, cuatrimestres/semestres, uniforme, RVOE de licenciaturas.`
+- Modalidad: ${DATOS_DIPLOMADOS.modalidad}
+- Horario: ${DATOS_DIPLOMADOS.horario}
+- Duración: ${DATOS_DIPLOMADOS.duracion}
+- Fecha de inicio: ${DATOS_DIPLOMADOS.fechaInicio}
+- Grupo: ${DATOS_DIPLOMADOS.grupo}
+- Calificación aprobatoria: ${DATOS_DIPLOMADOS.calificacion}
+- Aval: ${DATOS_DIPLOMADOS.aval}
+- Inversión regular: ${DATOS_DIPLOMADOS.inversionRegular}
+- ${DATOS_DIPLOMADOS.promocionVigente}
+- ${DATOS_DIPLOMADOS.inscripcionSinDescuento}
+- ${DATOS_DIPLOMADOS.noRecalcular}
+- ${DATOS_DIPLOMADOS.noAplican}`
 
 export const REGLAS_NEGOCIO = `- Formato WhatsApp únicamente: usa *negrita* (un asterisco), nunca **negrita** ni encabezados con #.
 - Mensajes cortos en fases de captura (saludo, correo). Más detallado en info_enviada y dudas.
