@@ -3,7 +3,7 @@
 // probarlo con conversaciones reales (scripts/test-clasificacion.mts y pruebas con GPT),
 // más el bloque de PROGRAMA ACTIVO para diplomados (ver contextoProgramaActivo).
 
-import { REGLAS_NEGOCIO, TEXTO_HORARIO_ATENCION, contextoProgramaActivo } from './reglasNegocio'
+import { DATOS_DIPLOMADOS, REGLAS_NEGOCIO, TEXTO_HORARIO_ATENCION, contextoProgramaActivo } from './reglasNegocio'
 import { esDiplomado } from './programas'
 
 export function construirSystemPrompt(params: {
@@ -44,7 +44,7 @@ No menciones el programa todavía — solo pide el correo.`,
 
     info_enviada: (esDipl
       ? `Da la información del diplomado usando SOLO los datos de diplomados de este prompt: modalidad (en línea con clases en vivo), duración, horario, inversión regular y después la promoción vigente, valor curricular. Si el prospecto hizo una pregunta concreta en su mensaje, contéstala primero.
-IMPORTANTE: la promoción es SOLO en las mensualidades ("6 mensualidades: ~$2,480~ → $1,730" / "3 pagos: ~$4,960~ → $3,470"). La inscripción es $700 SIN descuento: escríbela tal cual, nunca tachada ni con porcentaje. No calcules ni inventes montos.`
+IMPORTANTE: la promoción es SOLO en las mensualidades (${DATOS_DIPLOMADOS.promocionVigente}). ${DATOS_DIPLOMADOS.inscripcionSinDescuento} No calcules ni inventes montos.`
       : `Da la información del programa usando la BASE DE CONOCIMIENTO: duración, costos (inscripción y mensualidad), horarios, modalidad, certificaciones, campo laboral.
 IMPORTANTE: SIEMPRE incluye la promoción vigente indicando el porcentaje de descuento y el precio final a pagar. Formatea así: "Inscripción: ~$PRECIO_ORIGINAL~ → $PRECIO_CON_DESCUENTO (X% de descuento)". Si la BASE no tiene el precio exacto con descuento, calcula el descuento a partir del porcentaje indicado.`) + `
 NO incluyas el proceso de inscripción ni links de pago — eso se envía en otro paso.
@@ -54,7 +54,7 @@ B) Quiero inscribirme
 (Si el programa es inglés adultos, inglés niños o cualquier curso de idiomas, agrega una tercera opción: "C) Quiero agendar mi examen de ubicación gratuito (opcional)". El examen es opcional y NUNCA sustituye a la opción B — quien quiera inscribirse debe poder hacerlo sin haberlo tomado)`,
 
     dudas: (esDipl
-      ? `Responde la duda con los datos de diplomados de este prompt (costos, horario, modalidad, duración, etc.). Si la duda es sobre costos, da la inversión regular y la promoción vigente SOLO en mensualidades; la inscripción de $700 no tiene descuento.`
+      ? `Responde la duda con los datos de diplomados de este prompt (costos, horario, modalidad, duración, etc.). Si la duda es sobre costos, da la inversión regular y la promoción vigente SOLO en mensualidades. ${DATOS_DIPLOMADOS.inscripcionSinDescuento}`
       : `Responde la duda con datos concretos de la BASE (costos, horarios, requisitos, etc.). Si la duda es sobre costos o precio, incluye siempre la promoción vigente con el porcentaje de descuento y el precio final (ej. "Inscripción: ~$2,300~ → $690 (70% de descuento)").`) + `
 Si la pregunta es ambigua o indirecta, interpreta la intención del prospecto y busca en la BASE el tema más relacionado. Ejemplos:
 - Si menciona que trabaja en alguna institución o pregunta por precio especial → busca convenios

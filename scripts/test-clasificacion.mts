@@ -20,6 +20,9 @@ import { noQuiereEmail, esPreguntaDelLead } from '../lib/whatsapp/captura'
 import { construirSystemPrompt } from '../lib/whatsapp/promptBot'
 import { diplomadoUnicoEnRespuesta, urlPlanDiplomado, limpiarFormatoWhatsApp } from '../lib/whatsapp/planesDiplomado'
 import { hasLeadName } from '../lib/whatsapp/nombres'
+import { buildMensajeReactivacionDiplomado20h, buildMensajeDudasDiplomado20h } from '../lib/whatsapp/reactivacion-diplomados'
+import { obtenerMensajeReactivacion20h } from '../lib/whatsapp/reactivacion-messages'
+import { DATOS_DIPLOMADOS } from '../lib/whatsapp/reglasNegocio'
 
 type Caso = { nombre: string; got: unknown; want: unknown; bug?: string }
 
@@ -324,7 +327,7 @@ const casos: Caso[] = [
     nombre: 'prompt de diplomado incluye PROGRAMA ACTIVO y la inscripción sin descuento',
     got: (() => {
       const p = construirSystemPrompt({ fase: 'accion', leadData: { nombre: 'José', curso: 'Diplomado en Nutrición y Dietética' }, ragContext: '', savedBotPrompt: '' })
-      return [p.includes('PROGRAMA ACTIVO'), p.includes('$700 MXN aparte'), p.includes('NO TIENE DESCUENTO NUNCA'), p.includes('RECORDATORIO FINAL')]
+      return [p.includes('PROGRAMA ACTIVO'), p.includes(DATOS_DIPLOMADOS.inversionRegular), p.includes(DATOS_DIPLOMADOS.inscripcionSinDescuento), p.includes('RECORDATORIO FINAL')]
     })(),
     want: [true, true, true, true],
   },
@@ -341,6 +344,73 @@ const casos: Caso[] = [
       return [p.includes('PROGRAMA ACTIVO'), p.includes('~$PRECIO_ORIGINAL~')]
     })(),
     want: [false, true],
+  },
+  {
+    nombre: 'toque 20h de diplomado identificado incluye precio oficial, promo y PDF',
+    got: (() => {
+      const msg = buildMensajeReactivacionDiplomado20h({
+        curso: 'Diplomado en Tanatología',
+        nombre: 'María José',
+        whatsapp: '+527470000000',
+      }) || ''
+      return [
+        msg.includes('¡Hola María!'),
+        msg.includes('*Diplomado en Tanatología*'),
+        msg.includes(DATOS_DIPLOMADOS.inversionRegular),
+        msg.includes(DATOS_DIPLOMADOS.promocionVigente),
+        msg.includes(urlPlanDiplomado('Tanatología') || 'NO_URL'),
+        msg.includes('Es 100% en línea con clases en vivo y empiezas en cuanto te inscribes'),
+        // Instrucciones internas del prompt nunca deben llegar al lead
+        msg.includes(DATOS_DIPLOMADOS.inscripcionSinDescuento),
+        msg.includes('Promo vigente:* Promoción vigente'),
+      ]
+    })(),
+    want: [true, true, true, true, true, true, false, false],
+  },
+  {
+    nombre: 'toque 20h de diplomado sin nombre válido no usa relleno ahí',
+    got: buildMensajeReactivacionDiplomado20h({
+      curso: 'Diplomado en Administración de restaurantes',
+      nombre: 'Costo del curso',
+      whatsapp: '+527470000000',
+    })?.startsWith('¡Hola! 😊'),
+    want: true,
+  },
+  {
+    nombre: 'toque 20h sin diplomado identificado conserva comportamiento anterior',
+    got: buildMensajeReactivacionDiplomado20h({
+      curso: 'Diplomado',
+      nombre: 'Juan',
+      whatsapp: '+527470000000',
+    }),
+    want: null,
+  },
+  {
+    nombre: 'toque 20h sin PDF no manda mensaje de diplomado',
+    got: buildMensajeReactivacionDiplomado20h({
+      curso: 'Diplomado en algo nuevo no listado',
+      nombre: 'Juan',
+      whatsapp: '+527470000000',
+    }),
+    want: null,
+  },
+  {
+    nombre: 'toque 20h a diplomado que ya tiene la info solo pregunta dudas (sin precios)',
+    got: (() => {
+      const msg = buildMensajeDudasDiplomado20h({ curso: 'Diplomado en Tanatología', nombre: 'María José', whatsapp: '+527470000000' }) || ''
+      return [msg.startsWith('¡Hola María!'), msg.includes('*Diplomado en Tanatología*'), msg.includes('duda'), /\$\s?\d/.test(msg)]
+    })(),
+    want: [true, true, true, false],
+  },
+  {
+    nombre: 'inscripcion_pendiente usa el texto de inscripción, no el genérico',
+    got: obtenerMensajeReactivacion20h('inscripcion_pendiente', false, 'Juan').includes('inscripción'),
+    want: true,
+  },
+  {
+    nombre: 'reactivación 20h sin nombre no dice "Hola ahí"',
+    got: obtenerMensajeReactivacion20h('inscripcion', false, 'ahí'),
+    want: '¡Hola! 😊 ¿Cómo vas con tu inscripción? Si te atoraste en algún paso (el formulario, los documentos o el pago), dime en cuál y te ayudo a terminarlo.',
   },
 ]
 

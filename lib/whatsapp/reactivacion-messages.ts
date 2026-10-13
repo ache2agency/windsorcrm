@@ -61,7 +61,9 @@ export function normalizarEtapaReactivacion(stage: string | null | undefined): R
 }
 
 function replaceNombre(plantilla: string, nombre: string) {
-  const n = nombre?.trim() || 'ahí'
+  const n = nombre?.trim()
+  // Sin nombre se saluda sin relleno ("Hola 👋"), nunca "Hola ahí"
+  if (!n || n === 'ahí') return plantilla.replace(/ \[nombre\]/g, '')
   return plantilla.replace(/\[nombre\]/g, n)
 }
 
@@ -158,8 +160,8 @@ const REACTIVACION_20H: Record<FaseBotKey, { trackA: string; trackB: string }> =
     trackB: 'Hola [nombre] 👋 ¿Quedó alguna duda sin resolver? Estoy aquí para ayudarte. 😊',
   },
   inscripcion: {
-    trackA: 'Hola [nombre] 👋 ¿Pudiste avanzar con tu proceso de inscripción? Si tienes alguna duda con los documentos o el pago, con gusto te ayudo. 😊',
-    trackB: 'Hola [nombre] 👋 ¿Pudiste avanzar con tu proceso de inscripción? Si tienes alguna duda con los documentos o el pago, con gusto te ayudo. 😊',
+    trackA: '¡Hola [nombre]! 😊 ¿Cómo vas con tu inscripción? Si te atoraste en algún paso (el formulario, los documentos o el pago), dime en cuál y te ayudo a terminarlo.',
+    trackB: '¡Hola [nombre]! 😊 ¿Cómo vas con tu inscripción? Si te atoraste en algún paso (el formulario, los documentos o el pago), dime en cuál y te ayudo a terminarlo.',
   },
   examen: {
     trackA: 'Hola [nombre] 👋 ¿Pudiste realizar tu examen de ubicación? Recuerda que es gratuito y el primer paso para unirte a Windsor. 😊',
@@ -176,7 +178,9 @@ export function obtenerMensajeReactivacion20h(
   trackA: boolean,
   nombre: string
 ): string {
-  const key = (REACTIVACION_20H[fase as FaseBotKey] ? fase : 'accion') as FaseBotKey
+  // inscripcion_pendiente / inscribiendo usan el texto de inscripción, no el genérico
+  const faseKey = /^inscri/.test(fase) ? 'inscripcion' : fase
+  const key = (REACTIVACION_20H[faseKey as FaseBotKey] ? faseKey : 'accion') as FaseBotKey
   const plantilla = trackA ? REACTIVACION_20H[key].trackA : REACTIVACION_20H[key].trackB
   return replaceNombre(plantilla, nombre)
 }
