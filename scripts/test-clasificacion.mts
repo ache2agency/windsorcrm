@@ -330,9 +330,12 @@ const casos: Caso[] = [
         msg.includes(DATOS_DIPLOMADOS.promocionVigente),
         msg.includes(urlPlanDiplomado('Tanatología') || 'NO_URL'),
         msg.includes('Es 100% en línea con clases en vivo y empiezas en cuanto te inscribes'),
+        // Instrucciones internas del prompt nunca deben llegar al lead
+        msg.includes(DATOS_DIPLOMADOS.inscripcionSinDescuento),
+        msg.includes('Promo vigente:* Promoción vigente'),
       ]
     })(),
-    want: [true, true, true, true, true, true],
+    want: [true, true, true, true, true, true, false, false],
   },
   {
     nombre: 'toque 20h de diplomado sin nombre válido no usa relleno ahí',

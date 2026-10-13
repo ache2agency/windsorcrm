@@ -30,8 +30,7 @@ export function buildMensajeReactivacionDiplomado20h(params: {
   return `${saludo} Te comparto de nuevo la información del *Diplomado en ${diplomado}*:
 
 *Inversión regular:* ${DATOS_DIPLOMADOS.inversionRegular}
-*Promo vigente:* ${DATOS_DIPLOMADOS.promocionVigente}
-*Importante:* ${DATOS_DIPLOMADOS.inscripcionSinDescuento}
+🎉 ${DATOS_DIPLOMADOS.promocionVigente}
 *Plan de estudios:* ${planUrl}
 
 Es 100% en línea con clases en vivo y empiezas en cuanto te inscribes. ¿Qué duda tienes?`
