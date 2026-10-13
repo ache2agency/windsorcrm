@@ -10,6 +10,10 @@ export type TemplateAprobadoKey =
   | 'seguimiento_general'
   | 'windsor_reactivacion_seguimiento'
   | 'windsor_bienvenida_lead_manual'
+  | 'windsor_elige_programa'
+  | 'windsor_diplomado_seguimiento'
+  | 'windsor_diplomado_beneficios'
+  | 'windsor_examen_clase'
   | 'lic_mkt'
   | 'windsor_nuevo_ciclo'
 
@@ -52,6 +56,30 @@ export const TEMPLATES_APROBADOS: TemplateAprobado[] = [
     body: 'Hola {{1}} 👋 Aquí te comparto la información que nos solicitaste. Toca el botón para recibirla.',
   },
   {
+    name: 'windsor_elige_programa',
+    category: 'Utility',
+    label: 'Elegir programa',
+    body: 'Hola 👋 Gracias por escribirnos a Instituto Windsor. Para enviarte la información correcta, ¿qué te interesa estudiar?',
+  },
+  {
+    name: 'windsor_diplomado_seguimiento',
+    category: 'Marketing',
+    label: 'Diplomado · seguimiento',
+    body: 'Hola {{1}} 👋 ¿Pudiste revisar la información del Diplomado en {{2}}? Si tienes alguna duda, con gusto te ayudamos.',
+  },
+  {
+    name: 'windsor_diplomado_beneficios',
+    category: 'Marketing',
+    label: 'Diplomado · beneficios',
+    body: 'Hola {{1}} 😊 Aún podemos ayudarte con tu inscripción al Diplomado en {{2}}. ¿Te compartimos los pasos para comenzar?',
+  },
+  {
+    name: 'windsor_examen_clase',
+    category: 'Marketing',
+    label: 'Examen o clase',
+    body: 'Hola {{1}} 👋 ¿Te ayudamos a agendar tu examen de ubicación o tu clase de prueba? Es gratis.',
+  },
+  {
     name: 'lic_mkt',
     category: 'Marketing',
     label: 'Interés · Lic. Relaciones Públicas y Mercadotecnia',
@@ -70,5 +98,5 @@ export function obtenerTemplateAprobado(name: string): TemplateAprobado | undefi
 }
 
 export function renderizarTemplate(body: string, primerNombre: string): string {
-  return body.replace(/\{\{1\}\}/g, primerNombre || 'ahí')
+  return body.replace(/\{\{1\}\}/g, primerNombre || 'Windsor')
 }
