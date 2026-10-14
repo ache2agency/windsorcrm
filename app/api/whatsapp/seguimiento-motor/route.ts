@@ -150,6 +150,11 @@ async function avisarAsesor(
   return 'aviso enviado'
 }
 
+// Archivar/perder solo se ejecutan con SEGUIMIENTO_MOTOR_CIERRES=1 en Vercel (apagado por default).
+function cierresAutomaticosActivos() {
+  return process.env.SEGUIMIENTO_MOTOR_CIERRES?.trim() === '1'
+}
+
 async function ejecutarDecision(params: {
   supabase: ReturnType<typeof createServiceRoleClient>
   conv: { id: string; whatsapp: string; fase: string | null }
@@ -171,6 +176,10 @@ async function ejecutarDecision(params: {
   if (decision.accion === 'aviso_asesor') {
     const aviso = await avisarAsesor(supabase, lead, decision, dryRun)
     return { accion: dryRun ? 'dry_aviso_asesor' : 'aviso_asesor', detalle: aviso }
+  }
+
+  if ((decision.accion === 'archivar' || decision.accion === 'perder') && !cierresAutomaticosActivos()) {
+    return { accion: `cierre_apagado_${decision.accion}`, detalle: `${decision.detalle} (cierres automaticos apagados)` }
   }
 
   if (decision.accion === 'archivar' || decision.accion === 'perder') {
