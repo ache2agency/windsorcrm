@@ -3228,6 +3228,58 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       // ── Interceptor de botones de template seguimiento_general ──────────────
       // Maneja las 3 respuestas rápidas del template de reactivación
       const msgTrimBtn = originalText.trim()
+
+      // Botones / respuestas de templates nuevos del motor de seguimiento.
+      if (/^s[ií],?\s*env[ií]ame\s+la\s+info[\s\S]*$/i.test(msgTrimBtn) && !hasLeadProgram(leadSnapshot?.curso)) {
+        const resp = `¡Claro! 😊 Para enviarte la información correcta, ¿qué programa te interesa?\n\n${CATALOGO_OFERTA}`
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'programa', leadId)
+        return buildProviderResponse(provider, resp, waNumber)
+      }
+      if (/^(bachillerato|licenciaturas?|maestr[ií]as?|idiomas|diplomados?)$/i.test(msgTrimBtn)) {
+        const categoria = detectarCategoriaInteres(msgTrimBtn)
+        if (categoria === 'bachillerato') {
+          if (leadId) await supabase.from('leads').update({ curso: 'Bachillerato', ...(getValorPrograma('Bachillerato') ? { valor: getValorPrograma('Bachillerato') } : {}) }).eq('id', leadId)
+          return respondProgramaSeleccionado(
+            { supabase, conversacionId: conversacionIdOuter, requestUrl: request.url, leadSnapshot, convHistory, provider, waNumber, leadId },
+            'Bachillerato',
+            `¡Claro! 😊 Te comparto información de *Bachillerato*. ¿Me compartes tu correo electrónico para darte seguimiento personalizado? 📧`
+          )
+        }
+        const nombreCat = leadSnapshot?.nombre?.split(' ')[0] || ''
+        const respCat = (mensajeCategoriaInteres(categoria, nombreCat) || `¡Claro! 😊 ${CATALOGO_OFERTA}`).replace(/^¡Hola\s*!/, '¡Hola!')
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, respCat, 'programa', leadId)
+        return buildProviderResponse(provider, respCat, waNumber)
+      }
+      if (/^a[uú]n\s+lo\s+estoy\s+pensando[\s\S]*$/i.test(msgTrimBtn)) {
+        const nombre = leadSnapshot?.nombre ? ` ${leadSnapshot.nombre.split(' ')[0]}` : ''
+        const resp = `¡Entendido${nombre}! Tómate tu tiempo. Si más adelante quieres retomarlo, escríbenos por aquí y con gusto te ayudamos. 😊`
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'archivado', leadId)
+        if (leadId) await supabase.from('leads').update({ stage: 'archivado' }).eq('id', leadId)
+        return buildProviderResponse(provider, resp, waNumber)
+      }
+      if (/^necesito\s+m[aá]s\s+tiempo[\s\S]*$/i.test(msgTrimBtn)) {
+        const resp = `Claro, no hay problema. 😊 Te damos espacio y más adelante te recordamos el proceso para que puedas retomarlo sin empezar de cero.`
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'inscribiendo', leadId)
+        if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
+        return buildProviderResponse(provider, resp, waNumber)
+      }
+      if (/^ya\s+tengo\s+mis\s+documentos[\s\S]*$/i.test(msgTrimBtn)) {
+        const tipoIns = tipoInscripcion(leadSnapshot?.curso)
+        if (tipoIns === 'desconocido') {
+          return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, leadSnapshot?.nombre, leadSnapshot?.curso)
+        }
+        const resp = `¡Perfecto! 😊 Sube tus documentos en el formulario de inscripción de tu programa:\nhttps://www.windsor.edu.mx/solicitud-de-inscripcion\n\nCuando lo termines, avísanos por aquí para que un asesor revise tu proceso.`
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'inscribiendo', leadId)
+        if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
+        return buildProviderResponse(provider, resp, waNumber)
+      }
+      if (/no\s+(puedo|me\s+deja|logro).{0,40}(subir|adjuntar|cargar)|problema.{0,30}(subir|adjuntar|cargar)/i.test(msgTrimBtn)) {
+        const resp = `Gracias por avisarnos. Te paso con un asesor para revisar el problema con el formulario y ayudarte a terminar tu inscripción.`
+        if (leadId) await notifyAsesor(supabase, leadId, 'lead_pide_humano', leadSnapshot?.nombre, waNumber, leadSnapshot?.curso, originalText)
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'pendiente', leadId)
+        return buildProviderResponse(provider, resp, waNumber)
+      }
+
       // "Tengo dudas" solo es el botón de windsor_nuevo_ciclo; "Sí, tengo dudas" el de seguimiento_general.
       if (/^(s[ií],?\s*)?tengo\s*dudas[\s\S]*$/i.test(msgTrimBtn)) {
         // hasLeadProgram() evita mostrar el placeholder "WhatsApp - Instituto Windsor" si por

@@ -90,7 +90,9 @@ export async function sendMetaWhatsAppTemplate({
     template: {
       name: templateName,
       language: { code: 'es_MX' },
-      components: [{ type: 'body', parameters: parameters.map(v => ({ type: 'text', text: v })) }],
+      ...(parameters.length > 0
+        ? { components: [{ type: 'body', parameters: parameters.map(v => ({ type: 'text', text: v })) }] }
+        : {}),
     },
   })
 

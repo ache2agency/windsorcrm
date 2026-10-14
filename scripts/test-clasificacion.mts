@@ -23,6 +23,7 @@ import { hasLeadName } from '../lib/whatsapp/nombres'
 import { buildMensajeReactivacionDiplomado20h, buildMensajeDudasDiplomado20h } from '../lib/whatsapp/reactivacion-diplomados'
 import { obtenerMensajeReactivacion20h } from '../lib/whatsapp/reactivacion-messages'
 import { DATOS_DIPLOMADOS } from '../lib/whatsapp/reglasNegocio'
+import { decidirSeguimientoAutomatico } from '../lib/whatsapp/seguimiento-motor'
 
 type Caso = { nombre: string; got: unknown; want: unknown; bug?: string }
 
@@ -411,6 +412,79 @@ const casos: Caso[] = [
     nombre: 'reactivación 20h sin nombre no dice "Hola ahí"',
     got: obtenerMensajeReactivacion20h('inscripcion', false, 'ahí'),
     want: '¡Hola! 😊 ¿Cómo vas con tu inscripción? Si te atoraste en algún paso (el formulario, los documentos o el pago), dime en cuál y te ayudo a terminarlo.',
+  },
+  {
+    nombre: 'motor: informado diplomado día 3 usa template de diplomados',
+    got: decidirSeguimientoAutomatico({
+      fase: 'accion',
+      lead: { nombre: 'María José', curso: 'Diplomado en Tanatología', whatsapp: '+527470000000', stage: 'interesado' },
+      horasDesdeLead: 72,
+      horasDesdeBot: 72,
+      diasDesdeLead: 3,
+      dentroVentana24h: false,
+      yaTienePrograma: true,
+      yaTieneNombre: true,
+    })?.templateName,
+    want: 'windsor_diplomado_seguimiento',
+  },
+  {
+    nombre: 'motor: informado no diplomado día 3 usa seguimiento general',
+    got: decidirSeguimientoAutomatico({
+      fase: 'accion',
+      lead: { nombre: 'Juan', curso: 'Psicología', whatsapp: '+527470000000', stage: 'interesado' },
+      horasDesdeLead: 72,
+      horasDesdeBot: 72,
+      diasDesdeLead: 3,
+      dentroVentana24h: false,
+      yaTienePrograma: true,
+      yaTieneNombre: true,
+    })?.templateName,
+    want: 'seguimiento_general',
+  },
+  {
+    nombre: 'motor: fuera de ventana nunca decide texto libre de 20h',
+    got: decidirSeguimientoAutomatico({
+      fase: 'accion',
+      lead: { nombre: 'Juan', curso: 'Inglés para adultos', whatsapp: '+527470000000', stage: 'interesado' },
+      horasDesdeLead: 30,
+      horasDesdeBot: 30,
+      diasDesdeLead: 1.25,
+      dentroVentana24h: false,
+      yaTienePrograma: true,
+      yaTieneNombre: true,
+    }),
+    want: null,
+  },
+  {
+    nombre: 'motor: examen 20h menciona examen gratis y costo normal',
+    got: decidirSeguimientoAutomatico({
+      fase: 'examen',
+      lead: { nombre: 'Juan', curso: 'Inglés para adultos', whatsapp: '+527470000000', stage: 'examen_ubicacion' },
+      horasDesdeLead: 20,
+      horasDesdeBot: 20,
+      diasDesdeLead: 20 / 24,
+      dentroVentana24h: true,
+      yaTienePrograma: true,
+      yaTieneNombre: true,
+    })?.mensaje?.includes('gratis (normalmente cuesta $100)'),
+    want: true,
+  },
+  {
+    nombre: 'motor: backlog >30 informado no archiva de golpe; manda un solo rescate',
+    got: (() => {
+      const d = decidirSeguimientoAutomatico({
+        fase: 'accion',
+        lead: { nombre: 'Juan', curso: 'Psicología', whatsapp: '+527470000000', stage: 'interesado' },
+        horasDesdeLead: 40 * 24,
+        horasDesdeBot: 40 * 24,
+        diasDesdeLead: 40,
+        dentroVentana24h: false,
+        yaTienePrograma: true,
+        yaTieneNombre: true,
+      })
+      return [d?.accion, d?.templateName, d?.reglaId]
+    })(),
+    want: ['template', 'windsor_promo', 'backlog30_informado_ab'],
   },
 ]
 
