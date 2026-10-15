@@ -1,4 +1,5 @@
 import { createServiceRoleClient } from '@/utils/supabase/server'
+import { mensajeDocumentosInscripcion } from '@/lib/whatsapp/seguimiento-motor'
 import {
   getMetaConfig,
   getWhatsAppProvider,
@@ -3268,7 +3269,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         if (tipoIns === 'desconocido') {
           return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, leadSnapshot?.nombre, leadSnapshot?.curso)
         }
-        const resp = `¡Perfecto! 😊 Sube tus documentos en el formulario de inscripción de tu programa:\nhttps://www.windsor.edu.mx/solicitud-de-inscripcion\n\nCuando lo termines, avísanos por aquí para que un asesor revise tu proceso.`
+        const resp = mensajeDocumentosInscripcion({ curso: leadSnapshot?.curso, nombre: leadSnapshot?.nombre, whatsapp: waNumber })
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'inscribiendo', leadId)
         if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
         return buildProviderResponse(provider, resp, waNumber)

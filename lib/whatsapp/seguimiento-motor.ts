@@ -2,6 +2,11 @@ import { esDiplomado, tipoInscripcion } from './programas'
 import { esTrackA, obtenerMensajeReactivacion20h } from './reactivacion-messages'
 import { buildMensajeDudasDiplomado20h, buildMensajeReactivacionDiplomado20h } from './reactivacion-diplomados'
 import { INFO_MSGS, buildCTA } from './infoMsgs'
+import { urlInscripcion } from '../inscripcion/enlace'
+
+export function mensajeDocumentosInscripcion(lead: LeadSeguimiento) {
+  return `¡Perfecto! 😊 Completa tu solicitud y sube tus documentos aquí, sin cuenta de Google:\n${urlInscripcion(lead.curso, lead.whatsapp, lead.nombre)}\n\nAl enviarla, un asesor revisará tus documentos y pago para continuar tu inscripción.`
+}
 
 export type CarrilSeguimiento = 'A' | 'B' | 'C'
 export type TipoAccionSeguimiento = 'texto' | 'template' | 'archivar' | 'perder' | 'aviso_asesor'
