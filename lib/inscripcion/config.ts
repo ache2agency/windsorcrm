@@ -1,9 +1,23 @@
+import { ALIAS_DIPLOMADO, normDiplomado, PROGRAMAS_DIPLOMADO } from '../whatsapp/programas'
+
 export type Campo = { id: string; label: string; type?: 'text' | 'email' | 'date' | 'number' | 'tel'; required?: boolean; options?: string[] }
 export const PROGRAMAS_INSCRIPCION = ['licenciaturas', 'cursos-libres', 'diplomados', 'verano'] as const
 export type ProgramaInscripcion = typeof PROGRAMAS_INSCRIPCION[number]
 export function esPrograma(value: string): value is ProgramaInscripcion {
   return PROGRAMAS_INSCRIPCION.includes(value as ProgramaInscripcion)
 }
+// Mismo catálogo que usa el bot, en orden alfabético para encontrarlo rápido.
+export const OPCIONES_DIPLOMADO = [...PROGRAMAS_DIPLOMADO].sort((a, b) => a.localeCompare(b, 'es'))
+
+/** Convierte el curso del lead ("Diplomado en Tanatología", alias viejos) a la opción del select. */
+export function diplomadoCanonico(curso: string | null | undefined): string {
+  const c = normDiplomado((curso || '').replace(/^diplomado( en)?/i, ''))
+  if (!c) return ''
+  const alias = ALIAS_DIPLOMADO.find(([v]) => normDiplomado(v) === c)
+  if (alias) return alias[1]
+  return PROGRAMAS_DIPLOMADO.find(n => normDiplomado(n) === c) || ''
+}
+
 const identidad: Campo[] = [
   { id: 'nombres', label: 'Nombre(s)', required: true },
   { id: 'apellido_paterno', label: 'Apellido paterno', required: true },
@@ -40,7 +54,7 @@ export function camposPrograma(programa: ProgramaInscripcion): Campo[] {
     { id: 'ciudad', label: 'Ciudad de residencia', required: true },
     { id: 'estado', label: 'Estado de residencia', required: true },
     { id: 'pais', label: 'País de residencia', required: true },
-    { id: 'curso', label: 'Diplomado solicitado', required: true }, ...lengua]
+    { id: 'curso', label: 'Diplomado solicitado', required: true, options: OPCIONES_DIPLOMADO }, ...lengua]
   // Verano usa provisionalmente el contrato CL: falta cotejar el formulario
   // original protegido por Google. Ver docs/INSCRIPCIONES.md antes del merge.
   const campos = [...identidad, ...escolar, ...lengua]

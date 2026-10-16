@@ -7,7 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { recibirInscripcion } from '../lib/inscripcion/servicio'
 import { consultarInscripcion } from '../lib/inscripcion/consulta'
 import { validarArchivo, normalizarWhatsapp } from '../lib/inscripcion/validacion'
-import { camposPrograma, BUCKET_INSCRIPCIONES, MAX_ARCHIVO } from '../lib/inscripcion/config'
+import { camposPrograma, diplomadoCanonico, BUCKET_INSCRIPCIONES, MAX_ARCHIVO } from '../lib/inscripcion/config'
 import { urlInscripcion } from '../lib/inscripcion/enlace'
 import { mensajeDocumentosInscripcion } from '../lib/whatsapp/seguimiento-motor'
 
@@ -67,7 +67,7 @@ function session(puedeLeer: boolean) {
 const pdf = () => new File(['%PDF-1.7\nDocumento ficticio de prueba'], 'acta.pdf', { type: 'application/pdf' })
 function formulario(phone = '+52 747 123 4567', programa: 'diplomados' | 'licenciaturas' | 'cursos-libres' | 'verano' = 'diplomados') {
   const form = new FormData()
-  for (const campo of camposPrograma(programa)) if (campo.required) form.set(campo.id, 'Dato de prueba')
+  for (const campo of camposPrograma(programa)) if (campo.required) form.set(campo.id, campo.options?.[0] ?? 'Dato de prueba')
   form.set('programa', programa); form.set('solicitud_id', randomUUID()); form.set('consentimiento', 'si')
   form.set('email', 'alumno@example.test'); form.set('fecha_nacimiento', '2000-01-02')
   form.set('lengua_indigena', 'No'); form.set('whatsapp', phone)
@@ -222,4 +222,12 @@ test('límite persistente: permite veinte intentos por hora y rechaza el siguien
   }
   await pg.exec("update inscripcion_intentos set inicio=now()-interval '2 hours'")
   assert.equal((await pg.query<{ permitido: boolean }>('select limitar_inscripcion($1) permitido', ['ip-ficticia-hasheada'])).rows[0]?.permitido, true)
+})
+test('diplomados: lista cerrada del catálogo y prellenado desde leads.curso', () => {
+  const curso = camposPrograma('diplomados').find(c => c.id === 'curso')
+  assert.equal(curso?.options?.length, 40)
+  assert.equal(diplomadoCanonico('Diplomado en Tanatología'), 'Tanatología')
+  assert.equal(diplomadoCanonico('Diplomado en Administración de Instituciones de la Salud'), 'Administración de Instituciones de Salud')
+  assert.equal(diplomadoCanonico('diplomado en administracion de restaurantes'), 'Administración de restaurantes')
+  assert.equal(diplomadoCanonico('Diplomado'), '')
 })

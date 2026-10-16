@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { camposPrograma, documentosPrograma, MAX_ARCHIVO, type ProgramaInscripcion } from '@/lib/inscripcion/config'
+import { camposPrograma, diplomadoCanonico, documentosPrograma, MAX_ARCHIVO, type ProgramaInscripcion } from '@/lib/inscripcion/config'
 
 export default function FormularioInscripcion({ programa }: { programa: ProgramaInscripcion }) {
   const [initial, setInitial] = useState<Record<string, string>>({})
@@ -10,11 +10,12 @@ export default function FormularioInscripcion({ programa }: { programa: Programa
   const [success, setSuccess] = useState('')
   useEffect(() => {
     const search = new URLSearchParams(window.location.search)
-    setInitial({ whatsapp: search.get('wa') || '', nombres: search.get('nombre') || '', curso: search.get('curso') || '' })
+    const curso = search.get('curso') || ''
+    setInitial({ whatsapp: search.get('wa') || '', nombres: search.get('nombre') || '', curso: programa === 'diplomados' ? diplomadoCanonico(curso) : curso })
     setId(crypto.randomUUID())
     // El prellenado ya está en memoria; evita conservar datos de contacto en el historial.
     window.history.replaceState(null, '', window.location.pathname)
-  }, [])
+  }, [programa])
   if (success) return <section role="status" style={{ padding: 24, marginTop: 24, background: '#effaf1' }}>
     <h2>Solicitud recibida</h2><p>Gracias. Coordinación revisará tus documentos y pago; tu inscripción aún está en proceso.</p><p>Folio: {success}</p>
   </section>
@@ -35,7 +36,7 @@ export default function FormularioInscripcion({ programa }: { programa: Programa
     <div aria-hidden="true" style={{ display: 'none' }}><label>Sitio web<input name="website" tabIndex={-1} autoComplete="off" /></label></div>
     {camposPrograma(programa).map(campo => <label key={campo.id} style={{ display: 'grid', gap: 6 }}>
       <span>{campo.label}{campo.required ? ' *' : ''}</span>
-      {campo.options ? <select name={campo.id} required={campo.required} style={{ padding: 10, border: '1px solid #aaa', borderRadius: 6 }}>
+      {campo.options ? <select key={`${campo.id}-${initial[campo.id] || ''}`} name={campo.id} required={campo.required} defaultValue={initial[campo.id] || ''} style={{ padding: 10, border: '1px solid #aaa', borderRadius: 6 }}>
         <option value="">Selecciona</option>{campo.options.map(o => <option key={o}>{o}</option>)}
       </select> : <input key={`${campo.id}-${initial[campo.id] || ''}`} name={campo.id} type={campo.type || 'text'} required={campo.required}
         defaultValue={initial[campo.id] || ''} maxLength={250} min={campo.type === 'number' ? 0 : undefined}
