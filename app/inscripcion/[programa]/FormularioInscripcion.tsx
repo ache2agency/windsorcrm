@@ -43,10 +43,11 @@ export default function FormularioInscripcion({ programa }: { programa: Programa
         max={campo.type === 'date' ? new Date().toISOString().slice(0, 10) : campo.type === 'number' ? 120 : undefined}
         style={{ padding: 10, border: '1px solid #aaa', borderRadius: 6, width: '100%', boxSizing: 'border-box' }} />}
     </label>)}
-    <h2 style={{ fontSize: 22 }}>Documentos</h2>
-    <p>PDF, JPG, PNG o HEIC. Máximo 750 KB por documento. Los campos con * son obligatorios.</p>
-    {documentosPrograma(programa).map(doc => <label key={doc.id} style={{ display: 'grid', gap: 6 }}>{doc.label}{doc.required ? ' *' : ' (opcional)'}
-      <input type="file" name={doc.id} required={doc.required} accept=".pdf,.jpg,.jpeg,.png,.heic" onChange={event => {
+    <h2 style={{ fontSize: 22, marginTop: 16, paddingTop: 20, borderTop: '2px solid #19394d' }}>📎 Documentos</h2>
+    <p style={{ margin: 0 }}>Sube una foto o PDF de cada documento (PDF, JPG, PNG o HEIC, máximo 750 KB cada uno). Los marcados con * son obligatorios.</p>
+    {documentosPrograma(programa).map(doc => <label key={doc.id} style={{ display: 'grid', gap: 8, padding: 14, border: '2px dashed #8aa4b8', borderRadius: 10, background: '#f4f8fb', cursor: 'pointer' }}>
+      <strong>{doc.label}{doc.required ? ' *' : ' (opcional)'}</strong>
+      <input type="file" name={doc.id} required={doc.required} accept=".pdf,.jpg,.jpeg,.png,.heic" style={{ fontSize: 16 }} onChange={event => {
         const input = event.currentTarget
         input.setCustomValidity(input.files?.[0] && input.files[0].size > MAX_ARCHIVO ? 'El documento supera 750 KB.' : '')
         input.reportValidity()
