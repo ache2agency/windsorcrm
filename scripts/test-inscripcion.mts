@@ -7,7 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { recibirInscripcion } from '../lib/inscripcion/servicio'
 import { consultarInscripcion } from '../lib/inscripcion/consulta'
 import { validarArchivo, normalizarWhatsapp } from '../lib/inscripcion/validacion'
-import { camposPrograma, diplomadoCanonico, BUCKET_INSCRIPCIONES, MAX_ARCHIVO } from '../lib/inscripcion/config'
+import { camposPrograma, diplomadoCanonico, esPrograma, BUCKET_INSCRIPCIONES, MAX_ARCHIVO } from '../lib/inscripcion/config'
 import { urlInscripcion } from '../lib/inscripcion/enlace'
 import { mensajeDocumentosInscripcion } from '../lib/whatsapp/seguimiento-motor'
 
@@ -157,7 +157,7 @@ test('un segundo envío y el retry directo al RPC son idempotentes para leads/ac
   assert.equal((await pg.query('select * from lead_activities')).rows.length, 2)
 })
 test('los cuatro tipos guardan solicitud y un teléfono nuevo crea exactamente un lead', async () => {
-  for (const programa of ['diplomados','licenciaturas','cursos-libres','verano'] as const) await recibirInscripcion(db, formulario('+527471234569', programa))
+  for (const programa of ['diplomados','licenciaturas','cursos-libres'] as const) await recibirInscripcion(db, formulario('+527471234569', programa))
   assert.equal((await pg.query('select * from leads')).rows.length, 3)
   const { rows } = await pg.query<{ asignado_a: string }>('select asignado_a from leads where whatsapp=$1',['+527471234569'])
   assert.equal(rows[0]?.asignado_a, asesor)
@@ -207,7 +207,7 @@ test('otro asesor no puede ver datos ni generar firmas; el autorizado recibe lin
   assert.ok(solicitud?.documentos.every(d => d.url.includes('/signed/')))
 })
 test('el botón del motor comparte link prellenado correcto con el webhook', () => {
-  for (const [curso, ruta] of [['Diplomado en Administración de Restaurantes','diplomados'],['Licenciatura en Inglés','licenciaturas'],['Inglés para niños','cursos-libres'],['Francés','cursos-libres'],['Verano niños','verano']]) {
+  for (const [curso, ruta] of [['Diplomado en Administración de Restaurantes','diplomados'],['Licenciatura en Inglés','licenciaturas'],['Inglés para niños','cursos-libres'],['Francés','cursos-libres']]) {
     const url = new URL(urlInscripcion(curso,'+527471234567','Ana & María'))
     assert.equal(url.pathname, `/inscripcion/${ruta}`)
     assert.equal(url.searchParams.get('nombre'), 'Ana & María')
@@ -230,4 +230,8 @@ test('diplomados: lista cerrada del catálogo y prellenado desde leads.curso', (
   assert.equal(diplomadoCanonico('Diplomado en Administración de Instituciones de la Salud'), 'Administración de Instituciones de Salud')
   assert.equal(diplomadoCanonico('diplomado en administracion de restaurantes'), 'Administración de restaurantes')
   assert.equal(diplomadoCanonico('Diplomado'), '')
+})
+test('verano en pausa: sin formulario público y el bot conserva la página anterior', () => {
+  assert.equal(esPrograma('verano'), false)
+  assert.equal(urlInscripcion('Verano niños', '+527471234567', 'Ana'), 'https://www.windsor.edu.mx/solicitud-de-inscripcion')
 })

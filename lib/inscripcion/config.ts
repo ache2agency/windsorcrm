@@ -3,8 +3,12 @@ import { ALIAS_DIPLOMADO, normDiplomado, PROGRAMAS_DIPLOMADO } from '../whatsapp
 export type Campo = { id: string; label: string; type?: 'text' | 'email' | 'date' | 'number' | 'tel'; required?: boolean; options?: string[] }
 export const PROGRAMAS_INSCRIPCION = ['licenciaturas', 'cursos-libres', 'diplomados', 'verano'] as const
 export type ProgramaInscripcion = typeof PROGRAMAS_INSCRIPCION[number]
+// Verano en pausa (Harold 16-oct): se arranca con licenciaturas, cursos libres y
+// diplomados; falta cotejar su Google Form. Mientras, su ruta da 404 y el bot
+// sigue mandando la página anterior.
+export const PROGRAMAS_PAUSADOS: readonly ProgramaInscripcion[] = ['verano']
 export function esPrograma(value: string): value is ProgramaInscripcion {
-  return PROGRAMAS_INSCRIPCION.includes(value as ProgramaInscripcion)
+  return PROGRAMAS_INSCRIPCION.includes(value as ProgramaInscripcion) && !PROGRAMAS_PAUSADOS.includes(value as ProgramaInscripcion)
 }
 // Mismo catálogo que usa el bot, en orden alfabético para encontrarlo rápido.
 export const OPCIONES_DIPLOMADO = [...PROGRAMAS_DIPLOMADO].sort((a, b) => a.localeCompare(b, 'es'))

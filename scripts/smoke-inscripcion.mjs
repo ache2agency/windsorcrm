@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 const base = 'http://127.0.0.1:3187'
-for (const programa of ['licenciaturas','cursos-libres','diplomados','verano']) {
+for (const programa of ['licenciaturas','cursos-libres','diplomados']) {
  const r = await fetch(`${base}/inscripcion/${programa}?wa=%2B527471234567&nombre=Ana`)
  assert.equal(r.status,200)
  assert.ok((await r.text()).includes('Enviar solicitud de inscripción'))
