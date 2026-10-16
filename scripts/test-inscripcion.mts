@@ -206,7 +206,14 @@ test('otro asesor no puede ver datos ni generar firmas; el autorizado recibe lin
   assert.equal(firmas, before + 2)
   assert.ok(solicitud?.documentos.every(d => d.url.includes('/signed/')))
 })
+test('sin la bandera, el bot sigue mandando la página de Windsor (Google Forms)', () => {
+  delete process.env.INSCRIPCION_FORMULARIO_BOT
+  const msg = mensajeDocumentosInscripcion({ curso: 'Licenciatura en Inglés', whatsapp: '+527471234567' })
+  assert.ok(msg.includes('https://www.windsor.edu.mx/solicitud-de-inscripcion'))
+  assert.ok(!msg.includes('/inscripcion/'))
+})
 test('el botón del motor comparte link prellenado correcto con el webhook', () => {
+  process.env.INSCRIPCION_FORMULARIO_BOT = 'on'
   for (const [curso, ruta] of [['Diplomado en Administración de Restaurantes','diplomados'],['Licenciatura en Inglés','licenciaturas'],['Inglés para niños','cursos-libres'],['Francés','cursos-libres']]) {
     const url = new URL(urlInscripcion(curso,'+527471234567','Ana & María'))
     assert.equal(url.pathname, `/inscripcion/${ruta}`)
@@ -214,6 +221,7 @@ test('el botón del motor comparte link prellenado correcto con el webhook', () 
     assert.equal(url.searchParams.get('wa'), '+527471234567')
     assert.ok(mensajeDocumentosInscripcion({ curso, whatsapp: '+527471234567' }).includes(`/inscripcion/${ruta}`))
   }
+  delete process.env.INSCRIPCION_FORMULARIO_BOT
 })
 test('límite persistente: permite veinte intentos por hora y rechaza el siguiente', async () => {
   for (let i = 0; i < 21; i++) {

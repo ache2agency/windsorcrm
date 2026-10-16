@@ -29,3 +29,9 @@ Rutas: `/inscripcion/licenciaturas`, `/inscripcion/cursos-libres`, `/inscripcion
 `npm run test:inscripcion`: PostgreSQL embebido PGlite, sin conexión a producción. Ejecuta el SQL contra un esquema mínimo que reproduce los campos usados del CRM y las tablas de Storage; pruebas de deduplicación, transacción, idempotencia, archivos, permisos y rate limit. Storage y la generación de enlaces se simulan en la capa SDK. Después de aplicar en un entorno de prueba, comprobar también la API real de Supabase Storage y el WhatsApp del asesor.
 
 `npm run test:clasificacion` verifica la regresión del bot. `npm run build -- --webpack` compila; el worktree puede usar valores ficticios de las dos variables públicas de Supabase para prerenderizar `/login` sin tocar producción.
+
+## Migración gradual (16-oct-2026)
+
+- Los Google Forms siguen siendo el canal principal. El bot manda la página de Windsor (`/solicitud-de-inscripcion`) mientras `INSCRIPCION_FORMULARIO_BOT` no sea `on`.
+- Los asesores comparten a mano `https://crm.windsor.edu.mx/inscripcion/{licenciaturas|cursos-libres|diplomados}` para probarlo. Verano en pausa (`PROGRAMAS_PAUSADOS`).
+- Para que el botón "Ya tengo mis documentos" use el formulario nuevo: variable `INSCRIPCION_FORMULARIO_BOT=on` en Vercel (Production) y redeploy.
