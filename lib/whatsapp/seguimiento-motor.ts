@@ -2,6 +2,21 @@ import { esDiplomado, tipoInscripcion } from './programas'
 import { esTrackA, obtenerMensajeReactivacion20h } from './reactivacion-messages'
 import { buildMensajeDudasDiplomado20h, buildMensajeReactivacionDiplomado20h } from './reactivacion-diplomados'
 import { INFO_MSGS, buildCTA } from './infoMsgs'
+import { urlInscripcion } from '../inscripcion/enlace'
+
+// Migración gradual (Harold 16-oct): mientras INSCRIPCION_FORMULARIO_BOT no sea 'on',
+// el bot sigue mandando la página de Windsor con los Google Forms; el formulario nuevo
+// (/inscripcion/...) solo lo comparten los asesores a mano para probarlo.
+export function formularioNuevoEnBot() {
+  return process.env.INSCRIPCION_FORMULARIO_BOT?.trim() === 'on'
+}
+
+export function mensajeDocumentosInscripcion(lead: LeadSeguimiento) {
+  if (!formularioNuevoEnBot()) {
+    return `¡Perfecto! 😊 Sube tus documentos en el formulario de inscripción de tu programa:\nhttps://www.windsor.edu.mx/solicitud-de-inscripcion\n\nCuando lo termines, avísanos por aquí para que un asesor revise tu proceso.`
+  }
+  return `¡Perfecto! 😊 Completa tu solicitud y sube tus documentos aquí, sin cuenta de Google:\n${urlInscripcion(lead.curso, lead.whatsapp, lead.nombre)}\n\nAl enviarla, un asesor revisará tus documentos y pago para continuar tu inscripción.`
+}
 
 export type CarrilSeguimiento = 'A' | 'B' | 'C'
 export type TipoAccionSeguimiento = 'texto' | 'template' | 'archivar' | 'perder' | 'aviso_asesor'
