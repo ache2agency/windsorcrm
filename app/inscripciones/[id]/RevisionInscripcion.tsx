@@ -22,9 +22,8 @@ export default function RevisionInscripcion({ id }: { id: string }) {
     {!solicitud && !error && <p>Cargando…</p>}
     {solicitud && <><h2>{solicitud.programa}</h2>
       <dl>{Object.entries(solicitud.datos).filter(([, valor]) => valor).map(([campo, valor]) => <div key={campo} style={{ marginBottom: 12 }}><dt style={{ fontWeight: 700 }}>{campo.replaceAll('_', ' ')}</dt><dd>{valor}</dd></div>)}</dl>
-      <h2>Documentos</h2><p>Los enlaces caducan en cinco minutos.</p>
-      <ul>{solicitud.documentos.map(d => <li key={d.tipo}><a href={d.url} target="_blank" rel="noreferrer">Descargar {d.tipo.replaceAll('_', ' ')}</a></li>)}</ul>
-      <button onClick={() => void cargar()}>Renovar enlaces</button>
+      <h2>Documentos</h2><p>Se abren en el Drive de Windsor (con una cuenta que tenga acceso a la carpeta).</p>
+      <ul>{solicitud.documentos.map(d => <li key={d.tipo}><a href={d.url} target="_blank" rel="noreferrer">{d.tipo === 'carpeta_drive' ? 'Carpeta del alumno' : d.tipo === 'ficha_pdf' ? 'Ficha de inscripción (PDF)' : d.tipo.replaceAll('_', ' ')}</a></li>)}</ul>
     </>}
   </main>
 }

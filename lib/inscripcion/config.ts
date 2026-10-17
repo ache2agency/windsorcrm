@@ -80,6 +80,7 @@ export function documentosPrograma(programa: ProgramaInscripcion) {
   if (programa === 'licenciaturas') docs.push({ id: 'certificado', label: 'Certificado de bachillerato', required: true })
   return docs
 }
-export const BUCKET_INSCRIPCIONES = 'inscripciones-privadas'
-export const MAX_ARCHIVO = 750 * 1024 // 5 documentos + campos caben bajo 4.5 MB de Vercel.
+// Las fotos se comprimen en el navegador antes de enviar (lib/inscripcion/comprimir.ts);
+// los PDF llegan tal cual. El total debe caber bajo el límite de 4.5 MB de Vercel.
+export const MAX_ARCHIVO = 1.5 * 1024 * 1024
 export const MAX_SOLICITUD = 4 * 1024 * 1024

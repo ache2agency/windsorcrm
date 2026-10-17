@@ -31,7 +31,7 @@ export async function validarArchivo(file: File) {
   const extension = file.name.split('.').pop()?.toLowerCase() || ''
   const mime = tipos[extension]
   if (!mime || (file.type && file.type !== mime && !(extension === 'heic' && file.type === 'image/heif'))) throw new Error('Solo se aceptan PDF, JPG, PNG o HEIC con su tipo correcto.')
-  if (!file.size || file.size > MAX_ARCHIVO) throw new Error('Cada documento debe pesar entre 1 byte y 750 KB.')
+  if (!file.size || file.size > MAX_ARCHIVO) throw new Error('Cada documento debe pesar máximo 1.5 MB.')
   const bytes = new Uint8Array(await file.slice(0, 32).arrayBuffer())
   const ascii = new TextDecoder('latin1').decode(bytes)
   const valido = extension === 'pdf' ? ascii.startsWith('%PDF-')

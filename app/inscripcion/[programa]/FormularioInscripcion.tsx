@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { camposPrograma, diplomadoCanonico, documentosPrograma, MAX_ARCHIVO, type ProgramaInscripcion } from '@/lib/inscripcion/config'
+import { camposPrograma, diplomadoCanonico, documentosPrograma, MAX_ARCHIVO, MAX_SOLICITUD, type ProgramaInscripcion } from '@/lib/inscripcion/config'
+import { comprimirFoto } from '@/lib/inscripcion/comprimir'
 
 export default function FormularioInscripcion({ programa }: { programa: ProgramaInscripcion }) {
   const [initial, setInitial] = useState<Record<string, string>>({})
@@ -8,6 +9,7 @@ export default function FormularioInscripcion({ programa }: { programa: Programa
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [success, setSuccess] = useState('')
+  const [comprimiendo, setComprimiendo] = useState(0)
   useEffect(() => {
     const search = new URLSearchParams(window.location.search)
     const curso = search.get('curso') || ''
@@ -22,6 +24,13 @@ export default function FormularioInscripcion({ programa }: { programa: Programa
   async function enviar(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setBusy(true)
     const form = new FormData(event.currentTarget)
+    let total = 0
+    for (const [, value] of form.entries()) if (value instanceof File) total += value.size
+    if (total > MAX_SOLICITUD - 200 * 1024) {
+      setBusy(false)
+      setError('Los documentos juntos pesan más de 4 MB. Sube fotos en lugar de PDF escaneados o reduce el tamaño de los PDF.')
+      return
+    }
     try {
       const response = await fetch('/api/inscripcion', { method: 'POST', body: form })
       const result = await response.json()
@@ -44,18 +53,31 @@ export default function FormularioInscripcion({ programa }: { programa: Programa
         style={{ padding: 10, border: '1px solid #aaa', borderRadius: 6, width: '100%', boxSizing: 'border-box' }} />}
     </label>)}
     <h2 style={{ fontSize: 22, marginTop: 16, paddingTop: 20, borderTop: '2px solid #19394d' }}>📎 Documentos</h2>
-    <p style={{ margin: 0 }}>Sube una foto o PDF de cada documento (PDF, JPG, PNG o HEIC, máximo 750 KB cada uno). Los marcados con * son obligatorios.</p>
+    <p style={{ margin: 0 }}>Sube una foto o PDF de cada documento (PDF, JPG, PNG o HEIC). Las fotos se reducen solas; los PDF deben pesar máximo 1.5 MB. Los marcados con * son obligatorios.</p>
     {documentosPrograma(programa).map(doc => <label key={doc.id} style={{ display: 'grid', gap: 8, padding: 14, border: '2px dashed #8aa4b8', borderRadius: 10, background: '#f4f8fb', cursor: 'pointer' }}>
       <strong>{doc.label}{doc.required ? ' *' : ' (opcional)'}</strong>
-      <input type="file" name={doc.id} required={doc.required} accept=".pdf,.jpg,.jpeg,.png,.heic" style={{ fontSize: 16 }} onChange={event => {
+      <input type="file" name={doc.id} required={doc.required} accept=".pdf,.jpg,.jpeg,.png,.heic" style={{ fontSize: 16 }} onChange={async event => {
         const input = event.currentTarget
-        input.setCustomValidity(input.files?.[0] && input.files[0].size > MAX_ARCHIVO ? 'El documento supera 750 KB.' : '')
+        const original = input.files?.[0]
+        if (original) {
+          setComprimiendo(n => n + 1)
+          try {
+            const reducido = await comprimirFoto(original)
+            if (reducido !== original) {
+              const dt = new DataTransfer()
+              dt.items.add(reducido)
+              input.files = dt.files
+            }
+          } finally { setComprimiendo(n => n - 1) }
+        }
+        const file = input.files?.[0]
+        input.setCustomValidity(file && file.size > MAX_ARCHIVO ? 'El documento supera 1.5 MB. Si es PDF, sube mejor una foto.' : '')
         input.reportValidity()
       }} />
     </label>)}
     <p>Usaremos tus datos y documentos para tramitar tu solicitud. Solo personal autorizado de Windsor podrá revisarlos. Puedes solicitar aclaraciones a tu asesor. <a href="https://www.windsor.edu.mx" target="_blank" rel="noreferrer">Contacto Instituto Windsor</a>.</p>
     <label><input type="checkbox" name="consentimiento" value="si" required /> Autorizo el uso de mis datos para este trámite (o cuento con autorización del tutor).</label>
     {error && <p role="alert" style={{ color: '#a01616' }}>{error}</p>}
-    <button type="submit" disabled={busy || !id} style={{ padding: 14, background: '#19394d', color: 'white', borderRadius: 8, cursor: 'pointer' }}>{busy ? 'Enviando…' : 'Enviar solicitud de inscripción'}</button>
+    <button type="submit" disabled={busy || !id || comprimiendo > 0} style={{ padding: 14, background: '#19394d', color: 'white', borderRadius: 8, cursor: 'pointer' }}>{comprimiendo > 0 ? 'Preparando fotos…' : busy ? 'Enviando…' : 'Enviar solicitud de inscripción'}</button>
   </form>
 }

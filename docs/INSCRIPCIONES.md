@@ -1,5 +1,21 @@
 # Formulario público de inscripción
 
+## Documentos → Drive de Windsor (decisión de Harold, 17-oct-2026)
+
+Los documentos **no** se guardan en Supabase Storage. El CRM valida la solicitud y la manda al Apps Script del Sheet "SOLICITUD DE INSCRIPCIÓN LICENCIATURAS (respuestas)" (`apps-script/InscripcionCRM.gs`, archivo nuevo junto al script existente, que no se modifica). El Apps Script:
+
+1. Escribe la siguiente fila de la pestaña del programa (LIC, CL o DIPLOMADOS), con cada dato en su columna y los links de los documentos en las columnas de documentos.
+2. Llama a `onFormSubmit` del script existente: carpeta por alumno, documentos movidos, ficha PDF y columnas "Carpeta Drive"/"Ficha PDF", igual que con Google Forms.
+3. Devuelve carpeta y ficha; el CRM las guarda en `inscripciones.documentos` y la página de revisión las enlaza.
+
+Un reintento con el mismo folio no duplica la fila: se busca en la columna "Folio CRM". Diplomados se agrega a `FORM_CONFIGS` en memoria con la propiedad `DIPLOMADOS_FOLDER_ID`. Las fotos se comprimen en el navegador (≤700 KB, máx. 1800 px); los PDF aceptan hasta 1.5 MB; total ≤4 MB.
+
+**Configuración:**
+- Apps Script → Propiedades del script: `INSCRIPCION_SECRETO` (secreto largo aleatorio) y `DIPLOMADOS_FOLDER_ID`. Implementar como aplicación web (Ejecutar como: Yo · Acceso: Cualquier usuario).
+- Vercel (Production): `INSCRIPCION_DRIVE_URL` (URL `/exec`) e `INSCRIPCION_DRIVE_SECRETO` (mismo secreto).
+
+El bucket `inscripciones-privadas` del SQL ya corrido queda sin uso.
+
 Rutas: `/inscripcion/licenciaturas`, `/inscripcion/cursos-libres`, `/inscripcion/diplomados`, `/inscripcion/verano`. Prellenado opcional: `?wa=%2B527471234567&nombre=Ana&curso=...`. El formulario retira esos parámetros del historial una vez cargados y no muestra datos privados del CRM al visitante.
 
 **Pendiente antes del merge:** cotejar verano con su formulario original. Usa provisionalmente los campos de cursos libres. Los otros tres conjuntos se cotejaron con encabezados de las pestañas LIC, CL y DIPLOMADOS del Sheet `17kjIw5WR73i7I86XTyYr03YYcd7qU1OFvcxd7yHvlfg`, por API. Google Forms requiere login y Forms API devolvió 403: no se pudieron comprobar sus opciones de selección ni obligatoriedad exacta; curso, modalidad y medio se capturan como texto. Se incluyen los datos de los encabezados, sin columnas calculadas de Drive/ficha PDF.
@@ -12,7 +28,7 @@ Rutas: `/inscripcion/licenciaturas`, `/inscripcion/cursos-libres`, `/inscripcion
 4. `npm ci`, `npm run dev`. Abrir un formulario con un teléfono de prueba y adjuntar archivos ficticios. Acta y comprobante obligatorios; licenciaturas también certificado. CURP e INE se pueden adjuntar opcionalmente.
 5. Verificar que el mismo teléfono —incluido el formato mexicano antiguo `+521`— reutiliza el lead, conserva identidad/asignación existentes y pasa a `inscripcion_pendiente`. La conversación pasa a `inscribiendo`, respetando `modo_humano`. Un lead `inscrito` no retrocede. La solicitud guarda los datos capturados y registra `inscripcion_recibida` en `lead_activities`.
 6. Entrar al CRM y abrir el lead → **Solicitudes de inscripción** → revisar. La página `/inscripciones/[id]` requiere sesión y la API autoriza con RLS del lead antes de devolver datos o firmar documentos. Otro asesor sin acceso al lead debe recibir 404; sin sesión, API 401 y página redirige a login.
-7. Probar PDF/JPG/PNG/HEIC válidos, archivo renombrado incorrectamente, formatos no aceptados y tamaño excesivo. El máximo es **750 KB por documento y 4 MB por solicitud**, para caber en el límite de cuerpo de Vercel. Las fotografías grandes necesitan reducirse antes de subir; no hay compresión automática.
+7. Probar PDF/JPG/PNG/HEIC válidos, archivo renombrado incorrectamente, formatos no aceptados y tamaño excesivo. Máximo **1.5 MB por documento y 4 MB por solicitud** (límite de cuerpo de Vercel); las fotos se comprimen solas en el navegador.
 
 ## Comportamiento y límites
 
@@ -22,7 +38,7 @@ Rutas: `/inscripcion/licenciaturas`, `/inscripcion/cursos-libres`, `/inscripcion
 - Límite persistente de 20 solicitudes nuevas por IP por hora, guardando un HMAC con el secreto privado existente. Usa las cabeceras de IP del proxy; Vercel debe recibir el tráfico directamente. Un reintento de un folio ya guardado no vuelve a subir ni notifica otra vez.
 - La solicitud pública vincula por WhatsApp declarado, **sin verificación OTP**. No devuelve datos de leads, ni sobrescribe su identidad existente, ni confirma que el pago sea válido. Coordinación debe revisar la documentación antes de marcar inscrito.
 - El botón **Ya tengo mis documentos** usa el helper compartido del motor para generar el link prellenado en el webhook. Otros textos históricos de inscripción y bachillerato conservan sus enlaces anteriores.
-- Los envíos no se copian al Google Sheet ni a Drive; quedan en Supabase y se revisan desde el CRM.
+- Los datos quedan en Supabase (`inscripciones.datos`) y en el Sheet; los documentos solo en Drive.
 
 ## Pruebas
 
