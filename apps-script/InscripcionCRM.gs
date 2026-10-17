@@ -143,6 +143,9 @@ function doPost(e) {
     }
     var numFila = sheet.getLastRow() + 1;
     sheet.getRange(numFila, 1, 1, fila.length).setValues([fila]);
+    // Con hora, como las filas de Google Forms.
+    var colMarca = crmColumnaDe_(headers, "_marca");
+    if (colMarca !== -1) sheet.getRange(numFila, colMarca + 1).setNumberFormat("dd/MM/yyyy HH:mm:ss");
     SpreadsheetApp.flush();
 
     // Mismo proceso que un envío de Google Forms (carpeta, ficha PDF, links).
