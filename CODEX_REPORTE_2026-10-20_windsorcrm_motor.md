@@ -4,7 +4,7 @@
 
 - Rama: `codex/motor-seguimiento-limit`, desde `origin/main` actualizado (`94f071b`).
 - Worktree: `/Users/harold/software/windsorcrm-motor-limit`.
-- PR: pendiente de registrar al publicarlo; sin merge.
+- PR: [#47](https://github.com/ache2agency/windsorcrm/pull/47), abierto sin merge. Implementación: `7d005ba`.
 
 ## Cambios
 
@@ -18,7 +18,7 @@
 - `npm test`: **78/78** (71 regresiones, 4 filtros y 3 pruebas nuevas con varios escenarios).
 - Prueba del GET real con Supabase simulado: **3,134 revisadas vs. 700**; lead reciente fuera de los primeros 700, siete páginas, canal interno, avisos al canal, recordatorios de nombre y correo en <24 h tras nueva respuesta, formatos anteriores, límite exacto de 24 h y errores de consulta. Bloquea cualquier escritura/envío durante la prueba.
 - `npm run build`: **OK**, Turbopack y TypeScript, con variables ficticias de Supabase. El primer intento falló al descargar Google Fonts en sandbox; repetido con acceso de red, pasó.
-- `npx tsc --noEmit`: OK; `git diff --check`: OK.
+- `npx tsc --noEmit`, lint de los cuatro archivos TypeScript modificados y `git diff --check`: OK.
 
 ## Dry-run con datos reales, solo lectura
 
