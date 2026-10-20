@@ -11,7 +11,7 @@ const originalFetch = globalThis.fetch
 let lecturas = 0
 globalThis.fetch = async (input, init) => {
   const request = new Request(input, init)
-  assert.equal(request.method, 'GET', 'El dry-run no permite escrituras ni envíos')
+  assert.ok(['GET', 'HEAD'].includes(request.method), 'El dry-run no permite escrituras ni envíos')
   assert.equal(new URL(request.url).origin, new URL(supabaseUrl).origin)
   lecturas++
   return originalFetch(input, init)
@@ -34,6 +34,7 @@ for (const r of body.resultados) conteo[r.accion] = (conteo[r.accion] || 0) + 1
 console.log(JSON.stringify({
   antes: antes?.length, ahora: body.revisadas, acciones: body.acciones,
   porAccion: conteo,
+  templates: body.templates,
   canalInternoOmitido: body.resultados.filter((r: { detalle: string }) => r.detalle === 'canal interno de asesores').length,
   recordatoriosBloqueados24h: body.resultados.filter((r: { detalle: string }) => r.detalle === 'recordatorio del mismo dato hace menos de 24h').length,
   lecturas, segundos: Math.round((performance.now() - inicio) / 1000),

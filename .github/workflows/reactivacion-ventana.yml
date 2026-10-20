@@ -9,6 +9,11 @@ on:
     - cron: '5 * * * *'
   workflow_dispatch:
 
+# Serializa schedule y workflow_dispatch para que dos corridas no gasten el mismo cupo.
+concurrency:
+  group: seguimiento-motor
+  cancel-in-progress: false
+
 jobs:
   seguimiento:
     runs-on: ubuntu-latest

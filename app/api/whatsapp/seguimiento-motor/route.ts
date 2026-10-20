@@ -281,10 +281,16 @@ async function run(request: Request) {
 
   const inicioDiaMx = inicioDiaMexicoIso(ahora)
   const resultados: Array<Record<string, unknown>> = []
+  const decisiones: Array<{
+    conv: (typeof convs)[number]
+    lead: LeadRow
+    decision: DecisionSeguimiento
+    orden: number
+  }> = []
 
   // Concurrencia acotada para que quitar el límite no multiplique la duración serial.
   for (let offset = 0; offset < convs.length; offset += 10) {
-    await Promise.all(convs.slice(offset, offset + 10).map(async (conv) => {
+    await Promise.all(convs.slice(offset, offset + 10).map(async (conv, index) => {
       const base = { conversacion_id: conv.id, whatsapp: maskPhone(conv.whatsapp), fase: conv.fase }
       const omit = (detalle: string) => resultados.push({ ...base, accion: 'omitido', detalle })
 
@@ -370,33 +376,64 @@ async function run(request: Request) {
         return
       }
 
-      try {
-        const ejec = await ejecutarDecision({ supabase, conv, lead, decision, dryRun })
-        resultados.push({
-          ...base,
-          lead_id: lead.id,
-          accion: ejec.accion,
-          regla: decision.reglaId,
-          etapa: decision.etapa,
-          carril: decision.carril,
-          detalle: ejec.detalle,
-        })
-      } catch (e) {
-        resultados.push({
-          ...base,
-          accion: 'error',
-          regla: decision.reglaId,
-          detalle: e instanceof Error ? e.message : String(e),
-        })
-      }
+      decisiones.push({ conv, lead, decision, orden: offset + index })
     }))
   }
+
+  // Contar en BD, no en memoria: el cupo se comparte entre las corridas del día.
+  const finDiaMx = new Date(new Date(inicioDiaMx).getTime() + 24 * 3600_000).toISOString()
+  const { count: enviadosHoy, error: conteoError } = await supabase
+    .from('whatsapp_mensajes')
+    .select('id', { count: 'exact', head: true })
+    .eq('rol', 'bot')
+    .eq('raw_payload->seguimiento_motor->>accion', 'template')
+    .gte('created_at', inicioDiaMx)
+    .lt('created_at', finDiaMx)
+  if (conteoError || enviadosHoy === null) {
+    return Response.json({ error: conteoError?.message || 'No se pudo contar templates de hoy' }, { status: 500 })
+  }
+  const configurado = process.env.SEGUIMIENTO_MOTOR_MAX_TEMPLATES_DIA?.trim()
+  const limiteDia = configurado && /^\d+$/.test(configurado) && Number.isSafeInteger(Number(configurado))
+    ? Number(configurado) : 40
+  const cupoDisponible = Math.max(0, limiteDia - enviadosHoy)
+  // Restaurar el orden de la consulta: la latencia de evaluación no da prioridad.
+  decisiones.sort((a, b) => a.orden - b.orden)
+  const templates = decisiones.filter(({ decision }) => decision.accion === 'template')
+  const seleccionados = templates.slice(0, cupoDisponible)
+  for (const { conv, lead, decision } of templates.slice(cupoDisponible)) {
+    resultados.push({
+      conversacion_id: conv.id, whatsapp: maskPhone(conv.whatsapp), fase: conv.fase,
+      lead_id: lead.id, accion: 'omitido', regla: decision.reglaId,
+      detalle: 'tope diario de templates',
+    })
+  }
+  const ejecutar = async ({ conv, lead, decision }: (typeof decisiones)[number]) => {
+    const base = { conversacion_id: conv.id, whatsapp: maskPhone(conv.whatsapp), fase: conv.fase }
+    try {
+      const ejec = await ejecutarDecision({ supabase, conv, lead, decision, dryRun })
+      resultados.push({
+        ...base, lead_id: lead.id, accion: ejec.accion, regla: decision.reglaId,
+        etapa: decision.etapa, carril: decision.carril, detalle: ejec.detalle,
+      })
+    } catch (e) {
+      resultados.push({ ...base, accion: 'error', regla: decision.reglaId, detalle: e instanceof Error ? e.message : String(e) })
+    }
+  }
+  const otras = decisiones.filter(({ decision }) => decision.accion !== 'template')
+  for (let offset = 0; offset < otras.length; offset += 10) {
+    await Promise.all(otras.slice(offset, offset + 10).map(ejecutar))
+  }
+  // Templates en serie: ningún grupo paralelo puede gastar el mismo cupo.
+  // Un intento fallido no se reemplaza en esta corrida para no sobreenviar.
+  for (const preparada of seleccionados) await ejecutar(preparada)
 
   const activos = resultados.filter((r) => !['omitido'].includes(String(r.accion)))
   return Response.json({
     ok: true,
     dryRun,
     horaMexico: hora,
+    templates: { limiteDia, enviadosHoy, cupoDisponible, propuestos: templates.length,
+      seleccionados: seleccionados.length, diferidos: templates.length - seleccionados.length },
     revisadas: resultados.length,
     acciones: activos.length,
     resultados: dryRun ? resultados : activos,

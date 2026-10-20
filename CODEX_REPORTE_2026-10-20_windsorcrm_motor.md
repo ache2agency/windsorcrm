@@ -41,3 +41,37 @@ El canal interno no apareció entre las candidatas actuales; tampoco hubo un rec
 La cobertura recuperada aumenta el volumen potencial del siguiente cron: este dry-run propone 165 mensajes. Los 69 s miden lecturas y decisiones, no latencia de envíos Meta; `maxDuration=300` se conserva. Revisar estos números antes del merge.
 
 Sin SQL, merge, deploy manual ni envíos. PR #46 y crmanax #53 intactos. No existía `windsor/windsorcrm/CLAUDE.md`; se leyó `docs/CONTEXT.md`. Checkout principal con cambios ajenos intacto.
+
+
+## 1b — Tope diario de templates (20-oct-2026)
+
+Implementado en la misma rama y PR #47, sin merge:
+
+- `SEGUIMIENTO_MOTOR_MAX_TEMPLATES_DIA`: **40 por defecto**; acepta enteros ≥0 (0 pausa templates). Valores inválidos usan 40.
+- Conteo exacto en Supabase de mensajes del bot con `raw_payload.seguimiento_motor.accion=template` dentro del día de México. Resta los envíos anteriores de hoy; si falla el conteo, no ejecuta acciones.
+- Primero evalúa todas las conversaciones en paralelo; después restaura el orden `ultimo_mensaje_at DESC` (ID para desempates) y ejecuta los templates seleccionados en serie. La latencia de consultas no altera la prioridad.
+- Los que exceden el cupo quedan `omitido`, detalle **`tope diario de templates`**, sin escrituras ni marca de envío; vuelven a evaluarse en próximas corridas/días. Textos y avisos al asesor no consumen cupo.
+- Corregido `inicioDiaMexicoIso` para que dé la medianoche real de México aunque el servidor use UTC; pruebas antes/después del cambio de día y con tres zonas del servidor.
+- Workflow horario/manual de GitHub serializado con `concurrency`, sin cancelar una corrida activa. Esto evita solapamientos de ese workflow; llamadas directas simultáneas desde otros sistemas no tienen un bloqueo distribuido en BD.
+- Recordatorios de datos permanecen en **24 h**; cierres siguen apagados.
+
+**Pruebas:** `npm test` OK: 71 casos de regresión, 4 pruebas de filtros y 11 pruebas del motor (incluyen 6 escenarios del tope). Cubren cupo lleno, 38 ya enviados → solo dos más recientes, nueva corrida sin cupo, textos/avisos independientes, configuración/0/default y error de conteo. Se simulan también envíos y persistencia; no acceden a Meta real. `npm run build`, TypeScript, lint de archivos modificados y `git diff --check`: OK. Build con credenciales ficticias; repetido con red para Google Fonts tras fallar en sandbox.
+
+**Nuevo dry-run real, solo lectura (GET/HEAD a Supabase, cualquier escritura/envío bloqueado):**
+
+| Medida | Resultado |
+|---|---:|
+| Conversaciones revisadas | 3,153 (antes 700) |
+| Templates candidatos | 159 |
+| Templates ya enviados hoy por el motor | 2 |
+| Cupo diario | 40 |
+| Templates propuestos para esta corrida | **38** |
+| Templates diferidos | **121** |
+| Textos propuestos (fuera del cupo) | 3 |
+| Cierres apagados | 255 |
+| Duración / lecturas | 66 s / 3,554 |
+| Envíos / escrituras de este dry-run | **0 / 0** |
+
+Los 121 diferidos se reevaluarán con el cupo de días posteriores; el número final puede variar por respuestas, cambios de fase y nuevos leads. No se creó una cola ni se marcaron como enviados.
+
+**DETENIDO después de 1b.** Sin SQL, merge, deploy manual, cambio de variables de producción ni envíos. Tareas 2 y 3 no iniciadas.

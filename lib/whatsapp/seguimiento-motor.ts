@@ -84,9 +84,14 @@ export function dentroHorarioMexico(date: Date): boolean {
 }
 
 export function inicioDiaMexicoIso(date: Date): string {
-  const mx = new Date(date.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }))
-  mx.setHours(0, 0, 0, 0)
-  return mx.toISOString()
+  // No interpretar la hora de México como hora local del servidor (Vercel usa UTC).
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZoneName: 'longOffset',
+  }).formatToParts(date)
+  const valor = (tipo: Intl.DateTimeFormatPartTypes) => partes.find((p) => p.type === tipo)!.value
+  const offset = valor('timeZoneName').replace('GMT', '') || 'Z'
+  return new Date(`${valor('year')}-${valor('month')}-${valor('day')}T00:00:00${offset}`).toISOString()
 }
 
 export function clasificarCarril(curso: string | null | undefined): CarrilSeguimiento {
