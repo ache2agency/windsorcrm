@@ -1,3 +1,6 @@
+import { ADMIN_WA_ALERTA } from '@/lib/whatsapp/atencion'
+import { textoTemplateEnviado } from '@/lib/whatsapp/template-registro'
+import { ejecutarRevisionesPendientes } from '@/lib/whatsapp/revision-timeout'
 import { createServiceRoleClient } from '@/utils/supabase/server'
 import { normalizePhoneNumber, sendMetaWhatsAppMessage, sendMetaWhatsAppTemplate } from '@/lib/whatsapp/provider'
 import { hasLeadName } from '@/lib/whatsapp/nombres'
@@ -124,15 +127,6 @@ async function avisarAsesor(
   decision: DecisionSeguimiento,
   dryRun: boolean
 ): Promise<string> {
-  if (!lead.asignado_a) return 'sin asesor asignado'
-  const { data: perfil } = await supabase
-    .from('profiles')
-    .select('whatsapp, nombre')
-    .eq('id', lead.asignado_a)
-    .maybeSingle()
-  const asesorWhatsapp = perfil?.whatsapp as string | null | undefined
-  if (!asesorWhatsapp) return 'asesor sin whatsapp'
-  if (esCanalInternoSeguimiento(asesorWhatsapp)) return 'canal interno de asesores excluido'
   const msg = [
     '📌 Seguimiento automático Windsor',
     `Regla: ${decision.reglaId}`,
@@ -141,13 +135,13 @@ async function avisarAsesor(
     lead.whatsapp ? `WhatsApp: ${lead.whatsapp}` : null,
     decision.detalle,
   ].filter(Boolean).join('\n')
-  if (dryRun) return `dry aviso a ${maskPhone(asesorWhatsapp)}`
-  await sendMetaWhatsAppMessage({ to: asesorWhatsapp, body: msg })
+  if (dryRun) return `dry aviso a ${maskPhone(ADMIN_WA_ALERTA)}`
+  await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: msg })
   await supabase.from('lead_activities').insert([{
     lead_id: lead.id,
     actor_id: null,
     event_type: 'seguimiento_motor_aviso_asesor',
-    title: 'Aviso al asesor',
+    title: 'Aviso a Harold',
     detail: decision.detalle,
     meta: { reglaId: decision.reglaId, source: 'seguimiento_motor' },
   }])
@@ -178,6 +172,7 @@ async function ejecutarDecision(params: {
       carril: decision.carril,
       accion: decision.accion,
       templateName: decision.templateName || null,
+      templateParams: decision.templateParams || [],
     },
   }
 
@@ -230,7 +225,8 @@ async function ejecutarDecision(params: {
   if (decision.accion === 'template') {
     if (!decision.templateName) throw new Error('Decision template sin templateName')
     if (!dryRun) {
-      await sendMetaWhatsAppTemplate({
+      const textoReal = await textoTemplateEnviado(decision.templateName, decision.templateParams || [])
+      const enviado = await sendMetaWhatsAppTemplate({
         to: conv.whatsapp,
         templateName: decision.templateName,
         parameters: decision.templateParams || [],
@@ -238,8 +234,8 @@ async function ejecutarDecision(params: {
       await supabase.from('whatsapp_mensajes').insert([{
         conversacion_id: conv.id,
         rol: 'bot',
-        contenido: `[Template: ${decision.templateName}]`,
-        raw_payload: raw,
+        contenido: textoReal || `[Template: ${decision.templateName}]`,
+        raw_payload: { ...raw, wamid: enviado.id, template_body_resolved: Boolean(textoReal) },
       }])
       await supabase.from('whatsapp_conversaciones').update({ ultimo_mensaje_at: new Date().toISOString() }).eq('id', conv.id)
       if (decision.avisoAsesor) await avisarAsesor(supabase, lead, decision, false)
@@ -256,11 +252,17 @@ async function run(request: Request) {
   const dryRun = url.searchParams.get('dry') === '1' || url.searchParams.get('dryRun') === '1'
   const ahora = new Date()
   const hora = horaMexico(ahora)
+  const supabase = createServiceRoleClient()
+  // Revisión humana tiene su propio reloj (4/20h); el horario comercial y las
+  // reglas 3h/20h/días del seguimiento ordinario permanecen intactas.
+  let revisiones
+  try { revisiones = await ejecutarRevisionesPendientes(supabase, dryRun, ahora) }
+  catch (error) { return Response.json({ error: error instanceof Error ? error.message : 'Error revisiones' }, { status: 500 }) }
+
   if (!dryRun && !dentroHorarioMexico(ahora)) {
-    return Response.json({ ok: true, dryRun, omitido: `fuera de horario (${hora}h Mexico)` })
+    return Response.json({ ok: true, dryRun, revisiones, omitido: `fuera de horario (${hora}h Mexico)` })
   }
 
-  const supabase = createServiceRoleClient()
   // Cargar todas las páginas ANTES de enviar: los envíos cambian ultimo_mensaje_at.
   // El id desempata fechas iguales/nulas y evita páginas con orden indeterminado.
   const convs = []
@@ -432,6 +434,7 @@ async function run(request: Request) {
     ok: true,
     dryRun,
     horaMexico: hora,
+    revisiones,
     templates: { limiteDia, enviadosHoy, cupoDisponible, propuestos: templates.length,
       seleccionados: seleccionados.length, diferidos: templates.length - seleccionados.length },
     revisadas: resultados.length,

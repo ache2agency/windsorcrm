@@ -314,3 +314,8 @@ La lógica de roles se basa en el campo `rol` en `profiles` y/o metadatos de usu
 Con esto, cualquier persona (incluyéndote tú en unas semanas) puede entender rápido qué hace el proyecto y por dónde empezar.
 
 *Última actualización (2026-08-29): Se documentó la revisión de 30 conversaciones reales, el estado incompleto de reactivaciones, la interpretación de fases del bot y los experimentos de UX todavía pendientes de validar.*
+
+
+### 0A — Correcciones del bot (24-oct-2026, PR pendiente de revisión)
+
+Inscripción reutiliza los mensajes vigentes de `lib/whatsapp/inscripcion.ts`, prioriza curso guardado y pregunta lista cerrada en `inscripcion_programa` cuando falta identificarlo. Avisos de webhook/motor van solo a Harold; espera estándar sin promesas de asesores. Revisiones nuevas tienen recordatorio 4h y reanudación 20h, configurables, con RPC atómica y marca sin backfill; las 13 antiguas quedan fuera. El motor guarda BODY real con parámetros y wamid; backfill histórico solo en archivo. Migración `supabase/revision_timeout_2026_10_24.sql` pendiente: aplicar antes de desplegar. Ver `docs/0A_4_ERRORES.md` para activación, límites y script. Lógica de tiempos del seguimiento normal y PR #46 intactos; mejoras 0B no iniciadas.

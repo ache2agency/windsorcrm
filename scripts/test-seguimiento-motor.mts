@@ -70,6 +70,7 @@ test('dry-run del endpoint: todas las páginas, canal interno y cooldown tras nu
     assert.ok(['GET', 'HEAD'].includes(method), 'dry-run no puede escribir ni enviar')
     assert.equal(url.hostname, 'motor-test.supabase.co', 'ningún envío a Meta')
     const q = url.searchParams
+    if (q.has('revision_timeout_desde_at')) return Response.json([])
     const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } })
     if (url.pathname.endsWith('/whatsapp_conversaciones')) {
       assert.equal(q.get('order'), 'ultimo_mensaje_at.desc.nullslast,id.asc')
@@ -119,7 +120,7 @@ test('dry-run del endpoint: todas las páginas, canal interno y cooldown tras nu
   }
   assert.equal(resultado('conv-0704').accion, 'dry_texto')
   assert.equal(resultado('conv-0705').accion, 'cierre_apagado_archivar')
-  assert.equal(resultado('conv-0706').detalle, 'canal interno de asesores excluido')
+  assert.equal(resultado('conv-0706').detalle, 'dry aviso a 5274***06')
   console.log(`Dry-run fixture: antes 700; ahora ${body.revisadas}; acciones ${body.acciones}; cero envíos/escrituras`)
 
   falloPagina = true
@@ -160,7 +161,7 @@ test('tope diario del endpoint con envíos y persistencia simulados', async (t) 
     const envAnterior = { ...process.env }
     Object.assign(process.env, {
       NEXT_PUBLIC_SUPABASE_URL: 'https://motor-test.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'test',
-      CRON_SECRET: 'test', META_WHATSAPP_TOKEN: 'test', META_PHONE_NUMBER_ID: 'test',
+      CRON_SECRET: 'test', META_WHATSAPP_TOKEN: 'test', META_PHONE_NUMBER_ID: 'test', META_WHATSAPP_BUSINESS_ACCOUNT_ID: 'test-business',
     })
     if (escenario.limite === undefined) delete process.env.SEGUIMIENTO_MOTOR_MAX_TEMPLATES_DIA
     else process.env.SEGUIMIENTO_MOTOR_MAX_TEMPLATES_DIA = escenario.limite
@@ -183,14 +184,18 @@ test('tope diario del endpoint con envíos y persistencia simulados', async (t) 
       { id: 'reciente-c', horas: 70, fase: 'saludo' },
       { id: 'backlog', horas: 1000, fase: 'saludo' },
     ].map((c, i) => ({ ...c, whatsapp: `+52550000000${i}`, lead_id: c.id, provider: 'meta', estado: 'abierta', ultimo_mensaje_at: hace(c.horas) }))
-    const enviados: Array<{ type: string; to: string }> = []
-    const inserts: Array<{ conversacion_id?: string }> = []
+    const enviados: Array<{ type: string; to: string; text?: { body: string } }> = []
+    const inserts: Array<{ conversacion_id?: string; contenido?: string; raw_payload?: { wamid?: string; seguimiento_motor?: { accion: string; templateParams?: string[] } } }> = []
     const leadsEvaluados = new Set<string>()
     st.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
       const request = new Request(input, init)
       const url = new URL(request.url)
       const q = url.searchParams
+      if (q.has('revision_timeout_desde_at')) return Response.json([])
       const json = (data: unknown) => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
+      if (url.hostname === 'graph.facebook.com' && url.pathname.endsWith('/message_templates')) {
+        return json({ data: [{ name: q.get('name'), status: 'APPROVED', language: 'es_MX', components: [{ type: 'BODY', text: q.get('name') === 'windsor_elige_programa' ? '¿Qué programa te interesa?' : 'Hola {{1}}, seguimos pendientes.' }] }] })
+      }
       if (url.hostname === 'graph.facebook.com') {
         assert.equal(leadsEvaluados.size, convs.length, 'evaluar todas las decisiones antes de enviar')
         enviados.push(await request.json())
@@ -258,6 +263,12 @@ test('tope diario del endpoint con envíos y persistencia simulados', async (t) 
       convs.slice(2, 2 + escenario.esperados).map((c) => c.whatsapp.replace(/^\+/, '')))
     assert.equal(enviados.filter((m) => m.type === 'text').length, 2, 'texto y aviso no usan cupo')
     assert.equal(inserts.some((r) => r.conversacion_id === 'backlog'), false)
+    for (const row of inserts.filter(r => r.raw_payload?.seguimiento_motor?.accion === 'template')) {
+      assert.equal(row.raw_payload?.wamid, 'wamid.mock')
+      assert.doesNotMatch(row.contenido || '', /\[Template:|\{\{/)
+      assert.ok(row.contenido)
+    }
+    assert.ok(enviados.filter(m => m.type === 'text' && m.text?.body.includes('Seguimiento automático Windsor')).every(m => m.to.replace(/^\+/, '') === '527471028306'))
     if (escenario.previos === 38) {
       const siguiente = await (await GET(req(true))).json()
       assert.equal(siguiente.templates.enviadosHoy, 40)

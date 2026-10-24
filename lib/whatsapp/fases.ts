@@ -31,6 +31,7 @@ export const ETIQUETA_FASE: Record<string, string> = {
   accion: 'Decidiendo',
   examen: 'Examen',
   clase_prueba: 'Clase',
+  inscripcion_programa: 'Inscribiéndose',
   inscripcion: 'Inscribiéndose',
   inscripcion_pendiente: 'Inscribiéndose',
   inscribiendo: 'Inscribiéndose',

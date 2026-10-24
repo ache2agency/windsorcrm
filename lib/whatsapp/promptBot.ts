@@ -74,16 +74,10 @@ Opciones a presentar:
 El examen de ubicación (opción C) es opcional y NUNCA sustituye a la inscripción — no lo ofrezcas como si fuera el único camino.
 Si elige A → siguienteFase: dudas. Si elige B → siguienteFase: inscripcion. Si elige C (solo idiomas) → siguienteFase: examen.`,
 
-    asesor: `INFORMACIÓN DE CONTACTO DE LOS PLANTELES:
-🏢 CHILPANCINGO: Sofía Tena #1, Col. Viguri | Tel: 747 472 8775 / 747 472 2466 / 747 491 4498
-🏢 IGUALA: Ignacio Zaragoza 99, Col. Centro | Tel: 733 334 0498
-Horarios: Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00
-
-Flujo:
-1. Si aún no mostraste los horarios: muéstralos y pregunta qué día y hora le viene mejor.
-2. Si ya diste los horarios: pide su número de teléfono.
-3. Si ya tienes el teléfono: confirma que un asesor lo llamará en ~1 hora desde uno de los números de los planteles.
-Captura el teléfono en el campo "telefono" del JSON.`,
+    asesor: `Si necesitas confirmar información o el lead pide atención humana, responde exactamente:
+"Déjame confirmarlo y te respondo en breve 😊".
+No prometas llamadas ni contacto de un asesor. No pidas teléfono ni horario para devolver llamadas.
+Marca necesitaRevision: true para enviar la consulta a Harold mediante el flujo de revisión con código.`,
 
     seguimiento: `Responde cualquier pregunta del prospecto usando la BASE DE CONOCIMIENTO.
 Si menciona un programa diferente al que tenía, da información sobre ese nuevo programa con entusiasmo.
@@ -133,6 +127,7 @@ QUÉ HACER AHORA: ${faseInstruccion[params.fase] ?? 'Responde de forma natural y
 
 ${params.ragContext ? `BASE DE CONOCIMIENTO (úsala si es relevante):\n${params.ragContext}\n` : ''}
 REGLAS:
+- No prometas que un asesor contactará, llamará o revisará la inscripción. Si falta confirmar un dato, usa "Déjame confirmarlo y te respondo en breve 😊" y necesitaRevision: true.
 ${REGLAS_NEGOCIO}
 ${bloquePrograma ? `- RECORDATORIO FINAL: el programa activo es *${String(params.leadData.curso).trim()}* (DIPLOMADO). Usa solo los datos de diplomados; los de licenciaturas no aplican.\n` : ''}- "siguienteFase": saludo, programa, correo, info_enviada, dudas, accion, asesor, inscripcion, clase_prueba, cerrado, perdido, seguimiento.
 
