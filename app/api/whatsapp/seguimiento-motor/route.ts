@@ -252,16 +252,13 @@ async function run(request: Request) {
   const dryRun = url.searchParams.get('dry') === '1' || url.searchParams.get('dryRun') === '1'
   const ahora = new Date()
   const hora = horaMexico(ahora)
+  if (!dryRun && !dentroHorarioMexico(ahora)) {
+    return Response.json({ ok: true, dryRun, revisiones: [], omitido: `fuera de horario (${hora}h Mexico)` })
+  }
   const supabase = createServiceRoleClient()
-  // Revisión humana tiene su propio reloj (4/20h); el horario comercial y las
-  // reglas 3h/20h/días del seguimiento ordinario permanecen intactas.
   let revisiones
   try { revisiones = await ejecutarRevisionesPendientes(supabase, dryRun, ahora) }
   catch (error) { return Response.json({ error: error instanceof Error ? error.message : 'Error revisiones' }, { status: 500 }) }
-
-  if (!dryRun && !dentroHorarioMexico(ahora)) {
-    return Response.json({ ok: true, dryRun, revisiones, omitido: `fuera de horario (${hora}h Mexico)` })
-  }
 
   // Cargar todas las páginas ANTES de enviar: los envíos cambian ultimo_mensaje_at.
   // El id desempata fechas iguales/nulas y evita páginas con orden indeterminado.

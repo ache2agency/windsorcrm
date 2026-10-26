@@ -3,6 +3,7 @@ import { ADMIN_WA_ALERTA } from './atencion'
 import { DATOS_DIPLOMADOS } from './reglasNegocio'
 import { esDiplomado } from './programas'
 import { sendMetaWhatsAppMessage } from './provider'
+import { dentroHorarioMexico } from './seguimiento-motor'
 
 export function plazosRevision(env: Record<string, string | undefined> = process.env) {
   const recordatorio = Number(env.REVISION_RECORDATORIO_HORAS || 4)
@@ -18,10 +19,23 @@ export type RevisionPendiente = {
   revision_draft: string | null; modo_humano: boolean; tomado_por: string | null
 }
 
-export function accionRevision(c: RevisionPendiente, ahora: Date, plazos = plazosRevision()) {
+// La siguiente corrida es una hora después; si cae de noche, buscar la primera
+// corrida en horario conservando los minutos del cron (p. ej. :35).
+export function siguienteCorridaRevision(ahora: Date) {
+  const siguiente = new Date(ahora.getTime() + 3600_000)
+  while (!dentroHorarioMexico(siguiente)) siguiente.setTime(siguiente.getTime() + 3600_000)
+  return siguiente
+}
+
+export function accionRevision(c: RevisionPendiente, ahora: Date, plazos = plazosRevision(), ultimoUsuarioAt?: string | null) {
+  if (!dentroHorarioMexico(ahora)) return null
   if (!c.revision_timeout_desde_at || !c.revision_codigo || !c.modo_humano || c.tomado_por || c.revision_draft) return null
   const horas = (ahora.getTime() - Date.parse(c.revision_timeout_desde_at)) / 3600_000
   if (horas >= plazos.reactivar) return 'reactivar'
+  // Última oportunidad del cron antes del cierre de la ventana del USUARIO.
+  // Se conserva el margen de seguridad de 30 min del motor ordinario.
+  const cierre = Date.parse(ultimoUsuarioAt || '') + 23.5 * 3600_000
+  if (Number.isFinite(cierre) && siguienteCorridaRevision(ahora).getTime() >= cierre) return 'reactivar'
   if (horas >= plazos.recordatorio && !c.revision_recordatorio_at) return 'recordatorio'
   return null
 }
@@ -40,6 +54,9 @@ export async function ejecutarRevisionesPendientes(
   db: SupabaseClient, dryRun: boolean, ahora = new Date(),
   enviar = sendMetaWhatsAppMessage,
 ) {
+  // Defensa adicional para invocaciones directas, incluso dry-run: cero envíos,
+  // reservas o consultas de revisiones de madrugada.
+  if (!dentroHorarioMexico(ahora)) return []
   const plazos = plazosRevision()
   const rows: RevisionPendiente[] = []
   // Paginación antes de mutar. No consulta ni modifica revisiones legacy sin marca.
@@ -54,7 +71,12 @@ export async function ejecutarRevisionesPendientes(
   }
   const resultados = []
   for (const row of rows) {
-    const accion = accionRevision(row, ahora, plazos)
+    if (!row.revision_timeout_desde_at || !row.revision_codigo || !row.modo_humano || row.tomado_por || row.revision_draft) continue
+    if (row.provider === 'messenger' || row.provider === 'twilio') continue
+    const { data: ultimo, error: ultimoError } = await db.from('whatsapp_mensajes').select('created_at')
+      .eq('conversacion_id', row.id).eq('rol', 'usuario').order('created_at', { ascending: false }).limit(1).maybeSingle()
+    if (ultimoError) { resultados.push({ conversacion_id: row.id, accion: 'error_revision', detalle: ultimoError.message }); continue }
+    const accion = accionRevision(row, ahora, plazos, ultimo?.created_at)
     if (!accion || row.provider === 'messenger' || row.provider === 'twilio') continue
     if (dryRun) { resultados.push({ conversacion_id: row.id, accion: `dry_revision_${accion}` }); continue }
     const { data, error } = await db.rpc('reclamar_revision_timeout', {
@@ -76,10 +98,12 @@ export async function ejecutarRevisionesPendientes(
         texto = `⏰ Revisión pendiente *[${claimed.revision_codigo!.toUpperCase()}]*\nLead: ${row.whatsapp}\nResponde: ${claimed.revision_codigo!.toUpperCase()}: tu explicación aquí`
         await enviar({ to: ADMIN_WA_ALERTA, body: texto })
       } else {
-        const { data: ultimo, error: ultimoError } = await db.from('whatsapp_mensajes').select('created_at')
+        // Volver a consultar antes del envío: el lead puede escribir mientras se
+        // reclama la revisión y abrir una ventana nueva.
+        const { data: reciente, error: recienteError } = await db.from('whatsapp_mensajes').select('created_at')
           .eq('conversacion_id', row.id).eq('rol', 'usuario').order('created_at', { ascending: false }).limit(1).maybeSingle()
-        if (ultimoError) throw ultimoError
-        const ventana = ultimo && ahora.getTime() - Date.parse(ultimo.created_at) < 23.5 * 3600_000
+        if (recienteError) throw recienteError
+        const ventana = reciente && ahora.getTime() - Date.parse(reciente.created_at) < 23.5 * 3600_000
         if (!ventana) finalAccion = 'reactivar_sin_ventana'
         else {
           const { data: lead, error: leadError } = row.lead_id

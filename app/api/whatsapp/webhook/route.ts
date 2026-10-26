@@ -176,7 +176,6 @@ async function logBotMessageAndUpdateFase(
   nextFase?: string,
   leadId?: string | null
 ) {
-  message = quitarPromesasAsesor(message)
   await supabase.from('whatsapp_mensajes').insert([
     { conversacion_id: conversacionId, rol: 'bot', contenido: limpiarFormatoWhatsApp(message) },
   ])
@@ -799,7 +798,7 @@ async function buildProviderResponse(
   message: string,
   waNumber: string
 ) {
-  const mensaje = limpiarFormatoWhatsApp(quitarPromesasAsesor(message))
+  const mensaje = limpiarFormatoWhatsApp(message)
   const plan = waNumber ? await planDiplomadoPendiente(mensaje, waNumber) : null
 
   if (provider === 'meta') {
@@ -1415,7 +1414,7 @@ const REVALIDACION_MATERIAS_MSG = `Para revisar si podemos revalidarte materias 
 • Tu nombre completo
 • Tu número de WhatsApp
 
-En cuanto lo envíes, confírmanoslo por aquí para darle seguimiento. Un asesor revisará tu kardex y te dirá qué materias aplican. 😊`
+En cuanto lo envíes, confírmanoslo por aquí y revisamos qué materias aplican 😊`
 
 /** Detecta si el mensaje es alguien buscando trabajo/vacante docente, NO un prospecto de inscripción */
 function detectarConsultaVacante(msg: string): boolean {
@@ -1735,6 +1734,60 @@ function respuestaDatoConfirmado(
   return null
 }
 
+
+// Un solo flujo de código/aviso para incertidumbre de IA o inscripción atascada.
+async function solicitarRevisionCodigo(params: {
+  supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
+  conversacionId: string, provider: WhatsAppProvider, waNumber: string,
+  leadSnapshot: Pick<LeadSnapshot, 'nombre' | 'curso'> | null, originalText: string,
+}): Promise<Response> {
+  const { supabase, conversacionId, provider, waNumber, leadSnapshot, originalText } = params
+  // Asignar código de a-z según cuántos pendientes hay. Un código solo cuenta como
+  // "usado" si se asignó en las últimas 48h — evita que uno quede pegado para
+  // siempre cuando Harold nunca llega a aprobarlo con "X ok" (bug real: 88
+  // conversaciones acabaron compartiendo 'c' desde jun-2026 con el pool viejo de a-c).
+  const CODIGOS_REVISION = 'abcdefghijklmnopqrstuvwxyz'.split('')
+  let codigo = CODIGOS_REVISION[0]
+  try {
+    const hace48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+    const { data: pendientes } = await supabase
+      .from('whatsapp_conversaciones')
+      .select('revision_codigo')
+      .not('revision_codigo', 'is', null)
+      .gte('revision_codigo_asignado_at', hace48h)
+    const usados = new Set((pendientes || []).map((c: any) => c.revision_codigo))
+    codigo = CODIGOS_REVISION.find(c => !usados.has(c)) || CODIGOS_REVISION[CODIGOS_REVISION.length - 1]
+  } catch { /* usar 'a' por defecto */ }
+
+  // Mensaje al lead avisando que se escala con un asesor
+  const msgEspera = MENSAJE_ESPERA
+  await supabase.from('whatsapp_mensajes').insert([{
+    conversacion_id: conversacionId,
+    rol: 'bot',
+    contenido: msgEspera,
+  }])
+  // Guardar pausa y vencimiento juntos: si falta la migración o falla BD,
+  // no dejar el bot apagado sin una revisión recuperable.
+  const revisionDesde = new Date().toISOString()
+  const { error: revisionError } = await supabase.from('whatsapp_conversaciones')
+    .update({ modo_humano: true, ultimo_mensaje_at: revisionDesde,
+      revision_codigo: codigo, revision_codigo_asignado_at: revisionDesde,
+      revision_timeout_desde_at: revisionDesde, revision_recordatorio_at: null,
+      revision_timeout_claim_at: null, revision_draft: null })
+    .eq('id', conversacionId)
+  if (revisionError) throw new Error(`No se pudo guardar revisión: ${revisionError.message}`)
+
+  // Alerta a Harold con código
+  const nombreLead = leadSnapshot?.nombre || waNumber
+  const programa = leadSnapshot?.curso || 'programa desconocido'
+  const notif = `❓ *[${codigo.toUpperCase()}]* ${nombreLead} — ${programa}\n"${originalText}"\n\nResponde: ${codigo.toUpperCase()}: tu explicación aquí`
+  try {
+    await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: notif })
+  } catch (notifErr) {
+    console.error('[REVISION] Error notificando a Harold:', notifErr)
+  }
+  return buildProviderResponse(provider, msgEspera, waNumber)
+}
 
 // Releer el curso guardado antes de preguntar la lista cerrada; nunca escalar por descarte.
 async function respondProgramaDesconocido(
@@ -2890,12 +2943,23 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
 
     // Compatibilidad: fases antiguas se tratan como programa; las fases separadas de
     // 'seguimiento' (inscribiendo, pendiente, con_asesor…) se comportan como 'seguimiento'.
-    const phase = currentFase === 'datos' || currentFase === 'info_programa' ? 'programa' : faseLogica(currentFase)
+    const phase = currentFase === 'datos' || currentFase === 'info_programa' || currentFase === 'inscripcion_programa' ? 'programa' : faseLogica(currentFase)
     if (conversacionIdOuter && currentFase === 'inscripcion_programa') {
       const supabase = createServiceRoleClient()
       const cursoElegido = detectarPrograma(originalText)
-      if (cursoElegido && leadId) await supabase.from('leads').update({ curso: cursoElegido }).eq('id', leadId)
-      return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, null, cursoElegido)
+      if (cursoElegido) {
+        if (leadId) await supabase.from('leads').update({ curso: cursoElegido }).eq('id', leadId)
+        return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, null, cursoElegido)
+      }
+      const { count, error } = await supabase.from('whatsapp_mensajes')
+        .select('id', { count: 'exact', head: true }).eq('conversacion_id', conversacionIdOuter)
+        .eq('rol', 'bot').eq('contenido', INSCRIPCION_DESCONOCIDA_MSG)
+      if (error) console.error('[INSCRIPCION] No se pudo contar listas enviadas:', error.message)
+      if (!error && count !== null && count >= 2) {
+        return solicitarRevisionCodigo({ supabase, conversacionId: conversacionIdOuter, provider, waNumber, leadSnapshot, originalText })
+      }
+      // Sin programa detectado, dejar responder a las reglas/IA: una pregunta de
+      // precio o una categoría genérica no son otra solicitud de la misma lista.
     }
 
 
@@ -4017,51 +4081,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         FRASES_INCERTIDUMBRE.some(f => gpt.respuesta.toLowerCase().includes(f)) || quitarPromesasAsesor(gpt.respuesta) !== gpt.respuesta
 
       if (respuestaIncierta) {
-        // Asignar código de a-z según cuántos pendientes hay. Un código solo cuenta como
-        // "usado" si se asignó en las últimas 48h — evita que uno quede pegado para
-        // siempre cuando Harold nunca llega a aprobarlo con "X ok" (bug real: 88
-        // conversaciones acabaron compartiendo 'c' desde jun-2026 con el pool viejo de a-c).
-        const CODIGOS_REVISION = 'abcdefghijklmnopqrstuvwxyz'.split('')
-        let codigo = CODIGOS_REVISION[0]
-        try {
-          const hace48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
-          const { data: pendientes } = await supabase
-            .from('whatsapp_conversaciones')
-            .select('revision_codigo')
-            .not('revision_codigo', 'is', null)
-            .gte('revision_codigo_asignado_at', hace48h)
-          const usados = new Set((pendientes || []).map((c: any) => c.revision_codigo))
-          codigo = CODIGOS_REVISION.find(c => !usados.has(c)) || CODIGOS_REVISION[CODIGOS_REVISION.length - 1]
-        } catch { /* usar 'a' por defecto */ }
-
-        // Mensaje al lead avisando que se escala con un asesor
-        const msgEspera = MENSAJE_ESPERA
-        await supabase.from('whatsapp_mensajes').insert([{
-          conversacion_id: conversacionIdOuter,
-          rol: 'bot',
-          contenido: msgEspera,
-        }])
-        // Guardar pausa y vencimiento juntos: si falta la migración o falla BD,
-        // no dejar el bot apagado sin una revisión recuperable.
-        const revisionDesde = new Date().toISOString()
-        const { error: revisionError } = await supabase.from('whatsapp_conversaciones')
-          .update({ modo_humano: true, ultimo_mensaje_at: revisionDesde,
-            revision_codigo: codigo, revision_codigo_asignado_at: revisionDesde,
-            revision_timeout_desde_at: revisionDesde, revision_recordatorio_at: null,
-            revision_timeout_claim_at: null, revision_draft: null })
-          .eq('id', conversacionIdOuter)
-        if (revisionError) throw new Error(`No se pudo guardar revisión: ${revisionError.message}`)
-
-        // Alerta a Harold con código
-        const nombreLead = leadSnapshot?.nombre || waNumber
-        const programa = leadSnapshot?.curso || 'programa desconocido'
-        const notif = `❓ *[${codigo.toUpperCase()}]* ${nombreLead} — ${programa}\n"${originalText}"\n\nResponde: ${codigo.toUpperCase()}: tu explicación aquí`
-        try {
-          await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: notif })
-        } catch (notifErr) {
-          console.error('[REVISION] Error notificando a Harold:', notifErr)
-        }
-        return buildProviderResponse(provider, msgEspera, waNumber)
+        return solicitarRevisionCodigo({ supabase, conversacionId: conversacionIdOuter, provider, waNumber, leadSnapshot, originalText })
       }
 
       // Persistir datos capturados por GPT

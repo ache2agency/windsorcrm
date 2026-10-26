@@ -10,17 +10,29 @@ CREATE OR REPLACE FUNCTION public.reclamar_revision_timeout(
   p_recordatorio_horas double precision, p_reactivar_horas double precision
 ) RETURNS SETOF public.whatsapp_conversaciones
 LANGUAGE plpgsql SECURITY INVOKER SET search_path=public AS $$
+DECLARE ultimo_usuario timestamptz; siguiente_corrida timestamptz;
 BEGIN
   IF p_recordatorio_horas <= 0 OR p_reactivar_horas <= p_recordatorio_horas OR p_reactivar_horas >= 23 THEN
     RAISE EXCEPTION 'Plazos de revision invalidos';
   END IF;
+  -- 0A-bis: ninguna reserva fuera de 08:00–21:00 México. El cron es horario.
+  IF extract(hour FROM now() AT TIME ZONE 'America/Mexico_City') NOT BETWEEN 8 AND 20 THEN
+    RETURN;
+  END IF;
+  SELECT max(created_at) INTO ultimo_usuario FROM public.whatsapp_mensajes
+    WHERE conversacion_id=p_id AND rol='usuario';
+  SELECT min(t) INTO siguiente_corrida
+    FROM generate_series(now()+interval '1 hour',now()+interval '24 hours',interval '1 hour') AS s(t)
+    WHERE extract(hour FROM t AT TIME ZONE 'America/Mexico_City') BETWEEN 8 AND 20;
   RETURN QUERY UPDATE public.whatsapp_conversaciones c
     SET revision_timeout_claim_at=clock_timestamp()
     WHERE c.id=p_id AND c.revision_codigo=p_codigo AND c.revision_timeout_desde_at=p_desde
       AND c.modo_humano AND c.tomado_por IS NULL AND c.revision_draft IS NULL
       AND (c.revision_timeout_claim_at IS NULL OR c.revision_timeout_claim_at < now()-interval '10 minutes')
       AND (p_desde <= now()-p_reactivar_horas*interval '1 hour'
-        OR (c.revision_recordatorio_at IS NULL AND p_desde <= now()-p_recordatorio_horas*interval '1 hour'))
+        OR (c.revision_recordatorio_at IS NULL AND p_desde <= now()-p_recordatorio_horas*interval '1 hour')
+        -- Última corrida en horario antes del cierre: adelantar la reanudación.
+        OR (ultimo_usuario IS NOT NULL AND siguiente_corrida >= ultimo_usuario+interval '23 hours 30 minutes'))
     RETURNING c.*;
 END $$;
 

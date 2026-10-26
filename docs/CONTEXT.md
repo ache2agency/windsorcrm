@@ -319,3 +319,8 @@ Con esto, cualquier persona (incluyéndote tú en unas semanas) puede entender r
 ### 0A — Correcciones del bot (24-oct-2026, PR pendiente de revisión)
 
 Inscripción reutiliza los mensajes vigentes de `lib/whatsapp/inscripcion.ts`, prioriza curso guardado y pregunta lista cerrada en `inscripcion_programa` cuando falta identificarlo. Avisos de webhook/motor van solo a Harold; espera estándar sin promesas de asesores. Revisiones nuevas tienen recordatorio 4h y reanudación 20h, configurables, con RPC atómica y marca sin backfill; las 13 antiguas quedan fuera. El motor guarda BODY real con parámetros y wamid; backfill histórico solo en archivo. Migración `supabase/revision_timeout_2026_10_24.sql` pendiente: aplicar antes de desplegar. Ver `docs/0A_4_ERRORES.md` para activación, límites y script. Lógica de tiempos del seguimiento normal y PR #46 intactos; mejoras 0B no iniciadas.
+
+
+### 0A-bis — revisión PR #48 (26-oct-2026)
+
+Textos fijos completos (incluido kardex), detector de promesas limitado a IA y revisión con código reutilizable. Revisiones solo 08:00–21:00 México; anticipa la reanudación al último turno seguro cuando la siguiente corrida en horario quedaría fuera de la ventana del último usuario. Recordatorios nocturnos esperan apertura; sin ventana se reactiva sin texto. `inscripcion_programa` permite dudas/categorías por reglas/IA y escala después de dos listas sin elegir. 121 pruebas + build OK; ajuste del SQL solo en archivo. Sigue pendiente revisión de Harold; sin merge/deploy ni inicio de 0B.
