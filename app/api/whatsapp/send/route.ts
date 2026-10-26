@@ -226,6 +226,7 @@ export async function POST(request: Request) {
             conversacion_id: conversacionId,
             rol: 'agente',
             contenido: contenidoHistorial || `[Template: ${templateName}]`,
+            raw_payload: { wamid: messageId },
           },
         ])
       }

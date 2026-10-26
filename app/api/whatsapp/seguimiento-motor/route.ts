@@ -1,3 +1,5 @@
+import { avisarAdmin } from '@/lib/whatsapp/avisos-admin'
+import { templateBloqueado } from '@/lib/whatsapp/entregas'
 import { ADMIN_WA_ALERTA } from '@/lib/whatsapp/atencion'
 import { textoTemplateEnviado } from '@/lib/whatsapp/template-registro'
 import { ejecutarRevisionesPendientes } from '@/lib/whatsapp/revision-timeout'
@@ -128,7 +130,7 @@ async function avisarAsesor(
   dryRun: boolean
 ): Promise<string> {
   const msg = [
-    '📌 Seguimiento automático Windsor',
+    '🆕 PROSPECTO · 📌 Seguimiento automático Windsor',
     `Regla: ${decision.reglaId}`,
     lead.nombre ? `Lead: ${lead.nombre}` : null,
     lead.curso ? `Programa: ${lead.curso}` : null,
@@ -136,7 +138,7 @@ async function avisarAsesor(
     decision.detalle,
   ].filter(Boolean).join('\n')
   if (dryRun) return `dry aviso a ${maskPhone(ADMIN_WA_ALERTA)}`
-  await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: msg })
+  await avisarAdmin(supabase, msg)
   await supabase.from('lead_activities').insert([{
     lead_id: lead.id,
     actor_id: null,
@@ -207,12 +209,15 @@ async function ejecutarDecision(params: {
   if (decision.accion === 'texto') {
     if (!decision.mensaje) throw new Error('Decision texto sin mensaje')
     if (!dryRun) {
-      await sendMetaWhatsAppMessage({ to: conv.whatsapp, body: decision.mensaje })
+      const { data: actual, error: tipoError } = await supabase.from('whatsapp_conversaciones').select('tipo_contacto').eq('id', conv.id).maybeSingle()
+      if (tipoError) throw tipoError
+      if (actual?.tipo_contacto === 'alumno') return { accion: 'omitido', detalle: 'alumno: sin venta automática' }
+      const sent = await sendMetaWhatsAppMessage({ to: conv.whatsapp, body: decision.mensaje })
       await supabase.from('whatsapp_mensajes').insert([{
         conversacion_id: conv.id,
         rol: 'bot',
         contenido: decision.mensaje,
-        raw_payload: raw,
+        raw_payload: { ...raw, wamid: sent.id },
       }])
       await supabase.from('whatsapp_conversaciones').update({
         ultimo_mensaje_at: new Date().toISOString(),
@@ -225,6 +230,10 @@ async function ejecutarDecision(params: {
   if (decision.accion === 'template') {
     if (!decision.templateName) throw new Error('Decision template sin templateName')
     if (!dryRun) {
+      if (await templateBloqueado(supabase, conv.whatsapp, decision.templateName)) return { accion: 'omitido', detalle: 'template bloqueado por entrega fallida' }
+      const { data: actual, error: tipoError } = await supabase.from('whatsapp_conversaciones').select('tipo_contacto').eq('id', conv.id).maybeSingle()
+      if (tipoError) throw tipoError
+      if (actual?.tipo_contacto === 'alumno') return { accion: 'omitido', detalle: 'alumno: sin venta automática' }
       const textoReal = await textoTemplateEnviado(decision.templateName, decision.templateParams || [])
       const enviado = await sendMetaWhatsAppTemplate({
         to: conv.whatsapp,
@@ -257,7 +266,7 @@ async function run(request: Request) {
   }
   const supabase = createServiceRoleClient()
   let revisiones
-  try { revisiones = await ejecutarRevisionesPendientes(supabase, dryRun, ahora) }
+  try { revisiones = await ejecutarRevisionesPendientes(supabase, dryRun, ahora, sendMetaWhatsAppMessage, body => avisarAdmin(supabase, body)) }
   catch (error) { return Response.json({ error: error instanceof Error ? error.message : 'Error revisiones' }, { status: 500 }) }
 
   // Cargar todas las páginas ANTES de enviar: los envíos cambian ultimo_mensaje_at.
@@ -267,7 +276,7 @@ async function run(request: Request) {
   for (let offset = 0; ; offset += pageSize) {
     const { data, error } = await supabase
       .from('whatsapp_conversaciones')
-      .select('id, whatsapp, lead_id, fase, provider, estado, modo_humano, revision_codigo, ultimo_mensaje_at')
+      .select('id, whatsapp, lead_id, fase, provider, estado, modo_humano, revision_codigo, ultimo_mensaje_at, tipo_contacto')
       .in('estado', ['abierta', 'cerrada'])
       .in('fase', FASES_QUERY)
       .order('ultimo_mensaje_at', { ascending: false, nullsFirst: false })
@@ -294,6 +303,7 @@ async function run(request: Request) {
       const omit = (detalle: string) => resultados.push({ ...base, accion: 'omitido', detalle })
 
       if (esCanalInternoSeguimiento(conv.whatsapp)) { omit('canal interno de asesores'); return }
+      if (conv.tipo_contacto === 'alumno') { omit('alumno: sin venta automática'); return }
       if (!faseEsDeMotor(conv.fase)) { omit('fase fuera del motor'); return }
       if (conv.provider === 'messenger') { omit('messenger sin templates WhatsApp'); return }
       if (conv.modo_humano) { omit('modo humano'); return }
@@ -375,6 +385,7 @@ async function run(request: Request) {
         return
       }
 
+      if (decision.accion === 'template' && decision.templateName && await templateBloqueado(supabase, conv.whatsapp, decision.templateName)) { omit('template bloqueado por entrega fallida'); return }
       decisiones.push({ conv, lead, decision, orden: offset + index })
     }))
   }
