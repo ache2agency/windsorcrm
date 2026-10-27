@@ -1,3 +1,4 @@
+import { autorDeSesion } from '@/lib/crm/autoria'
 import { NextResponse } from 'next/server'
 import twilio from 'twilio'
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server'
@@ -58,6 +59,10 @@ export async function POST(request: Request) {
     })
     // Con sesión, el asesor es quien está logueado — no lo que diga el body.
     if (sessionUserId) agentUserId = sessionUserId
+
+    // La autoría sale de la sesión verificada, nunca del agentUserId del body.
+    // Scripts autenticados con CRON_SECRET son Sistema, no un asesor supuesto.
+    const autor = await autorDeSesion(createServiceRoleClient(), sessionUserId)
 
     if (!to || (!body && !templateName)) {
       return NextResponse.json(
@@ -146,7 +151,7 @@ export async function POST(request: Request) {
 
       if (conversacionId) {
         await supabase.from('whatsapp_mensajes').insert([
-          { conversacion_id: conversacionId, rol: 'agente', contenido: body },
+          { conversacion_id: conversacionId, rol: 'agente', contenido: body, ...autor },
         ])
       }
 
@@ -225,6 +230,7 @@ export async function POST(request: Request) {
           {
             conversacion_id: conversacionId,
             rol: 'agente',
+            ...autor,
             contenido: contenidoHistorial || `[Template: ${templateName}]`,
             raw_payload: { wamid: messageId },
           },
@@ -315,6 +321,7 @@ export async function POST(request: Request) {
           {
             conversacion_id: conversacionId,
             rol: 'agente',
+            ...autor,
             contenido: body,
           },
         ])

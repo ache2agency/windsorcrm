@@ -274,6 +274,7 @@ export default function LeadDetailModal({
             </div>
           )}
 
+          {currentStageId === "inscrito" && <div style={{ marginBottom: 16, color: "#166534" }}>Cerró: {lead.cerrado_por_nombre || "Sin registro histórico"}</div>}
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 8 }}>MOVER A ETAPA</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -282,7 +283,7 @@ export default function LeadDetailModal({
                   key={s.id}
                   className="btn"
                   style={{ background: currentStageId === s.id ? s.color : s.color + "18", color: currentStageId === s.id ? "#0e0e0e" : s.color, border: `1px solid ${s.color}44`, padding: "5px 10px", fontSize: 11 }}
-                  onClick={() => { moveStage(lead.id, s.id); setSelectedLead({ ...lead, stage: s.id }); }}
+                  onClick={() => moveStage(lead.id, s.id)}
                 >
                   {s.label}
                 </button>

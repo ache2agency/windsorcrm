@@ -20,7 +20,7 @@ function verifyCronSecret(request: Request): boolean {
 }
 
 const STAGES_ACTIVOS = [
-  'primer_contacto', 'contactado', 'interesado',
+  'primer_contacto', 'contactado', 'interesado', 'segundo_contacto',
   'examen_ubicacion', 'clase_muestra',
   'seguimiento', 'inscripcion_pendiente',
 ]
@@ -343,7 +343,7 @@ export async function POST(request: Request) {
 
   // 7. Decidir y acumular escrituras (batch al final, no una por una)
   const filasAInsertar: Record<string, unknown>[] = []
-  const idsACerrar: string[] = []
+  const cierreHumano: string[] = []
 
   for (const { lead, conv, horas } of candidatos) {
     try {
@@ -359,9 +359,8 @@ export async function POST(request: Request) {
           if (dryRun) decisionesDetalle.push({ leadId: lead.id, ...decision })
           continue
         case 'cerrado':
-          idsACerrar.push(lead.id)
-          cerrados.push(lead.id)
-          if (dryRun) decisionesDetalle.push({ leadId: lead.id, ...decision })
+          cierreHumano.push(lead.id)
+          if (dryRun) decisionesDetalle.push({ leadId: lead.id, accion: "requiere_cierre_humano" })
           continue
         case 'generado':
           if (generados.length >= LIMITE_DIARIO_GENERADOS) {
@@ -403,9 +402,8 @@ export async function POST(request: Request) {
     for (const chunk of chunkArray(filasAInsertar, CHUNK_SIZE)) {
       await supabase.from('seguimientos').insert(chunk)
     }
-    for (const chunk of chunkArray(idsACerrar, CHUNK_SIZE)) {
-      await supabase.from('leads').update({ stage: 'perdido' }).in('id', chunk)
-    }
+    // Perdido requiere decisión humana. La secuencia agotada no cierra la tarjeta.
+    // Los IDs quedan en el resultado para revisión, sin actualizar stage.
   }
 
   // Notificar a cada asesor si tiene pendientes nuevos (se salta en dryRun)
@@ -456,6 +454,7 @@ export async function POST(request: Request) {
     generados: generados.length,
     saltados: saltados.length,
     cerrados: cerrados.length,
+    requierenCierreHumano: cierreHumano.length,
     diferidos: diferidos.length,
     ...(dryRun ? { decisiones: decisionesDetalle } : {}),
   })

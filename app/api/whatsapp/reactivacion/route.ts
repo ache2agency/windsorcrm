@@ -1,3 +1,4 @@
+import { avanzarEtapaBot } from '@/lib/crm/etapas-bot'
 import twilio from 'twilio'
 import { createServiceRoleClient } from '@/utils/supabase/server'
 import {
@@ -242,6 +243,9 @@ async function moverATercerContacto(
     .not('whatsapp', 'is', null)
 
   for (const lead of leads || []) {
+    const { data: avisado, error: avisoError } = await supabase.from('lead_activities').select('id')
+      .eq('lead_id', lead.id).eq('event_type','tercer_contacto').limit(1).maybeSingle()
+    if (avisoError || avisado) continue
     // Buscar conversación activa
     const { data: conv } = await supabase
       .from('whatsapp_conversaciones')
@@ -287,7 +291,7 @@ async function moverATercerContacto(
     }
 
     // Mover a tercer_contacto
-    await supabase.from('leads').update({ stage: 'tercer_contacto' }).eq('id', lead.id)
+    await avanzarEtapaBot(supabase, lead.id, 'segundo_contacto')
 
     // Registrar en lead_activities
     await supabase.from('lead_activities').insert([{
@@ -497,7 +501,8 @@ export async function POST(request: Request) {
     }
 
     if (intentos.length >= 2) {
-      await supabase.from('leads').update({ stage: 'archivado' }).eq('id', lead.id)
+      const etapa = await avanzarEtapaBot(supabase, lead.id, 'archivado')
+      if (etapa !== 'archivado') { resultados.push({ lead_id: lead.id, accion: 'omitido', detalle: 'etapa protegida; decisión humana' }); continue }
       await supabase.from('lead_activities').insert([
         {
           lead_id: lead.id,

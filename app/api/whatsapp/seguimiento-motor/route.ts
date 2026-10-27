@@ -1,3 +1,4 @@
+import { avanzarEtapaBot } from '@/lib/crm/etapas-bot'
 import { avisarAdmin } from '@/lib/whatsapp/avisos-admin'
 import { templateBloqueado } from '@/lib/whatsapp/entregas'
 import { ADMIN_WA_ALERTA } from '@/lib/whatsapp/atencion'
@@ -183,22 +184,25 @@ async function ejecutarDecision(params: {
     return { accion: dryRun ? 'dry_aviso_asesor' : 'aviso_asesor', detalle: aviso }
   }
 
-  if ((decision.accion === 'archivar' || decision.accion === 'perder') && !cierresAutomaticosActivos()) {
+  if (decision.accion === 'perder') return { accion: 'omitido', detalle: 'Perdido lo marca un asesor; no se cierra automáticamente.' }
+
+  if ((decision.accion === 'archivar') && !cierresAutomaticosActivos()) {
     return { accion: `cierre_apagado_${decision.accion}`, detalle: `${decision.detalle} (cierres automaticos apagados)` }
   }
 
-  if (decision.accion === 'archivar' || decision.accion === 'perder') {
+  if (decision.accion === 'archivar') {
     if (!dryRun) {
+      const etapa = await avanzarEtapaBot(supabase, lead.id, decision.nuevoStage || 'archivado')
+      if (etapa !== 'archivado') return { accion: 'omitido', detalle: 'Etapa protegida: requiere decisión humana.' }
       await supabase.from('whatsapp_conversaciones').update({
         fase: decision.nuevaFase,
-        estado: decision.accion === 'perder' ? 'cerrada' : 'abierta',
+        estado: 'abierta',
       }).eq('id', conv.id)
-      await supabase.from('leads').update({ stage: decision.nuevoStage }).eq('id', lead.id)
       await supabase.from('lead_activities').insert([{
         lead_id: lead.id,
         actor_id: null,
-        event_type: decision.accion === 'perder' ? 'seguimiento_motor_perdido' : 'seguimiento_motor_archivado',
-        title: decision.accion === 'perder' ? 'Lead marcado como perdido' : 'Lead archivado',
+        event_type: 'seguimiento_motor_archivado',
+        title: 'Lead archivado',
         detail: decision.detalle,
         meta: raw.seguimiento_motor,
       }])
