@@ -1275,7 +1275,7 @@ Beneficiarios: Trabajador, hijos y cónyuges
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   suspeg: `*Convenio: SUSPEG Central*
-Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: 15-Dic-2025
+Beneficiarios: Trabajador, hijos y cónyuges | Convenio vigente
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 25% descuento
