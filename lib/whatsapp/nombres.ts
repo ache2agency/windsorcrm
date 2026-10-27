@@ -12,11 +12,12 @@ export function hasLeadName(nombre: string | null | undefined, whatsapp: string 
   // Mínimo 3 letras: "Ol" (error de dedo) se guardó como nombre (caso +527471850523, 2026-09-24)
   if (!value || value.replace(/[^\p{L}]/gu, '').length < 3) return false
   if (value === String(whatsapp || '').trim()) return false
+  if (/windsor/i.test(quitarAcentos(value))) return false
   // Rechazar si la PRIMERA palabra no puede iniciar un nombre: "Gracias por la información",
   // "Me interresa", "Ok gracias" se guardaron como nombre (casos 2026-09-24: +527474991567,
   // +527472077733). La lista de abajo (noNombres) solo atrapaba la palabra sola.
   const primeraPalabra = quitarAcentos(value.split(/\s+/)[0].toLowerCase())
-  if (/^(gracias|muchas|ok|okay|oki|va|vale|sale|claro|perfecto|excelente|listo|bien|hola|ola|buenas?|buenos|me|mi|te|yo|ya|si|no|quiero|quisiera|necesito|info|informacion|informes?|interesa|interesad[oa]|estoy|tengo|tienen|costo|costos|precio|precios|curso|cursos|cuanto|cual|que|como|donde|cuando|cuñado|inicia|inician|empieza|empiezan|para|por|en|el|los|las|un|una)$/.test(primeraPalabra)) return false
+  if (/^(saludos|slaudos|salduos|sludos|saluditos|hloa|holaa+|gracias|muchas|ok|okay|oki|va|vale|sale|claro|perfecto|excelente|listo|bien|hola|ola|buenas?|buenos|me|mi|te|yo|ya|si|no|quiero|quisiera|necesito|info|informacion|informes?|interesa|interesad[oa]|estoy|tengo|tienen|costo|costos|precio|precios|curso|cursos|cuanto|cual|que|como|donde|cuando|cuñado|inicia|inician|empieza|empiezan|para|por|en|el|los|las|un|una)$/.test(primeraPalabra)) return false
   if (/inter+es/i.test(quitarAcentos(value))) return false
   if (/@/.test(value)) return false
   // Rechazar si tiene más de 4 palabras "de nombre" (nombres reales tienen máx 4). Las

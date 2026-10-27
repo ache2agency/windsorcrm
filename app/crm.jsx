@@ -761,7 +761,7 @@ export default function CRM() {
     const INITIAL_PAGE_SIZE = 300;
     const PAGE_SIZE = 1000;
     const selectColsPrevious = "id, whatsapp, lead_id, estado, ultimo_mensaje_at, modo_humano, tomado_por, fase, visto_at";
-    const selectColsFull = `${selectColsPrevious}, seguimiento_manual`;
+    const selectColsFull = `${selectColsPrevious}, seguimiento_manual, tipo_contacto, tipo_contacto_manual`;
     const selectColsFallback = "id, whatsapp, lead_id, estado, ultimo_mensaje_at";
     const runQuery = (selectCols, from, to) =>
       supabase
@@ -892,7 +892,7 @@ export default function CRM() {
     try {
       const { data, error } = await supabase
         .from("whatsapp_conversaciones")
-        .select("id, whatsapp, lead_id, estado, ultimo_mensaje_at, modo_humano, tomado_por, fase, visto_at, seguimiento_manual")
+        .select("id, whatsapp, lead_id, estado, ultimo_mensaje_at, modo_humano, tomado_por, fase, visto_at, seguimiento_manual, tipo_contacto, tipo_contacto_manual")
         .order("ultimo_mensaje_at", { ascending: false })
         .limit(100);
       if (error || !data) return;
@@ -908,6 +908,8 @@ export default function CRM() {
             old.modo_humano !== fresh.modo_humano ||
             old.visto_at !== fresh.visto_at ||
             old.seguimiento_manual !== fresh.seguimiento_manual ||
+            old.tipo_contacto !== fresh.tipo_contacto ||
+            old.tipo_contacto_manual !== fresh.tipo_contacto_manual ||
             old.estado !== fresh.estado ||
             old.tomado_por !== fresh.tomado_por
           ) {
@@ -920,8 +922,8 @@ export default function CRM() {
       });
       setSelectedConv((prev) => {
         const fresh = data.find((c) => c.id === prev?.id);
-        return fresh && fresh.seguimiento_manual !== prev.seguimiento_manual
-          ? { ...prev, seguimiento_manual: fresh.seguimiento_manual }
+        return fresh && (fresh.seguimiento_manual !== prev.seguimiento_manual || fresh.tipo_contacto !== prev.tipo_contacto)
+          ? { ...prev, seguimiento_manual: fresh.seguimiento_manual, tipo_contacto: fresh.tipo_contacto, tipo_contacto_manual: fresh.tipo_contacto_manual }
           : prev;
       });
       if (huboCambios) fetchUltimosUsuarioMensajes(data);
@@ -947,7 +949,7 @@ export default function CRM() {
     if (!silent) setConvMessages([]);
     const { data, error } = await supabase
       .from("whatsapp_mensajes")
-      .select("id, rol, contenido, media_url, media_tipo, created_at, marcado_error")
+      .select("id, rol, contenido, media_url, media_tipo, created_at, marcado_error, delivery_status, delivery_error_code, delivery_error")
       .eq("conversacion_id", convId)
       .order("created_at", { ascending: true });
     if (error) {
@@ -962,7 +964,7 @@ export default function CRM() {
       if (
         silent &&
         prev.length === next.length &&
-        prev[prev.length - 1]?.id === next[next.length - 1]?.id
+        JSON.stringify(prev) === JSON.stringify(next)
       ) {
         return prev;
       }
@@ -1188,6 +1190,18 @@ export default function CRM() {
     } finally {
       setBotSaving(false);
     }
+  };
+
+  const setTipoContacto = async (conv, tipo) => {
+    if (!conv || !['alumno', 'prospecto'].includes(tipo)) return;
+    const { error } = await supabase.from('whatsapp_conversaciones')
+      .update({ tipo_contacto: tipo, tipo_contacto_manual: true }).eq('id', conv.id);
+    if (error) { showToast('No se pudo guardar el tipo de contacto', 'error'); return; }
+    const patch = { tipo_contacto: tipo, tipo_contacto_manual: true };
+    setSelectedConv(prev => prev?.id === conv.id ? { ...prev, ...patch } : prev);
+    setWhatsConvs(prev => prev.map(c => c.id === conv.id ? { ...c, ...patch } : c));
+    setLeads(prev => prev.map(l => l.id === conv.lead_id ? { ...l, tipo_contacto: tipo } : l));
+    showToast('Tipo de contacto guardado');
   };
 
   const setHumanMode = async (conv, enabled) => {
@@ -1558,6 +1572,7 @@ export default function CRM() {
   }, [leads]);
 
   const filteredLeads = useMemo(() => leads.filter(l => {
+    if (l.tipo_contacto === 'alumno') return false;
     // Asesores solo ven sus propios leads
     if (!isAdmin && currentProfile?.id) {
       if (l.asignado_a !== currentProfile.id) return false;
@@ -3038,6 +3053,7 @@ export default function CRM() {
             marcarPerdidasBulk={marcarPerdidasBulk}
             marcandoPerdidas={marcandoPerdidas}
             getPhaseLabel={getPhaseLabel}
+            setTipoContacto={setTipoContacto}
             selectedConv={selectedConv}
             setSelectedConv={setSelectedConv}
             confirmReturnToBotIfNeeded={confirmReturnToBotIfNeeded}

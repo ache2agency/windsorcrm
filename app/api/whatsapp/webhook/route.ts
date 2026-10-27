@@ -1,3 +1,7 @@
+import { diasInactividadHumana } from '@/lib/whatsapp/modo-humano'
+import { clasificarContacto, etiquetaContacto, type TipoContacto } from '@/lib/whatsapp/contactos'
+import { avisarAdmin } from '@/lib/whatsapp/avisos-admin'
+import { firmaMetaValida, registrarEstados } from '@/lib/whatsapp/entregas'
 import { INSCRIPCION_ONLINE_MSG, INSCRIPCION_BACHILLERATO_MSG, INSCRIPCION_DIPLOMADO_MSG, INSCRIPCION_IDIOMA_MSG, INSCRIPCION_HABILIDADES_MSG, INSCRIPCION_DESCONOCIDA_MSG, mensajeInscripcionPara, resolverTipoInscripcion } from '@/lib/whatsapp/inscripcion'
 import { ADMIN_WA_ALERTA, MENSAJE_ESPERA, quitarPromesasAsesor } from '@/lib/whatsapp/atencion'
 import { createServiceRoleClient } from '@/utils/supabase/server'
@@ -6,7 +10,7 @@ import {
   getWhatsAppProvider,
   normalizePhoneNumber,
   sendMessengerMessage,
-  sendMetaWhatsAppMessage,
+  sendMetaWhatsAppMessage as enviarMetaDirecto,
   type WhatsAppProvider,
 } from '@/lib/whatsapp/provider'
 import { enviarBienvenidaLeadManual } from '@/lib/whatsapp/bienvenida'
@@ -32,6 +36,11 @@ import { INFO_MSGS, buildCTA } from '@/lib/whatsapp/infoMsgs'
 import { diplomadoUnicoEnRespuesta, driveIdPlanDiplomado, urlPlanDiplomado, limpiarFormatoWhatsApp } from '@/lib/whatsapp/planesDiplomado'
 import { enviarPushATodos } from '@/lib/push'
 import { faseLogica } from '@/lib/whatsapp/fases'
+
+async function sendMetaWhatsAppMessage(params: { to: string; body: string }) {
+  return normalizePhoneNumber(params.to) === normalizePhoneNumber(ADMIN_WA_ALERTA)
+    ? avisarAdmin(createServiceRoleClient(), params.body) : enviarMetaDirecto(params)
+}
 
 export const maxDuration = 60
 
@@ -73,7 +82,7 @@ type IncomingWhatsAppMessage = {
 
 function extraerWamid(rawPayload: Record<string, unknown>): string | null {
   const entry = (rawPayload as { entry?: Array<{ changes?: Array<{ value?: { messages?: Array<{ id?: string }> } }> }> }).entry
-  const id = entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id
+  const id = entry?.flatMap(e => e.changes || []).find(c => c.value?.messages?.length)?.value?.messages?.[0]?.id
   return typeof id === 'string' && id ? id : null
 }
 
@@ -470,7 +479,9 @@ async function notifyAsesor(
     }
 
     // 3. Enviar WhatsApp al asesor
+    const { data: tipoConv } = await supabase.from('whatsapp_conversaciones').select('tipo_contacto').eq('lead_id', leadId).limit(1).maybeSingle()
     const msgAsesor = [
+      etiquetaContacto(tipoConv?.tipo_contacto || clasificarContacto(primerMensaje || '')),
       NOTIFY_LABELS[evento],
       leadNombre ? `👤 ${leadNombre}` : null,
       leadPrograma ? `📚 ${leadPrograma}` : null,
@@ -610,14 +621,9 @@ async function parseIncomingWhatsAppMessage(
 
     if (!isMetaWebhookPayload(payload)) return null
 
-    const entry = Array.isArray((payload as { entry?: unknown[] }).entry)
-      ? ((payload as { entry: unknown[] }).entry[0] as
-          | { changes?: unknown[] }
-          | undefined)
-      : undefined
-    const change = Array.isArray(entry?.changes)
-      ? ((entry?.changes?.[0] as { value?: unknown }) || null)
-      : null
+    // Los estados pueden preceder al mensaje en un lote de Meta.
+    const change = (payload as { entry?: Array<{ changes?: Array<{ value?: { messages?: unknown[] } }> }> })
+      .entry?.flatMap(e => e.changes || []).find(c => c.value?.messages?.length) || null
     const value =
       change &&
       typeof change === 'object' &&
@@ -633,29 +639,6 @@ async function parseIncomingWhatsAppMessage(
             statuses?: unknown[]
           })
         : null
-
-    // Webhooks de estado de entrega (delivered/read/failed) de Meta — antes se
-    // ignoraban por completo (ni se registraban ni se avisaba de fallos). Un
-    // mensaje "aceptado" por nuestro endpoint /send puede fallar después en
-    // silencio (ej. fuera de la ventana de 24h) y nunca nos enterábamos.
-    if (Array.isArray(value?.statuses) && value.statuses.length > 0) {
-      for (const raw of value.statuses) {
-        const s = raw as { status?: string; recipient_id?: string; id?: string; errors?: Array<{ code?: number; title?: string; message?: string }> }
-        if (s?.status === 'failed') {
-          const errDetail = s.errors?.map(e => `[${e.code}] ${e.title || e.message || ''}`).join(' | ') || 'sin detalle'
-          console.error(`[WhatsApp status] Falló la entrega a ${s.recipient_id} (wamid ${s.id}): ${errDetail}`)
-          try {
-            await sendMetaWhatsAppMessage({
-              to: ADMIN_WA_ALERTA,
-              body: `⚠️ Un mensaje de WhatsApp NO se entregó a ${s.recipient_id || 'desconocido'}.\nMotivo: ${errDetail}`,
-            })
-          } catch (alertErr) {
-            console.error('[WhatsApp status] Error avisando fallo de entrega:', alertErr)
-          }
-        }
-      }
-      return null
-    }
 
     const message = Array.isArray(value?.messages) ? value?.messages?.[0] : null
     if (!message || !message.from) return null
@@ -1742,45 +1725,16 @@ async function solicitarRevisionCodigo(params: {
   leadSnapshot: Pick<LeadSnapshot, 'nombre' | 'curso'> | null, originalText: string,
 }): Promise<Response> {
   const { supabase, conversacionId, provider, waNumber, leadSnapshot, originalText } = params
-  // Asignar código de a-z según cuántos pendientes hay. Un código solo cuenta como
-  // "usado" si se asignó en las últimas 48h — evita que uno quede pegado para
-  // siempre cuando Harold nunca llega a aprobarlo con "X ok" (bug real: 88
-  // conversaciones acabaron compartiendo 'c' desde jun-2026 con el pool viejo de a-c).
-  const CODIGOS_REVISION = 'abcdefghijklmnopqrstuvwxyz'.split('')
-  let codigo = CODIGOS_REVISION[0]
-  try {
-    const hace48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
-    const { data: pendientes } = await supabase
-      .from('whatsapp_conversaciones')
-      .select('revision_codigo')
-      .not('revision_codigo', 'is', null)
-      .gte('revision_codigo_asignado_at', hace48h)
-    const usados = new Set((pendientes || []).map((c: any) => c.revision_codigo))
-    codigo = CODIGOS_REVISION.find(c => !usados.has(c)) || CODIGOS_REVISION[CODIGOS_REVISION.length - 1]
-  } catch { /* usar 'a' por defecto */ }
-
-  // Mensaje al lead avisando que se escala con un asesor
+  const { data: codigo, error: codigoError } = await supabase.rpc('asignar_revision_codigo', { p_id: conversacionId })
+  if (codigoError || typeof codigo !== 'string') throw new Error(codigoError?.message || 'No se pudo reservar código')
   const msgEspera = MENSAJE_ESPERA
-  await supabase.from('whatsapp_mensajes').insert([{
-    conversacion_id: conversacionId,
-    rol: 'bot',
-    contenido: msgEspera,
-  }])
-  // Guardar pausa y vencimiento juntos: si falta la migración o falla BD,
-  // no dejar el bot apagado sin una revisión recuperable.
-  const revisionDesde = new Date().toISOString()
-  const { error: revisionError } = await supabase.from('whatsapp_conversaciones')
-    .update({ modo_humano: true, ultimo_mensaje_at: revisionDesde,
-      revision_codigo: codigo, revision_codigo_asignado_at: revisionDesde,
-      revision_timeout_desde_at: revisionDesde, revision_recordatorio_at: null,
-      revision_timeout_claim_at: null, revision_draft: null })
-    .eq('id', conversacionId)
-  if (revisionError) throw new Error(`No se pudo guardar revisión: ${revisionError.message}`)
+  await supabase.from('whatsapp_mensajes').insert([{ conversacion_id: conversacionId, rol: 'bot', contenido: msgEspera }])
 
   // Alerta a Harold con código
   const nombreLead = leadSnapshot?.nombre || waNumber
   const programa = leadSnapshot?.curso || 'programa desconocido'
-  const notif = `❓ *[${codigo.toUpperCase()}]* ${nombreLead} — ${programa}\n"${originalText}"\n\nResponde: ${codigo.toUpperCase()}: tu explicación aquí`
+  const { data: clasificacion } = await supabase.from('whatsapp_conversaciones').select('tipo_contacto').eq('id', conversacionId).maybeSingle()
+  const notif = `${etiquetaContacto(clasificacion?.tipo_contacto)} ❓ *[${codigo.toUpperCase()}]* ${nombreLead} (${waNumber}) — ${programa}\n"${originalText}"\n\nResponde: ${codigo.toUpperCase()}: tu explicación aquí`
   try {
     await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: notif })
   } catch (notifErr) {
@@ -2181,10 +2135,27 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if ((request.headers.get('content-type') || '').includes('application/json')) {
+    const raw = await request.clone().text()
+    const payload = (() => { try { return JSON.parse(raw) } catch { return null } })()
+    if (payload?.object === 'whatsapp_business_account' && payload.entry?.some((e: { changes?: Array<{ value?: { statuses?: unknown[] } }> }) => e.changes?.some(c => c.value?.statuses?.length))) {
+      if (!getMetaConfig().appSecret) {
+        console.warn('[WhatsApp statuses] META_APP_SECRET ausente: estados ignorados; mensajes siguen su flujo.')
+      } else {
+        if (!firmaMetaValida(raw, request.headers.get('x-hub-signature-256'), getMetaConfig().appSecret)) return Response.json({ error: 'Firma inválida' }, { status: 401 })
+        try { await registrarEstados(createServiceRoleClient(), payload) }
+        catch { return Response.json({ error: 'No se pudo registrar entrega' }, { status: 503 }) }
+      }
+      // No repetir avisos ante reintentos de estados ni recursión si falla un aviso interno.
+      if (!payload.entry?.some((e: { changes?: Array<{ value?: { messages?: unknown[] } }> }) => e.changes?.some(c => c.value?.messages?.length))) return Response.json({ ok: true })
+    }
+  }
+
   let waNumber = ''
   try {
     let leadSummary = ''
     let leadId: string | undefined
+    let tipoContacto: TipoContacto = 'prospecto'
     let humanMode = false
     let currentFase = 'saludo'
     let conversacionIdOuter: string | undefined
@@ -2351,6 +2322,14 @@ export async function POST(request: Request) {
           }
         }
 
+        // Guardar el programa explícito del anuncio antes de cualquier retorno
+        // de saludo/captura de nombre, sin depender de historial o de la IA.
+        const cursoDelTexto = detectarPrograma(originalText)
+        if (leadId && !hasLeadProgram(leadSnapshot?.curso) && cursoDelTexto) {
+          await supabase.from('leads').update({ curso: cursoDelTexto }).eq('id', leadId)
+          leadSnapshot = { ...leadSnapshot, curso: cursoDelTexto } as LeadSnapshot
+        }
+
         const desiredPhase = getNextDataPhase(leadSnapshot, whatsappValue)
 
         // Crear o reutilizar conversación de WhatsApp
@@ -2358,20 +2337,34 @@ export async function POST(request: Request) {
         let conversacionRow: ConversationRow | null = null
         const { data: existingConv } = await supabase
           .from('whatsapp_conversaciones')
-          .select('id, modo_humano, fase')
+          .select('id, modo_humano, fase, tipo_contacto, tipo_contacto_manual, revision_codigo, revision_draft')
           .eq('whatsapp', whatsappValue)
           .order('ultimo_mensaje_at', { ascending: false })
           .limit(1)
           .maybeSingle()
 
+        // Solo ante un mensaje entrante, antes de renovar ultimo_mensaje_at.
+        // La RPC bloquea la fila y revalida código, borrador y actividad humana.
+        if (existingConv?.modo_humano && !existingConv.revision_codigo && !existingConv.revision_draft) {
+          const { data: liberado, error: liberarError } = await supabase.rpc('liberar_modo_humano_inactivo', {
+            p_id: existingConv.id, p_dias: diasInactividadHumana(),
+          })
+          if (liberarError) console.error('[webhook] No se pudo comprobar modo humano inactivo:', liberarError.message)
+          if (!liberarError && liberado === true) existingConv.modo_humano = false
+        }
+
+        tipoContacto = clasificarContacto(originalText, existingConv?.tipo_contacto || 'prospecto',
+          Boolean(existingConv?.tipo_contacto_manual), leadSnapshot?.stage === 'inscrito')
         if (existingConv?.id) {
           conversacionId = existingConv.id
           const nextConversationUpdate: {
             lead_id: string | null
             estado: string
+            tipo_contacto: TipoContacto
             fase?: string
           } = {
             lead_id: leadId ?? null,
+            tipo_contacto: tipoContacto,
             estado:
               existingConv.fase === 'cerrado' || existingConv.fase === 'perdido'
                 ? 'cerrada'
@@ -2382,7 +2375,10 @@ export async function POST(request: Request) {
             existingConv.fase === 'programa' ||
             existingConv.fase === 'correo'
           ) {
-            nextConversationUpdate.fase = desiredPhase
+            // Completar correo aunque el nombre histórico sea inválido (Slaudos)
+            // o ya hubiera otro email; recalcular fase aquí omitiría la ficha.
+            nextConversationUpdate.fase = existingConv.fase === 'correo' && detectarEmail(originalText) && hasLeadProgram(leadSnapshot?.curso)
+              ? 'correo' : desiredPhase
           }
           await supabase
             .from('whatsapp_conversaciones')
@@ -2400,10 +2396,11 @@ export async function POST(request: Request) {
                 lead_id: leadId ?? null,
                 estado: 'abierta',
                 fase: desiredPhase,
+                tipo_contacto: tipoContacto,
                 provider,
               },
             ])
-            .select('id, modo_humano, fase')
+            .select('id, modo_humano, fase, tipo_contacto, tipo_contacto_manual, revision_codigo, revision_draft')
             .single()
           conversacionId = nuevaConv?.id
           conversacionRow = nuevaConv || null
@@ -2514,17 +2511,15 @@ export async function POST(request: Request) {
         : new Response('', { status: 200 })
     }
 
-    // Si la conversación quedó marcada como perdida/cerrada (ej. el lead pidió
-    // cancelar o el bot dio por concluido el caso) y el lead vuelve a escribir,
-    // NO seguir con el flujo automático de ventas — solo notificar a un asesor
-    // para que decida cómo retomarla (puede ser sensible, ej. cancelaciones/reembolsos).
-    if ((currentFase === 'perdido' || currentFase === 'cerrado') && leadId) {
-      const supabasePerdido = createServiceRoleClient()
-      await notifyAsesor(supabasePerdido, leadId, 'lead_perdido_reescribio',
-        leadSnapshot?.nombre, waNumber, leadSnapshot?.curso, originalText).catch(() => {})
-      return provider === 'meta'
-        ? Response.json({ ok: true, perdidoReescribio: true })
-        : new Response('', { status: 200 })
+    if (tipoContacto === 'alumno' && conversacionIdOuter && waNumber.replace(/\D/g, '') !== ADMIN_WA_ALERTA) {
+      return solicitarRevisionCodigo({ supabase: createServiceRoleClient(), conversacionId: conversacionIdOuter, provider, waNumber, leadSnapshot, originalText })
+    }
+
+    // Un mensaje nuevo abre otra vez la conversación. El candado humano de arriba
+    // mantiene intactas las revisiones antiguas pendientes de Harold.
+    if ((currentFase === 'perdido' || currentFase === 'cerrado') && conversacionIdOuter) {
+      currentFase = getNextDataPhase(leadSnapshot, waNumber)
+      await createServiceRoleClient().from('whatsapp_conversaciones').update({ fase: currentFase, estado: 'abierta' }).eq('id', conversacionIdOuter)
     }
 
     // ── Respuesta de Harold al bot (human-in-the-loop) ───────────────────────────
@@ -2533,7 +2528,7 @@ export async function POST(request: Request) {
       const supabaseHL = createServiceRoleClient()
 
       // Patrón "A ok" → Harold aprueba un borrador
-      const matchAprobacion = originalText.trim().match(/^([a-z])\s*ok\b/i)
+      const matchAprobacion = originalText.trim().match(/^([a-z](?:\d+)?)\s*ok\b/i)
       if (matchAprobacion) {
         const codigo = matchAprobacion[1].toLowerCase()
         // Desempate: revision_codigo_asignado_at primero (fecha real de escalación), y
@@ -2570,7 +2565,7 @@ export async function POST(request: Request) {
       }
 
       // Patrón "A: explicación" → Harold explica, GPT redacta borrador
-      const matchInstruccion = originalText.trim().match(/^([a-z]):\s*([\s\S]+)/i)
+      const matchInstruccion = originalText.trim().match(/^([a-z](?:\d+)?):\s*([\s\S]+)/i)
       if (matchInstruccion) {
         const codigo = matchInstruccion[1].toLowerCase()
         const instruccion = matchInstruccion[2].trim()
@@ -2992,6 +2987,19 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
             }))
         }
       } catch { /* sin historial */ }
+
+      // Programa ya identificado por el anuncio: precio o edad del niño no
+      // vuelven a abrir el catálogo ni dependen de una respuesta de la IA.
+      const edadNino = originalText.trim().match(/^(?:(?:de|tiene|para|es de)\s+)?(\d{1,2})\s*a[nñ]os?\s*[.!]?$/i)
+      const preguntaPrecioNino = /precio|costo|cu[aá]nto (?:cuesta|vale)|mensualidad/i.test(originalText)
+      const programaEnPregunta = detectarPrograma(originalText)
+      if (leadSnapshot?.curso === 'Inglés para niños' && (!programaEnPregunta || programaEnPregunta === leadSnapshot.curso) && hasLeadName(leadSnapshot?.nombre, waNumber) &&
+          ['programa', 'correo', 'info_enviada', 'accion', 'dudas', 'seguimiento'].includes(phase) &&
+          (preguntaPrecioNino || (edadNino && Number(edadNino[1]) >= 4 && Number(edadNino[1]) <= 12))) {
+        const ficha = INFO_MSGS['Inglés para niños'] + buildCTA('Inglés para niños')
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, ficha, 'accion', leadId)
+        return buildProviderResponse(provider, ficha, waNumber)
+      }
 
       // ── Fase saludo: detectar programa del mensaje inicial y captura de nombre ─
       if (phase === 'saludo') {
@@ -3859,7 +3867,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           } catch { /* sin RAG */ }
           const gptCorreo = await askGPT({
             fase: 'info_enviada',
-            leadData: { nombre: leadSnapshot?.nombre, email: emailDetectado || leadSnapshot?.email, curso: cursoInfo },
+            leadData: { nombre: hasLeadName(leadSnapshot?.nombre, waNumber) ? leadSnapshot?.nombre : null, email: emailDetectado || leadSnapshot?.email, curso: cursoInfo },
             userMessage: preguntaEnCorreo
               ? `Dame información del programa. Además pregunto: ${originalText}`
               : 'Dame información del programa',

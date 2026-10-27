@@ -222,7 +222,8 @@ test('tope diario del endpoint con envíos y persistencia simulados', async (t) 
       }
       if (request.method === 'PATCH') return new Response(null, { status: 204 })
       assert.equal(request.method, 'GET')
-      if (url.pathname.endsWith('/whatsapp_conversaciones')) return json(convs)
+      if (url.pathname.endsWith('/whatsapp_template_bloqueos')) return json(null)
+      if (url.pathname.endsWith('/whatsapp_conversaciones')) return json(q.has('whatsapp') ? [] : q.has('id') ? { tipo_contacto: 'prospecto' } : convs)
       if (url.pathname.endsWith('/whatsapp_mensajes')) {
         if (q.has('raw_payload->seguimiento_motor->>reglaId')) return json([])
         const conv = convs.find((c) => `eq.${c.id}` === q.get('conversacion_id'))!

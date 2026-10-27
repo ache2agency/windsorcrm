@@ -751,6 +751,7 @@ function ConversationsPanel({
   selectedConvOwner,
   selectedLeadAssigned,
   setHumanMode,
+  setTipoContacto,
   setConvVisto,
   setConvSeguimiento,
   guardandoSeguimientoId,
@@ -1279,7 +1280,7 @@ function ConversationsPanel({
                           </span>
                         )}
                         <span className="wa-badge" style={{ background: getModeColor(c) + "22", color: getModeColor(c) }}>
-                          {getPhaseLabel(c.fase)}
+                          {c.tipo_contacto === 'alumno' ? '🎓 Alumno' : '🆕 Prospecto'} · {getPhaseLabel(c.fase)}
                         </span>
                       </div>
                       {/* Altura fija (ROW_HEIGHT): el asesor va en esta misma línea, no en una cuarta */}
@@ -1318,6 +1319,9 @@ function ConversationsPanel({
                 <div className="wa-chat-header-info">
                   <div className="wa-chat-name">{selectedConvLead?.nombre || selectedConv.whatsapp}</div>
                   <div className="wa-chat-sub">
+                    <select aria-label="Tipo de contacto" value={selectedConv.tipo_contacto || 'prospecto'} onChange={e => setTipoContacto?.(selectedConv, e.target.value)}>
+                      <option value="alumno">🎓 Alumno</option><option value="prospecto">🆕 Prospecto</option>
+                    </select>{' '}
                     {getModeLabel(selectedConv)} · {getPhaseLabel(selectedConv.fase)}
                     {tiempoRestanteVentana(ultimoUsuarioAtPorConv?.[selectedConv.id]) && (
                       <> · ⏳ {tiempoRestanteVentana(ultimoUsuarioAtPorConv?.[selectedConv.id])}</>
@@ -1482,6 +1486,7 @@ function ConversationsPanel({
                             : m.contenido === "__MEDIA__"
                               ? (m.media_url ? null : "📎 Archivo (no se pudo procesar)")
                               : m.contenido}
+                          {m.delivery_status === 'failed' && <div role="status" style={{ color: '#b91c1c', fontSize: 12 }}>❌ No entregado · {m.delivery_error_code}{m.delivery_error_code === 131049 ? ' · Límite de Marketing de Meta' : ''}{m.delivery_error ? ` · ${m.delivery_error}` : ''}</div>}
                           <div className="wa-msg-time">{time}</div>
                         </div>
                       </Fragment>

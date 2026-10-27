@@ -324,3 +324,11 @@ Inscripción reutiliza los mensajes vigentes de `lib/whatsapp/inscripcion.ts`, p
 ### 0A-bis — revisión PR #48 (26-oct-2026)
 
 Textos fijos completos (incluido kardex), detector de promesas limitado a IA y revisión con código reutilizable. Revisiones solo 08:00–21:00 México; anticipa la reanudación al último turno seguro cuando la siguiente corrida en horario quedaría fuera de la ventana del último usuario. Recordatorios nocturnos esperan apertura; sin ventana se reactiva sin texto. `inscripcion_programa` permite dudas/categorías por reglas/IA y escala después de dos listas sin elegir. 121 pruebas + build OK; ajuste del SQL solo en archivo. Sigue pendiente revisión de Harold; sin merge/deploy ni inicio de 0B.
+
+### 0B — mejoras (26-oct-2026, pendiente de revisión)
+
+PR #48 ya incorporado en main `7e8f56b`. Rama `codex/windsor-mejoras`: alumno/prospecto corregible y alumnos sin venta/Kanban, avisos a Harold con Utility solo si aprobado, estados de entrega firmados con ❌ y bloqueo template/número, y reserva atómica de códigos A…Z/A1…. Incluye reapertura por mensaje nuevo, fase correo con nombre Slaudos/email previo, rechazo de saludos con typo y liberación de modo humano sin actividad >7 días configurables, sin código ni borrador pendientes (puntos 5–7 agregados a tareas). SQL/script de Meta solo en archivos; ver `docs/0B_MEJORAS.md` para activación y límites. 13 revisiones antiguas intactas. Sin merge/deploy. Al cerrar 0B, detenerse; 0C solo con otro «sigue».
+
+### 0B-bis — revisión PR #49 (27-oct-2026)
+
+Clasificador exige señales de alumno y permite corregir automático por intención comercial; manual/inscrito protegidos. Sin App Secret, estados se ignoran con warning/200 y mensajes mixtos siguen. Windsor no es nombre; saludo sin nombre con 👋 para parámetros obligatorios de Meta. Programa de anuncio idiomas/niños persistido y ficha al preguntar precio/edad. Acentos de recordatorios corregidos. Comilla del template: copia local ya limpia y script de corrección de BODY Meta preparado, sin ejecución remota ni alterar registro de lo enviado. Ver guía 0B. 0C ya está terminada (PR #1); después de 0B-bis se retoma tarea 2 OH, por instrucciones de Harold 27-oct.

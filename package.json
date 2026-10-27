@@ -9,7 +9,7 @@
     "lint": "eslint",
     "whatsapp:check": "bash scripts/check-whatsapp-dev.sh",
     "crm:check": "bash scripts/check-crm-quality.sh",
-    "test": "npm run test:clasificacion && node --test scripts/test-conversation-filters.mjs && tsx --test scripts/test-seguimiento-motor.mts && tsx --test scripts/test-windsor-4-errores.mts && tsx --test scripts/test-revision-horario.mts",
+    "test": "npm run test:clasificacion && node --test scripts/test-conversation-filters.mjs && tsx --test scripts/test-seguimiento-motor.mts && tsx --test scripts/test-windsor-4-errores.mts && tsx --test scripts/test-revision-horario.mts && tsx --test scripts/test-windsor-mejoras.mts && tsx --test scripts/test-windsor-0bbis.mts",
     "test:clasificacion": "tsx scripts/test-clasificacion.mts"
   },
   "dependencies": {

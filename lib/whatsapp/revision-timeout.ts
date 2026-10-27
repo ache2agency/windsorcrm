@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ADMIN_WA_ALERTA } from './atencion'
 import { DATOS_DIPLOMADOS } from './reglasNegocio'
+import { etiquetaContacto } from './contactos'
 import { esDiplomado } from './programas'
 import { sendMetaWhatsAppMessage } from './provider'
 import { dentroHorarioMexico } from './seguimiento-motor'
@@ -13,7 +14,7 @@ export function plazosRevision(env: Record<string, string | undefined> = process
 }
 
 export type RevisionPendiente = {
-  id: string; whatsapp: string; lead_id: string | null; provider: string | null
+  tipo_contacto?: 'alumno' | 'prospecto'; id: string; whatsapp: string; lead_id: string | null; provider: string | null
   revision_codigo: string | null; revision_timeout_desde_at: string | null
   revision_recordatorio_at: string | null; revision_timeout_claim_at: string | null
   revision_draft: string | null; modo_humano: boolean; tomado_por: string | null
@@ -42,7 +43,8 @@ export function accionRevision(c: RevisionPendiente, ahora: Date, plazos = plazo
 
 // Solo hechos ya presentes en el sistema. No intenta contestar la duda pendiente
 // con un borrador del LLM ni afirma que Harold la haya confirmado.
-export function respuestaRevisionVencida(curso?: string | null) {
+export function respuestaRevisionVencida(curso?: string | null, tipo?: string | null) {
+  if (tipo === 'alumno') return 'Seguimos pendientes de tu consulta. ¿Te puedo ayudar con algo más? 😊'
   const programa = curso && !/instituto windsor|desconocido/i.test(curso) ? ` sobre *${curso}*` : ''
   const conocido = esDiplomado(curso)
     ? `El diplomado es en línea con clases en vivo. Su duración es de ${DATOS_DIPLOMADOS.duracion}`
@@ -53,6 +55,7 @@ export function respuestaRevisionVencida(curso?: string | null) {
 export async function ejecutarRevisionesPendientes(
   db: SupabaseClient, dryRun: boolean, ahora = new Date(),
   enviar = sendMetaWhatsAppMessage,
+  aviso = (body: string) => enviar({ to: ADMIN_WA_ALERTA, body }),
 ) {
   // Defensa adicional para invocaciones directas, incluso dry-run: cero envíos,
   // reservas o consultas de revisiones de madrugada.
@@ -62,7 +65,7 @@ export async function ejecutarRevisionesPendientes(
   // Paginación antes de mutar. No consulta ni modifica revisiones legacy sin marca.
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await db.from('whatsapp_conversaciones')
-      .select('id,whatsapp,lead_id,provider,revision_codigo,revision_timeout_desde_at,revision_recordatorio_at,revision_timeout_claim_at,revision_draft,modo_humano,tomado_por')
+      .select('id,whatsapp,lead_id,provider,revision_codigo,revision_timeout_desde_at,revision_recordatorio_at,revision_timeout_claim_at,revision_draft,modo_humano,tomado_por,tipo_contacto')
       .not('revision_timeout_desde_at', 'is', null).not('revision_codigo', 'is', null)
       .order('id').range(offset, offset + 499)
     if (error) throw new Error(`Revisiones: ${error.message}`)
@@ -90,13 +93,13 @@ export async function ejecutarRevisionesPendientes(
     try {
       // Una respuesta de Harold invalida la reserva; no enviar borradores antiguos.
       const { data: vigente, error: vigenteError } = await db.from('whatsapp_conversaciones')
-        .select('revision_codigo,revision_timeout_claim_at,revision_timeout_desde_at,revision_draft,modo_humano,tomado_por')
+        .select('revision_codigo,revision_timeout_claim_at,revision_timeout_desde_at,revision_draft,modo_humano,tomado_por,tipo_contacto')
         .eq('id', row.id).maybeSingle()
       if (vigenteError) throw vigenteError
       if (!vigente || vigente.revision_codigo !== claimed.revision_codigo || !vigente.revision_timeout_desde_at || vigente.revision_draft || !vigente.modo_humano || vigente.tomado_por) continue
       if (accion === 'recordatorio') {
-        texto = `⏰ Revisión pendiente *[${claimed.revision_codigo!.toUpperCase()}]*\nLead: ${row.whatsapp}\nResponde: ${claimed.revision_codigo!.toUpperCase()}: tu explicación aquí`
-        await enviar({ to: ADMIN_WA_ALERTA, body: texto })
+        texto = `${etiquetaContacto(row.tipo_contacto)} ⏰ Revisión pendiente *[${claimed.revision_codigo!.toUpperCase()}]*\nLead: ${row.whatsapp}\nResponde: ${claimed.revision_codigo!.toUpperCase()}: tu explicación aquí`
+        await aviso(texto)
       } else {
         // Volver a consultar antes del envío: el lead puede escribir mientras se
         // reclama la revisión y abrir una ventana nueva.
@@ -110,7 +113,7 @@ export async function ejecutarRevisionesPendientes(
             ? await db.from('leads').select('curso').eq('id', row.lead_id).maybeSingle()
             : { data: null, error: null }
           if (leadError) throw leadError
-          texto = respuestaRevisionVencida(lead?.curso)
+          texto = respuestaRevisionVencida(lead?.curso, vigente.tipo_contacto)
           const sent = await enviar({ to: row.whatsapp, body: texto })
           raw = { wamid: sent.id, seguimiento_motor: { accion: 'texto', reglaId: 'revision_timeout_reactivar' }, revision_timeout: { codigo: row.revision_codigo, desde: row.revision_timeout_desde_at } }
         }
