@@ -8,6 +8,7 @@ import { firmaMetaValida, templateBloqueado } from '../lib/whatsapp/entregas'
 import { POST } from '../app/api/whatsapp/webhook/route'
 import { GET } from '../app/api/whatsapp/seguimiento-motor/route'
 import { respuestaRevisionVencida } from '../lib/whatsapp/revision-timeout'
+import { diasInactividadHumana } from '../lib/whatsapp/modo-humano'
 import { hasLeadName } from '../lib/whatsapp/nombres'
 
 const db = () => createClient('https://mejoras-test.supabase.co', 'fake', { auth: { persistSession: false } })
@@ -25,7 +26,7 @@ test('clasificación conserva decisiones manuales y distingue consultas de venta
 })
 
 test('Saludos y sus variantes no se capturan como nombre; nombres reales siguen válidos', () => {
-  for (const text of ['Saludos', 'Saludos cordiales', 'Saluditos']) assert.equal(hasLeadName(text, ''), false)
+  for (const text of ['Slaudos', 'Saludos', 'Buenas tardes', 'Saludos cordiales', 'Saluditos', 'Salduos', 'Hloa']) assert.equal(hasLeadName(text, ''), false)
   for (const text of ['Ana Luna', 'Angel de la cruz roque', 'Salvador García']) assert.equal(hasLeadName(text, ''), true)
 })
 
@@ -122,4 +123,11 @@ for (const escenario of ['alumnos', 'template fallido']) test(`motor real omite 
   assert.match(body.resultados[0].detalle, escenario === 'alumnos' ? /alumno/ : /template bloqueado/)
   assert.equal(consultasHistorial, escenario === 'alumnos' ? 0 : 2)
   assert.equal(consultasBloqueo, escenario === 'alumnos' ? 0 : 2)
+})
+
+
+test('plazo de control humano configurable con default de 7 días', () => {
+  assert.equal(diasInactividadHumana({}), 7)
+  assert.equal(diasInactividadHumana({ MODO_HUMANO_INACTIVO_DIAS: '14' }), 14)
+  for (const value of ['0','-1','NaN','Infinity','4000']) assert.equal(diasInactividadHumana({ MODO_HUMANO_INACTIVO_DIAS: value }), 7)
 })

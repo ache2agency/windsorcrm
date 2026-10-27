@@ -73,3 +73,40 @@ REVOKE ALL ON FUNCTION public.asignar_revision_codigo(uuid) FROM PUBLIC,anon,aut
 REVOKE ALL ON FUNCTION public.registrar_entrega_whatsapp(text,text,timestamptz,integer,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.asignar_revision_codigo(uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.registrar_entrega_whatsapp(text,text,timestamptz,integer,text) TO service_role;
+
+-- La fecha se registra para nuevos controles humanos, sin backfill de revisiones.
+ALTER TABLE public.whatsapp_conversaciones ADD COLUMN IF NOT EXISTS modo_humano_desde_at timestamptz;
+CREATE OR REPLACE FUNCTION public.marcar_inicio_modo_humano() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER SET search_path=public AS $$ BEGIN
+ IF NEW.modo_humano AND (TG_OP='INSERT' OR NOT COALESCE(OLD.modo_humano,false)) THEN
+  NEW.modo_humano_desde_at:=now();
+ ELSIF NOT COALESCE(NEW.modo_humano,false) THEN NEW.modo_humano_desde_at:=NULL;
+ END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER marcar_inicio_modo_humano BEFORE INSERT OR UPDATE OF modo_humano ON public.whatsapp_conversaciones
+ FOR EACH ROW EXECUTE FUNCTION public.marcar_inicio_modo_humano();
+
+-- Invocar solo al recibir un mensaje nuevo, antes de registrar su timestamp.
+CREATE OR REPLACE FUNCTION public.liberar_modo_humano_inactivo(p_id uuid,p_dias numeric DEFAULT 7)
+RETURNS boolean LANGUAGE plpgsql SECURITY INVOKER SET search_path=public AS $$
+DECLARE c public.whatsapp_conversaciones%ROWTYPE; ultimo_humano timestamptz; actividad timestamptz;
+BEGIN
+ IF p_dias IS NULL OR p_dias<1 OR p_dias>3650 THEN RETURN false; END IF;
+ SELECT * INTO c FROM public.whatsapp_conversaciones WHERE id=p_id FOR UPDATE;
+ IF NOT FOUND OR NOT COALESCE(c.modo_humano,false) OR c.revision_codigo IS NOT NULL OR c.revision_draft IS NOT NULL THEN RETURN false; END IF;
+ SELECT max(created_at) INTO ultimo_humano FROM public.whatsapp_mensajes WHERE conversacion_id=p_id AND rol='agente';
+ -- Un nuevo mensaje del usuario no cuenta como actividad humana. Para filas
+ -- antiguas sin marca ni mensajes de agente, usar creación de la conversación.
+ actividad:=COALESCE(GREATEST(c.modo_humano_desde_at,ultimo_humano),c.created_at,c.ultimo_mensaje_at);
+ IF actividad IS NULL OR actividad>now()-make_interval(secs=>(p_dias*86400)::double precision) THEN RETURN false; END IF;
+ UPDATE public.whatsapp_conversaciones SET modo_humano=false,tomado_por=NULL WHERE id=p_id;
+ IF c.lead_id IS NOT NULL THEN
+  INSERT INTO public.lead_activities(lead_id,actor_id,event_type,title,detail,meta)
+   VALUES(c.lead_id,NULL,'modo_humano_inactivo_liberado','Bot reactivado al recibir mensaje',
+    'Control humano sin actividad: vuelve el bot, sin revisión pendiente.',jsonb_build_object('dias',p_dias,'ultima_actividad_humana',actividad));
+ END IF;
+ RETURN true;
+END $$;
+REVOKE ALL ON FUNCTION public.liberar_modo_humano_inactivo(uuid,numeric) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.liberar_modo_humano_inactivo(uuid,numeric) TO service_role;

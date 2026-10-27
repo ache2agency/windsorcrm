@@ -1,3 +1,4 @@
+import { diasInactividadHumana } from '@/lib/whatsapp/modo-humano'
 import { clasificarContacto, etiquetaContacto, type TipoContacto } from '@/lib/whatsapp/contactos'
 import { avisarAdmin } from '@/lib/whatsapp/avisos-admin'
 import { firmaMetaValida, registrarEstados } from '@/lib/whatsapp/entregas'
@@ -81,7 +82,7 @@ type IncomingWhatsAppMessage = {
 
 function extraerWamid(rawPayload: Record<string, unknown>): string | null {
   const entry = (rawPayload as { entry?: Array<{ changes?: Array<{ value?: { messages?: Array<{ id?: string }> } }> }> }).entry
-  const id = entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id
+  const id = entry?.flatMap(e => e.changes || []).find(c => c.value?.messages?.length)?.value?.messages?.[0]?.id
   return typeof id === 'string' && id ? id : null
 }
 
@@ -2325,11 +2326,21 @@ export async function POST(request: Request) {
         let conversacionRow: ConversationRow | null = null
         const { data: existingConv } = await supabase
           .from('whatsapp_conversaciones')
-          .select('id, modo_humano, fase, tipo_contacto, tipo_contacto_manual')
+          .select('id, modo_humano, fase, tipo_contacto, tipo_contacto_manual, revision_codigo, revision_draft')
           .eq('whatsapp', whatsappValue)
           .order('ultimo_mensaje_at', { ascending: false })
           .limit(1)
           .maybeSingle()
+
+        // Solo ante un mensaje entrante, antes de renovar ultimo_mensaje_at.
+        // La RPC bloquea la fila y revalida código, borrador y actividad humana.
+        if (existingConv?.modo_humano && !existingConv.revision_codigo && !existingConv.revision_draft) {
+          const { data: liberado, error: liberarError } = await supabase.rpc('liberar_modo_humano_inactivo', {
+            p_id: existingConv.id, p_dias: diasInactividadHumana(),
+          })
+          if (liberarError) console.error('[webhook] No se pudo comprobar modo humano inactivo:', liberarError.message)
+          if (!liberarError && liberado === true) existingConv.modo_humano = false
+        }
 
         tipoContacto = clasificarContacto(originalText, (leadSnapshot?.stage === 'inscrito' && !existingConv?.tipo_contacto_manual ? 'alumno' : existingConv?.tipo_contacto || 'prospecto'), Boolean(existingConv?.tipo_contacto_manual))
         if (existingConv?.id) {
@@ -2352,9 +2363,9 @@ export async function POST(request: Request) {
             existingConv.fase === 'programa' ||
             existingConv.fase === 'correo'
           ) {
-            // Un correo nuevo debe completar esta fase incluso si ya había otro
-            // guardado; saltar a info_enviada aquí omite el envío de la ficha.
-            nextConversationUpdate.fase = existingConv.fase === 'correo' && detectarEmail(originalText) && desiredPhase === 'info_enviada'
+            // Completar correo aunque el nombre histórico sea inválido (Slaudos)
+            // o ya hubiera otro email; recalcular fase aquí omitiría la ficha.
+            nextConversationUpdate.fase = existingConv.fase === 'correo' && detectarEmail(originalText) && hasLeadProgram(leadSnapshot?.curso)
               ? 'correo' : desiredPhase
           }
           await supabase
@@ -2377,7 +2388,7 @@ export async function POST(request: Request) {
                 provider,
               },
             ])
-            .select('id, modo_humano, fase, tipo_contacto, tipo_contacto_manual')
+            .select('id, modo_humano, fase, tipo_contacto, tipo_contacto_manual, revision_codigo, revision_draft')
             .single()
           conversacionId = nuevaConv?.id
           conversacionRow = nuevaConv || null
@@ -3831,7 +3842,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           } catch { /* sin RAG */ }
           const gptCorreo = await askGPT({
             fase: 'info_enviada',
-            leadData: { nombre: leadSnapshot?.nombre, email: emailDetectado || leadSnapshot?.email, curso: cursoInfo },
+            leadData: { nombre: hasLeadName(leadSnapshot?.nombre, waNumber) ? leadSnapshot?.nombre : null, email: emailDetectado || leadSnapshot?.email, curso: cursoInfo },
             userMessage: preguntaEnCorreo
               ? `Dame información del programa. Además pregunto: ${originalText}`
               : 'Dame información del programa',
