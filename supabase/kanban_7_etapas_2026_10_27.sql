@@ -38,12 +38,14 @@ LANGUAGE sql IMMUTABLE AS $$ SELECT COALESCE(curso,'') !~* 'licenciatura|diploma
 CREATE FUNCTION public.kanban_tras_bot(actual text,destino text,curso text) RETURNS text
 LANGUAGE plpgsql IMMUTABLE SET search_path=public AS $$
 DECLARE a text:=kanban_normalizar_etapa(actual); d text:=kanban_normalizar_etapa(destino);
- orden text[]:=ARRAY['primer_contacto','segundo_contacto','examen_ubicacion','inscripcion_pendiente','inscrito','archivado','perdido'];
+ orden_activo text[]:=ARRAY['primer_contacto','segundo_contacto','examen_ubicacion','inscripcion_pendiente'];
 BEGIN
  IF destino IS NULL OR a IN ('inscrito','perdido') OR d IN ('inscrito','perdido') THEN RETURN a; END IF;
  IF d='examen_ubicacion' AND NOT kanban_es_idioma(curso) THEN RETURN a; END IF;
+ IF a='archivado' AND d IN ('primer_contacto','segundo_contacto','examen_ubicacion','inscripcion_pendiente') THEN RETURN d; END IF;
  IF a='inscripcion_pendiente' AND d='archivado' THEN RETURN a; END IF;
- RETURN CASE WHEN array_position(orden,d)>array_position(orden,a) THEN d ELSE a END;
+ IF d='archivado' THEN RETURN CASE WHEN a='archivado' THEN a ELSE d END; END IF;
+ RETURN CASE WHEN array_position(orden_activo,d)>array_position(orden_activo,a) THEN d ELSE a END;
 END $$;
 CREATE FUNCTION public.kanban_etapa_migrada(stage text,fase text,curso text) RETURNS text
 LANGUAGE plpgsql IMMUTABLE SET search_path=public AS $$

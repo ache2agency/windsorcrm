@@ -103,13 +103,14 @@ for (const escenario of ['recordatorio', 'reactivar', 'sin_ventana', 'sin_claim'
 }
 
 // Se recorre el webhook real con servicios simulados, sin datos ni envíos reales.
-for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'confirmacion', 'revision_nueva', 'revalidacion', 'ia_promesa', 'programa_precio', 'programa_licenciatura', 'programa_lista_doble_precio', 'programa_lista_doble_licenciatura', 'alumno_clases', 'alumno_calificacion', 'alumno_constancia', 'alumno_regularizacion', 'alumno_inscrito', 'correo', 'correo_sin_email', 'cerrado', 'perdido', 'inscribiendo_precio', 'humano_viejo', 'humano_reciente', 'humano_legacy']) {
+for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'confirmacion', 'revision_nueva', 'revalidacion', 'ia_promesa', 'programa_precio', 'programa_licenciatura', 'programa_lista_doble_precio', 'programa_lista_doble_licenciatura', 'alumno_clases', 'alumno_calificacion', 'alumno_constancia', 'alumno_regularizacion', 'alumno_inscrito', 'correo', 'correo_sin_email', 'cerrado', 'perdido', 'inscribiendo_precio', 'rpc_falla', 'humano_viejo', 'humano_reciente', 'humano_legacy']) {
   test(`webhook real: ${escenario}`, async t => {
     const usaIA = ['revision_nueva', 'ia_promesa', 'programa_precio', 'correo', 'correo_sin_email', 'inscribiendo_precio'].includes(escenario)
     const esRevision = escenario.startsWith('alumno_') || escenario === 'revision_nueva' || escenario === 'ia_promesa' || escenario.startsWith('programa_lista_doble')
     const env = { ...process.env }
     Object.assign(process.env, { NEXT_PUBLIC_SUPABASE_URL: 'https://webhook-test.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'fake', WHATSAPP_PROVIDER: 'meta', META_WHATSAPP_TOKEN: 'fake', META_PHONE_NUMBER_ID: 'fake', OPENAI_API_KEY: usaIA ? 'fake' : '' })
     t.after(() => { process.env = env })
+    if (escenario === 'rpc_falla') t.mock.method(console, 'error', () => {})
     const patches: Array<Record<string, unknown>> = []
     const reservas: unknown[] = []
     if (usaIA) t.mock.method(console, 'log', () => {})
@@ -144,7 +145,10 @@ for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'co
       if (req.method === 'POST') {
         const data = await req.json()
         if (tabla === 'liberar_modo_humano_inactivo') { assert.deepEqual(data, { p_id: 'conv-1', p_dias: 7 }); return Response.json(escenario === 'humano_viejo') }
-        if (tabla === 'avanzar_etapa_bot') { lead.stage = etapaTrasBot(lead.stage, data.p_etapa, lead.curso); return Response.json(lead.stage) }
+        if (tabla === 'avanzar_etapa_bot') {
+          if (escenario === 'rpc_falla') return Response.json({ message: 'RPC no disponible' }, { status: 503 })
+          lead.stage = etapaTrasBot(lead.stage, data.p_etapa, lead.curso); return Response.json(lead.stage)
+        }
         if (tabla === 'asignar_revision_codigo') { reservas.push(data); return Response.json('a') }
         if (tabla === 'whatsapp_mensajes') {
           saved.push(...data)
@@ -200,6 +204,7 @@ for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'co
       assert.equal(patches.some(p => p.revision_codigo), false)
     }
     else if (escenario === 'inscribiendo_precio') { assert.match(toLead.at(-1)!.text.body, /precios/); assert.equal(lead.stage, 'inscripcion_pendiente') }
+    else if (escenario === 'rpc_falla') { assert.ok(toLead.length > 0, 'el webhook debe contestar aunque falle la RPC'); assert.equal(saved.some(m => m.rol === 'bot'), true) }
     else if (escenario.startsWith('correo')) { assert.match(toLead.at(-1)!.text.body, /ya tengo tu correo/); assert.equal(lead.email, '12praxmax@gmail.com'); assert.equal(fase, 'accion') }
     else { assert.match(toLead.at(-1)!.text.body, /INSCRIPCIÓN DIPLOMADOS/); if (['cerrado','perdido'].includes(escenario)) assert.ok(patches.some(p => p.estado === 'abierta' && p.fase === 'info_enviada')) }
     for (const m of sent) { assert.ok(['525500000001', ADMIN_WA_ALERTA].includes(m.to.replace(/\D/g, ''))); if (m.to !== ADMIN_WA_ALERTA) sinPromesas(m.text.body) }

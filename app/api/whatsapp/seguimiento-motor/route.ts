@@ -1,4 +1,4 @@
-import { avanzarEtapaBot } from '@/lib/crm/etapas-bot'
+import { intentarAvanzarEtapaBot } from '@/lib/crm/etapas-bot'
 import { avisarAdmin } from '@/lib/whatsapp/avisos-admin'
 import { templateBloqueado } from '@/lib/whatsapp/entregas'
 import { ADMIN_WA_ALERTA } from '@/lib/whatsapp/atencion'
@@ -192,8 +192,8 @@ async function ejecutarDecision(params: {
 
   if (decision.accion === 'archivar') {
     if (!dryRun) {
-      const etapa = await avanzarEtapaBot(supabase, lead.id, decision.nuevoStage || 'archivado')
-      if (etapa !== 'archivado') return { accion: 'omitido', detalle: 'Etapa protegida: requiere decisión humana.' }
+      const etapa = await intentarAvanzarEtapaBot(supabase, lead.id, decision.nuevoStage || 'archivado')
+      if (etapa !== null && etapa !== 'archivado') return { accion: 'omitido', detalle: 'Etapa protegida: requiere decisión humana.' }
       await supabase.from('whatsapp_conversaciones').update({
         fase: decision.nuevaFase,
         estado: 'abierta',

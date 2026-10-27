@@ -1,4 +1,4 @@
-import { avanzarEtapaBot } from '@/lib/crm/etapas-bot'
+import { intentarAvanzarEtapaBot } from '@/lib/crm/etapas-bot'
 import { esCursoIdioma } from '@/lib/crm/kanban'
 import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/utils/supabase/server'
@@ -79,8 +79,8 @@ export async function POST(request: Request) {
         if (updateError || !leadActualizado) {
           return NextResponse.json({ error: 'No pudimos actualizar tus datos' }, { status: 500 })
         }
-        const etapa = await avanzarEtapaBot(supabase, leadExistente.id, citaTipo === 'inscripcion' ? 'inscripcion_pendiente' : esCursoIdioma(cursoLabel) ? 'examen_ubicacion' : 'segundo_contacto')
-        leadData = { ...leadActualizado, stage: etapa }
+        const etapa = await intentarAvanzarEtapaBot(supabase, leadExistente.id, citaTipo === 'inscripcion' ? 'inscripcion_pendiente' : esCursoIdioma(cursoLabel) ? 'examen_ubicacion' : 'segundo_contacto')
+        leadData = { ...leadActualizado, ...(etapa ? { stage: etapa } : {}) }
       }
     }
 

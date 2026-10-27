@@ -1,4 +1,4 @@
-import { avanzarEtapaBot } from '@/lib/crm/etapas-bot'
+import { intentarAvanzarEtapaBot } from '@/lib/crm/etapas-bot'
 import twilio from 'twilio'
 import { createServiceRoleClient } from '@/utils/supabase/server'
 import {
@@ -291,7 +291,7 @@ async function moverATercerContacto(
     }
 
     // Mover a tercer_contacto
-    await avanzarEtapaBot(supabase, lead.id, 'segundo_contacto')
+    await intentarAvanzarEtapaBot(supabase, lead.id, 'segundo_contacto')
 
     // Registrar en lead_activities
     await supabase.from('lead_activities').insert([{
@@ -501,8 +501,8 @@ export async function POST(request: Request) {
     }
 
     if (intentos.length >= 2) {
-      const etapa = await avanzarEtapaBot(supabase, lead.id, 'archivado')
-      if (etapa !== 'archivado') { resultados.push({ lead_id: lead.id, accion: 'omitido', detalle: 'etapa protegida; decisión humana' }); continue }
+      const etapa = await intentarAvanzarEtapaBot(supabase, lead.id, 'archivado')
+      if (etapa !== null && etapa !== 'archivado') { resultados.push({ lead_id: lead.id, accion: 'omitido', detalle: 'etapa protegida; decisión humana' }); continue }
       await supabase.from('lead_activities').insert([
         {
           lead_id: lead.id,

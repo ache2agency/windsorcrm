@@ -41,8 +41,13 @@ export function etapaTrasBot(actual: string | null | undefined, destino: string 
   const hasta = normalizarEtapa(destino)
   if (['inscrito','perdido'].includes(hasta)) return desde
   if (hasta === 'examen_ubicacion' && !esCursoIdioma(curso)) return desde
+  // Archivado es reactivable: si el prospecto vuelve a escribir, retoma la
+  // etapa que corresponde a la conversación y sale del conjunto inactivo.
+  if (desde === 'archivado' && ['primer_contacto','segundo_contacto','examen_ubicacion','inscripcion_pendiente'].includes(hasta)) return hasta
   if (desde === 'inscripcion_pendiente' && hasta === 'archivado') return desde // El mapa dice que decide una persona.
-  return ETAPAS_KANBAN.findIndex(e => e.id === hasta) > ETAPAS_KANBAN.findIndex(e => e.id === desde) ? hasta : desde
+  const ordenActivo: EtapaKanban[] = ['primer_contacto','segundo_contacto','examen_ubicacion','inscripcion_pendiente']
+  if (hasta === 'archivado') return desde === 'archivado' ? desde : hasta
+  return ordenActivo.indexOf(hasta) > ordenActivo.indexOf(desde) ? hasta : desde
 }
 // Solo para la migración inicial: combina historia comercial con la última fase,
 // conservando la etapa más avanzada y los cierres explícitos de stage.

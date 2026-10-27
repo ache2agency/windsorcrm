@@ -10,10 +10,17 @@ DO $$ BEGIN
  IF (SELECT stage FROM leads WHERE nombre='Ficticio 4')<>'archivado' THEN RAISE EXCEPTION 'Cerrado no es Inscrito'; END IF;
  IF (SELECT stage FROM leads WHERE nombre='Ficticio 5')<>'segundo_contacto' THEN RAISE EXCEPTION 'Agendado no idiomas'; END IF;
  IF (SELECT stage FROM leads WHERE nombre='Ficticio 8')<>'examen_ubicacion' THEN RAISE EXCEPTION 'Agendado idiomas'; END IF;
+ IF kanban_tras_bot('archivado','inscripcion_pendiente','Inglés para niños')<>'inscripcion_pendiente' THEN RAISE EXCEPTION 'Archivado no reabre inscripción'; END IF;
+ IF kanban_tras_bot('archivado','segundo_contacto','Diplomado en Epidemiología')<>'segundo_contacto' THEN RAISE EXCEPTION 'Archivado no reabre Informado'; END IF;
+ IF kanban_tras_bot('archivado','examen_ubicacion','Francés')<>'examen_ubicacion' THEN RAISE EXCEPTION 'Archivado no reabre Agendado'; END IF;
+ IF kanban_tras_bot('archivado','examen_ubicacion','Psicología')<>'archivado' THEN RAISE EXCEPTION 'Agendado no debe abrirse para no idiomas'; END IF;
+ IF kanban_etapa_migrada('archivado','inscribiendo','Inglés para niños')<>'inscripcion_pendiente' THEN RAISE EXCEPTION 'Backfill no reactiva etapa activa'; END IF;
 END $$;
 SET ROLE service_role;
 SELECT set_config('request.jwt.claim.sub','',false);
 SELECT avanzar_etapa_bot('00000000-0000-4000-a000-000000000002','segundo_contacto');
+SELECT avanzar_etapa_bot('00000000-0000-4000-a000-000000000004','inscripcion_pendiente');
+DO $$ BEGIN IF (SELECT stage FROM leads WHERE nombre='Ficticio 4')<>'inscripcion_pendiente' THEN RAISE EXCEPTION 'RPC no reabre Archivado'; END IF; END $$;
 UPDATE leads SET stage='inscrito',cerrado_por='22222222-2222-4222-a222-222222222222' WHERE nombre='Ficticio 2';
 UPDATE leads SET stage='perdido' WHERE nombre='Ficticio 2';
 DO $$ BEGIN IF (SELECT stage FROM leads WHERE nombre='Ficticio 2')<>'inscripcion_pendiente' THEN RAISE EXCEPTION 'Bot retrocedió/cerró inscripción'; END IF; END $$;
