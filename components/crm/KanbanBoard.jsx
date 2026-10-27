@@ -36,11 +36,13 @@ export default function KanbanBoard({
           onDragLeave={(e) => e.currentTarget.classList.remove("drag-over")}
           onDrop={(e) => { e.currentTarget.classList.remove("drag-over"); handleDrop(stage.id); }}
           className="col-drop"
+          aria-label={`Etapa ${stage.label}`}
           style={{ minWidth: 220, flex: "0 0 220px" }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, padding: "10px 12px", background: stage.bg, borderRadius: 8, border: `1px solid ${stage.color}22` }}>
             <div>
               <div style={{ fontSize: 11, color: stage.color, fontWeight: 500, letterSpacing: 0.5 }}>{stage.label}</div>
+              <div style={{ fontSize: 11, color: "#555", marginTop: 5, lineHeight: 1.4 }}>Qué esperamos: {stage.esperamos}</div>
               <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>{formatPeso(byStage(stage.id).reduce((a, b) => a + b.valor, 0))}</div>
             </div>
             <div style={{ background: stage.color + "22", color: stage.color, borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600 }}>
@@ -67,6 +69,7 @@ export default function KanbanBoard({
                   <span style={{ fontSize: 12, color: stage.color, fontWeight: 600 }}>{formatPeso(lead.valor)}</span>
                   <span style={{ fontSize: 10, color: "#555" }}>{getNombreVendedor(lead.asignado_a)}</span>
                 </div>
+                {stage.id === "inscrito" && <div style={{ marginTop: 6, fontSize: 11, color: "#166534" }}>Cerró: {lead.cerrado_por_nombre || (lead.cerrado_por ? getNombreVendedor(lead.cerrado_por) : "Sin registro histórico")}</div>}
                 {lead.created_at && (
                   <div style={{ marginTop: 5, fontSize: 10, color: "#999" }}>
                     Entró: {new Date(lead.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Mexico_City" })}

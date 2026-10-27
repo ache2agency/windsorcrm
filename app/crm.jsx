@@ -13,29 +13,11 @@ import SeguimientosPanel from "@/components/crm/SeguimientosPanel";
 import ReactivacionesPanel from "@/components/crm/ReactivacionesPanel";
 import { chunkArray } from "@/lib/db-utils";
 import { esDiplomado } from "@/lib/whatsapp/programas";
+import { ETAPAS_KANBAN, normalizarEtapa, esCursoIdioma } from "@/lib/crm/kanban";
 import { etiquetaFase } from "@/lib/whatsapp/fases";
 const supabase = createClient();
 
-const STAGES = [
-  { id: "primer_contacto", label: "📞 Primer contacto", color: "#2C4A8C", bg: "#eef2fb" },
-  { id: "examen_ubicacion", label: "📝 Examen de ubicación", color: "#b45309", bg: "#fef3c7" },
-  { id: "clase_muestra", label: "🎓 Clase muestra", color: "#A8263C", bg: "#fee2e8" },
-  { id: "segundo_contacto", label: "🔁 Segundo contacto", color: "#7c3aed", bg: "#ede9fe" },
-  { id: "promocion_enviada", label: "🏷️ Promoción enviada", color: "#c2410c", bg: "#ffedd5" },
-  { id: "tercer_contacto", label: "📲 Tercer contacto", color: "#2C4A8C", bg: "#dbeafe" },
-  { id: "inscripcion_pendiente", label: "📋 Inscripción pendiente", color: "#92400e", bg: "#fef9c3" },
-  { id: "inscrito", label: "✅ Inscrito", color: "#15803d", bg: "#dcfce7" },
-  { id: "perdido", label: "❌ Perdido", color: "#64748b", bg: "#f1f5f9" },
-  { id: "archivado", label: "📦 Archivado", color: "#94a3b8", bg: "#f8fafc" },
-];
-
-const LEGACY_STAGE_MAP = {
-  nuevo: "primer_contacto",
-  contactado: "primer_contacto",
-  interesado: "segundo_contacto",
-  propuesta: "inscripcion_pendiente",
-  cerrado: "inscrito",
-};
+const STAGES = ETAPAS_KANBAN;
 
 const CURSOS = ["Inglés para niños", "Inglés para adultos", "Licenciaturas", "Maestrías", "Diplomados"];
 const SESSION_HOURS = 12;
@@ -53,7 +35,7 @@ const WA_TEMPLATES = {
   inscrito: (nombre, curso) => `¡Felicidades ${nombre}! Tu inscripción en *${curso}* quedó confirmada con Instituto Windsor.`,
 };
 
-const normalizeStage = (stage) => LEGACY_STAGE_MAP[stage] || stage || "primer_contacto";
+const normalizeStage = normalizarEtapa;
 const AGENDAR_LINK = "https://crm.windsor.edu.mx/agendar/hola@windsor.edu.mx";
 
 const getProgramaResumen = (curso) => {
@@ -466,7 +448,7 @@ export default function CRM() {
 
           const { data: messages } = await supabase
             .from("whatsapp_mensajes")
-            .select("id, rol, contenido, created_at")
+            .select("id, rol, contenido, created_at, enviado_por, enviado_por_nombre")
             .eq("conversacion_id", conv.id)
             .order("created_at", { ascending: false })
             .limit(4);
@@ -474,7 +456,7 @@ export default function CRM() {
           (messages || []).forEach((message) => {
             timeline.push({
               id: message.id,
-              title: message.rol === "usuario" ? "Mensaje del prospecto" : message.rol === "agente" ? "Respuesta del vendedor" : "Mensaje del bot",
+              title: message.rol === "usuario" ? "Mensaje del prospecto" : message.rol === "agente" ? `Respuesta de ${message.enviado_por_nombre || "asesor sin registro histórico"}` : "Mensaje del bot",
               detail: message.contenido,
               date: message.created_at,
               tone: message.rol === "usuario" ? "#8ac0ff" : message.rol === "agente" ? "#c58cff" : "#5fd18c",
@@ -651,7 +633,6 @@ export default function CRM() {
         .select("*")
         .order("created_at", { ascending: false })
         .range(from, to);
-      if (!admin) query = query.eq("asignado_a", userId);
       return query;
     };
 
@@ -949,7 +930,7 @@ export default function CRM() {
     if (!silent) setConvMessages([]);
     const { data, error } = await supabase
       .from("whatsapp_mensajes")
-      .select("id, rol, contenido, media_url, media_tipo, created_at, marcado_error, delivery_status, delivery_error_code, delivery_error")
+      .select("id, rol, contenido, media_url, media_tipo, created_at, marcado_error, enviado_por, enviado_por_nombre, delivery_status, delivery_error_code, delivery_error")
       .eq("conversacion_id", convId)
       .order("created_at", { ascending: true });
     if (error) {
@@ -1573,10 +1554,6 @@ export default function CRM() {
 
   const filteredLeads = useMemo(() => leads.filter(l => {
     if (l.tipo_contacto === 'alumno') return false;
-    // Asesores solo ven sus propios leads
-    if (!isAdmin && currentProfile?.id) {
-      if (l.asignado_a !== currentProfile.id) return false;
-    }
     const matchV = filterVendedor === "Todos" || l.asignado_a === filterVendedor;
     const matchF = filterFuente === "Todos" || getFuenteLead(l) === filterFuente;
     const matchO = filterOferta === "Todos" || getProgramaResumen(l.curso)?.key === filterOferta;
@@ -1613,11 +1590,6 @@ export default function CRM() {
     }).length;
   }, [whatsConvs, ultimoUsuarioAtPorConv]);
   const filteredWhatsConvs = useMemo(() => whatsConvs.filter((conv) => {
-    // Asesores solo ven conversaciones de sus leads
-    if (!isAdmin && currentProfile?.id) {
-      const lead = leads.find((l) => l.id === conv.lead_id);
-      if (lead && lead.asignado_a !== currentProfile.id) return false;
-    }
     const searchValue = convSearch.trim().toLowerCase();
     const matchesSearch =
       !searchValue ||
@@ -1688,17 +1660,7 @@ export default function CRM() {
     if (relatedConv?.fase === "inscribiendo") return "Confirmar pago y documentos para cerrar la inscripción.";
     if (relatedConv?.fase === "dudas") return "Responder dudas y llevar al prospecto al siguiente paso.";
     if (relatedConv?.fase === "accion" || relatedConv?.fase === "seguimiento" || relatedConv?.fase === "con_asesor") return "Cerrar con CTA claro: asesoría, examen de ubicación o inscripción.";
-    if (currentStage === "primer_contacto") return "Hacer primer contacto y confirmar interés real.";
-    if (currentStage === "examen_ubicacion") return "Invitar o confirmar examen de ubicación.";
-    if (currentStage === "clase_muestra") return "Agendar o confirmar clase muestra.";
-    if (currentStage === "segundo_contacto") return "Dar segundo seguimiento y resolver dudas pendientes.";
-    if (currentStage === "promocion_enviada") return "Confirmar recepción de la promoción y medir interés.";
-    if (currentStage === "tercer_contacto") return "Hacer último seguimiento comercial antes de archivar.";
-    if (currentStage === "inscripcion_pendiente") return "Cerrar inscripción y acompañar el proceso administrativo.";
-    if (currentStage === "inscrito") return "Mantener seguimiento post-inscripción.";
-    if (currentStage === "perdido") return "Revisar si conviene reactivar más adelante.";
-    if (currentStage === "archivado") return "Lead archivado; reactivar solo si vuelve a mostrar interés.";
-    return "Actualizar siguiente paso comercial.";
+    return STAGES.find(s => s.id === currentStage)?.esperamos || "Actualizar siguiente paso comercial.";
   };
 
   const getCitaStatusStyle = (status) => {
@@ -1713,16 +1675,8 @@ export default function CRM() {
 
   const getConversationPhaseForStage = (stage) => {
     const map = {
-      primer_contacto: "saludo",
-      examen_ubicacion: "accion",
-      clase_muestra: "accion",
-      segundo_contacto: "seguimiento",
-      promocion_enviada: "seguimiento",
-      tercer_contacto: "seguimiento",
-      inscripcion_pendiente: "accion",
-      inscrito: "cerrado",
-      perdido: "perdido",
-      archivado: "seguimiento",
+      primer_contacto: "saludo", segundo_contacto: "dudas", examen_ubicacion: null,
+      inscripcion_pendiente: "inscribiendo", inscrito: "cerrado", perdido: "perdido", archivado: "archivado",
     };
     return map[normalizeStage(stage)] || null;
   };
@@ -1750,9 +1704,13 @@ export default function CRM() {
   const moveStage = async (leadId, newStage, notas = "") => {
     const lead = leads.find((item) => item.id === leadId);
     const previousStage = normalizeStage(lead?.stage);
-    const { data: updData, error } = await supabase.from("leads").update({ stage: newStage }).eq("id", leadId).select("id");
-    if (error) return showToast("Error actualizando: " + error.message, "error");
-    if (!updData || updData.length === 0) return showToast("Sin permiso para mover este lead", "error");
+    if (newStage === "examen_ubicacion" && !esCursoIdioma(lead?.curso)) {
+      showToast("Agendado solo aplica a cursos de idiomas", "error"); return null;
+    }
+    const { data: updData, error } = await supabase.from("leads").update({ stage: newStage }).eq("id", leadId).select("*");
+    if (error) { showToast("Error actualizando: " + error.message, "error"); return null; }
+    if (!updData?.length) { showToast("Sin permiso para mover este lead", "error"); return null; }
+    const actualizado = updData[0];
 
     const nextFase = getConversationPhaseForStage(newStage);
     if (nextFase) {
@@ -1773,7 +1731,8 @@ export default function CRM() {
       );
     }
 
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage } : l));
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...actualizado } : l));
+    setSelectedLead(prev => prev?.id === leadId ? { ...prev, ...actualizado } : prev);
     const notaTrim = (notas || "").trim();
     await logLeadActivity({
       leadId,
@@ -1783,6 +1742,7 @@ export default function CRM() {
       meta: { from: previousStage || null, to: newStage },
     });
     showToast("Lead movido a " + STAGES.find(s => s.id === newStage)?.label);
+    return actualizado;
   };
 
   const handleDrop = (stageId) => {
@@ -1897,7 +1857,7 @@ export default function CRM() {
   const getNombreVendedor = (id) => vendedores.find(v => v.id === id)?.nombre || vendedores.find(v => v.id === id)?.email?.split("@")[0] || "—";
 
   const totalRevenue = leads.filter((l) => normalizeStage(l.stage) === "inscrito").reduce((a, b) => a + b.valor, 0);
-  const pipelineValue = leads.filter((l) => !["inscrito", "perdido", "archivado"].includes(normalizeStage(l.stage))).reduce((a, b) => a + b.valor, 0);
+  const pipelineValue = leads.filter(l => l.tipo_contacto !== "alumno").filter((l) => !["inscrito", "perdido", "archivado"].includes(normalizeStage(l.stage))).reduce((a, b) => a + b.valor, 0);
   const convRate = leads.length ? Math.round((leads.filter((l) => normalizeStage(l.stage) === "inscrito").length / leads.length) * 100) : 0;
 
   const openWA = (lead) => {
@@ -1953,8 +1913,8 @@ export default function CRM() {
     }
 
     const stageForTipo = {
-      clase_prueba: "clase_muestra",
-      examen_ubicacion: "examen_ubicacion",
+      clase_prueba: esCursoIdioma(lead.curso) ? "examen_ubicacion" : "segundo_contacto",
+      examen_ubicacion: esCursoIdioma(lead.curso) ? "examen_ubicacion" : "segundo_contacto",
       inscripcion: "inscripcion_pendiente",
       asesoria: "segundo_contacto",
     };
@@ -2358,7 +2318,7 @@ export default function CRM() {
 
           {/* Desglose por oferta educativa */}
           {(() => {
-            const activos = leads.filter(l => !["inscrito","perdido","archivado"].includes(normalizeStage(l.stage)));
+            const activos = leads.filter(l => l.tipo_contacto !== "alumno").filter(l => !["inscrito","perdido","archivado"].includes(normalizeStage(l.stage)));
             const conteo = { idiomas: {}, bachillerato: {}, licenciaturas: {}, maestrias: {}, otros: {}, diplomados: {} };
             activos.forEach(l => {
               const programa = getProgramaResumen(l.curso);
@@ -2402,9 +2362,9 @@ export default function CRM() {
         {/* FILTROS */}
         <div style={{ display: (view === "convs" || view === "agenda") ? "none" : "flex", flexWrap: "wrap", gap: 12, marginBottom: 24, alignItems: "center" }}>
           <input className="input" style={{ maxWidth: 260, flex: "1 1 180px" }} placeholder="🔍  Buscar lead..." value={search} onChange={e => setSearch(e.target.value)} />
-          {isAdmin && (
-            <select className="select" style={{ maxWidth: 200, flex: "1 1 160px" }} value={filterVendedor} onChange={e => setFilterVendedor(e.target.value)}>
-              <option value="Todos">Todos los vendedores</option>
+          {(
+            <select aria-label="Filtrar por asesor" className="select" style={{ maxWidth: 200, flex: "1 1 160px" }} value={filterVendedor} onChange={e => setFilterVendedor(e.target.value)}>
+              <option value="Todos">Todos los asesores</option>
               {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre || v.email}</option>)}
             </select>
           )}

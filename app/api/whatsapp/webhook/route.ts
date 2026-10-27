@@ -1,3 +1,4 @@
+import { intentarAvanzarEtapaBot, intentarAvanzarPorFase } from '@/lib/crm/etapas-bot'
 import { diasInactividadHumana } from '@/lib/whatsapp/modo-humano'
 import { clasificarContacto, etiquetaContacto, type TipoContacto } from '@/lib/whatsapp/contactos'
 import { avisarAdmin } from '@/lib/whatsapp/avisos-admin'
@@ -207,31 +208,7 @@ async function logBotMessageAndUpdateFase(
     alertarAdminNuevoLead(supabase, leadId, nextFase).catch(() => {})
   }
 
-  // Mover stage del lead automáticamente según la fase del bot
-  if (leadId && nextFase) {
-    const FASE_A_STAGE: Record<string, string> = {
-      accion:       'primer_contacto',
-      examen:       'examen_ubicacion',
-      clase_prueba: 'clase_muestra',
-      inscripcion:  'inscripcion_pendiente',
-    }
-    const nuevoStage = FASE_A_STAGE[nextFase]
-    if (nuevoStage) {
-      // Para primer_contacto solo asignar si el lead no tiene stage aún
-      // Para las demás fases, siempre avanzar (no retroceder)
-      const ORDEN_STAGES = ['primer_contacto', 'examen_ubicacion', 'clase_muestra', 'inscripcion_pendiente', 'inscrito']
-      if (nuevoStage === 'primer_contacto') {
-        await supabase.from('leads').update({ stage: nuevoStage }).eq('id', leadId).is('stage', null)
-      } else {
-        const { data: lead } = await supabase.from('leads').select('stage').eq('id', leadId).maybeSingle()
-        const posActual = ORDEN_STAGES.indexOf(lead?.stage || '')
-        const posNuevo = ORDEN_STAGES.indexOf(nuevoStage)
-        if (posNuevo > posActual) {
-          await supabase.from('leads').update({ stage: nuevoStage }).eq('id', leadId)
-        }
-      }
-    }
-  }
+  if (leadId && nextFase) await intentarAvanzarPorFase(supabase, leadId, nextFase)
 }
 
 type ConversationRow = {
@@ -296,33 +273,6 @@ function getNextDataPhase(lead: LeadSnapshot | null | undefined, whatsapp: strin
   return 'info_enviada'
 }
 
-function getStageForPhase(phase: string | null | undefined) {
-  switch (phase) {
-    case 'saludo':
-      return 'contactado'
-    case 'programa':
-    case 'correo':
-      return 'contactado'
-    case 'info_enviada':
-    case 'dudas':
-    case 'accion':
-    case 'seguimiento':
-    case 'convenios':
-      return 'interesado'
-    // 'cerrado' es una fase CONVERSACIONAL (la plática terminó cordialmente, ej. el
-    // prospecto dijo "gracias, ok" o "luego confirmo") — NO significa que se inscribió.
-    // Antes esto promovía el stage del lead a 'cerrado', que el CRM pinta como "✅
-    // Inscrito" (LEGACY_STAGE_MAP en app/crm.jsx). Verificado con datos reales: de una
-    // muestra de leads con stage='cerrado', ninguno se había inscrito realmente — solo
-    // se habían despedido de la plática. No tocar el stage de ventas aquí.
-    case 'cerrado':
-      return null
-    case 'perdido':
-      return 'perdido'
-    default:
-      return null
-  }
-}
 
 function isMetaWebhookPayload(payload: unknown) {
   return Boolean(
@@ -1174,7 +1124,7 @@ async function handleRegistroCommand(
         whatsapp: whatsappNuevoLead,
         curso: ofertaLinea,
         valor,
-        stage: 'contactado',
+        stage: 'primer_contacto',
         fecha: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' }),
         origen: 'registro_wa',
         ...(asignadoA ? { asignado_a: asignadoA } : {}),
@@ -1756,7 +1706,7 @@ async function respondProgramaDesconocido(
   const respuesta = tipo === 'desconocido' ? INSCRIPCION_DESCONOCIDA_MSG : mensajeInscripcionPara(tipo)
   const fase = tipo === 'desconocido' ? 'inscripcion_programa' : tipo === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
   await logBotMessageAndUpdateFase(supabase, conversacionId, respuesta, fase, leadId)
-  if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
+  if (leadId) await intentarAvanzarEtapaBot(supabase, leadId, 'inscripcion_pendiente')
   return buildProviderResponse(provider, respuesta, waNumber)
 }
 
@@ -2279,7 +2229,7 @@ export async function POST(request: Request) {
                   curso: esMessenger ? 'Messenger - Instituto Windsor' : 'WhatsApp - Instituto Windsor',
                   valor: 0,
                   notas: `Lead creado automáticamente desde ${esMessenger ? 'Messenger' : 'WhatsApp'}.${profileName ? ' Nombre WA: ' + profileName : ''}`,
-                  stage: 'contactado',
+                  stage: 'primer_contacto',
                   fecha: today,
                   origen: origenLead,
                   ...(defaultAssignee ? { asignado_a: defaultAssignee } : {}),
@@ -3179,13 +3129,13 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         const nombre = leadSnapshot?.nombre ? ` ${leadSnapshot.nombre.split(' ')[0]}` : ''
         const resp = `¡Entendido${nombre}! Tómate tu tiempo. Si más adelante quieres retomarlo, escríbenos por aquí y con gusto te ayudamos. 😊`
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'archivado', leadId)
-        if (leadId) await supabase.from('leads').update({ stage: 'archivado' }).eq('id', leadId)
+        if (leadId) await intentarAvanzarEtapaBot(supabase, leadId, 'archivado')
         return buildProviderResponse(provider, resp, waNumber)
       }
       if (/^necesito\s+m[aá]s\s+tiempo[\s\S]*$/i.test(msgTrimBtn)) {
         const resp = `Claro, no hay problema. 😊 Te damos espacio y más adelante te recordamos el proceso para que puedas retomarlo sin empezar de cero.`
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'inscribiendo', leadId)
-        if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
+        if (leadId) await intentarAvanzarEtapaBot(supabase, leadId, 'inscripcion_pendiente')
         return buildProviderResponse(provider, resp, waNumber)
       }
       if (/^ya\s+tengo\s+mis\s+documentos[\s\S]*$/i.test(msgTrimBtn)) {
@@ -3195,7 +3145,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         }
         const resp = `¡Perfecto! 😊 Sube tus documentos en el formulario de inscripción de tu programa:\nhttps://www.windsor.edu.mx/solicitud-de-inscripcion\n\nCuando lo termines, avísanos por aquí.`
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'inscribiendo', leadId)
-        if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
+        if (leadId) await intentarAvanzarEtapaBot(supabase, leadId, 'inscripcion_pendiente')
         return buildProviderResponse(provider, resp, waNumber)
       }
       if (/no\s+(puedo|me\s+deja|logro).{0,40}(subir|adjuntar|cargar)|problema.{0,30}(subir|adjuntar|cargar)/i.test(msgTrimBtn)) {
@@ -3212,7 +3162,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         // de fondo que el placeholder colándose en el mensaje de pedir correo, ver más abajo).
         const resp = `¡Claro que sí! 😊 Con gusto resuelvo tus dudas. ¿Qué quisiera saber sobre ${hasLeadProgram(leadSnapshot?.curso) ? leadSnapshot?.curso : 'el programa'}?`
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'dudas', leadId)
-        if (leadId) await supabase.from('leads').update({ stage: 'tercer_contacto' }).eq('id', leadId)
+        if (leadId) await intentarAvanzarEtapaBot(supabase, leadId, 'tercer_contacto')
         return buildProviderResponse(provider, resp, waNumber)
       }
       if (/^no\s*tengo\s*dudas[\s\S]*$/i.test(msgTrimBtn)) {
@@ -3224,14 +3174,14 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
         // Asegurar que el stage del lead llegue a inscripcion_pendiente en Kanban
-        if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
+        if (leadId) await intentarAvanzarEtapaBot(supabase, leadId, 'inscripcion_pendiente')
         return buildProviderResponse(provider, botMsg, waNumber)
       }
       if (/^(ya\s*)?no\s*me\s*interesa[\s\S]*$/i.test(msgTrimBtn)) {
         const nombre = leadSnapshot?.nombre ? ` ${leadSnapshot.nombre.split(' ')[0]}` : ''
         const resp = `Entendido${nombre}, no hay problema. Si en algún momento cambias de opinión, aquí estaremos. ¡Que tengas un excelente día! 😊`
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'perdido', leadId)
-        if (leadId) await supabase.from('leads').update({ stage: 'perdido' }).eq('id', leadId)
+        if (leadId) await intentarAvanzarEtapaBot(supabase, leadId, 'perdido')
         return buildProviderResponse(provider, resp, waNumber)
       }
 
@@ -3246,7 +3196,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         const nombre = leadSnapshot?.nombre ? ` ${leadSnapshot.nombre.split(' ')[0]}` : ''
         const resp = `¡Entendido${nombre}! Aquí seguimos, escríbenos cuando estés list@ para retomarlo. 😊`
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'archivado', leadId)
-        if (leadId) await supabase.from('leads').update({ stage: 'archivado' }).eq('id', leadId)
+        if (leadId) await intentarAvanzarEtapaBot(supabase, leadId, 'archivado')
         return buildProviderResponse(provider, resp, waNumber)
       }
       if (/^(me\s*)?quiero\s*inscrib(ir(me)?)?[\s\S]*$/i.test(msgTrimBtn)) {
@@ -3255,7 +3205,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         if (!hasLeadProgram(leadSnapshot?.curso)) {
           const msgPreguntaPrograma = INSCRIPCION_DESCONOCIDA_MSG
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgPreguntaPrograma, 'inscripcion_programa', leadId)
-          if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
+          if (leadId) await intentarAvanzarEtapaBot(supabase, leadId, 'inscripcion_pendiente')
           return buildProviderResponse(provider, msgPreguntaPrograma, waNumber)
         }
         const tipoIns = resolverTipoInscripcion(leadSnapshot?.curso, originalText)
@@ -3265,7 +3215,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         const botMsg = mensajeInscripcionPara(tipoIns)
         const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
-        if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
+        if (leadId) await intentarAvanzarEtapaBot(supabase, leadId, 'inscripcion_pendiente')
         return buildProviderResponse(provider, botMsg, waNumber)
       }
 
@@ -3278,14 +3228,14 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         const botMsg = mensajeInscripcionPara(tipoIns)
         const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
-        if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
+        if (leadId) await intentarAvanzarEtapaBot(supabase, leadId, 'inscripcion_pendiente')
         return buildProviderResponse(provider, botMsg, waNumber)
       }
       if (/^tal\s*vez\s*el\s*pr[oó]ximo\s*a[ñn]o[\s\S]*$/i.test(msgTrimBtn)) {
         const nombre = leadSnapshot?.nombre ? ` ${leadSnapshot.nombre.split(' ')[0]}` : ''
         const resp = `¡No hay problema${nombre}! Te quedamos atentos para el siguiente My Best Summer. ¡Que tengas un excelente día! ☀️`
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'cerrado', leadId)
-        if (leadId) await supabase.from('leads').update({ stage: 'archivado' }).eq('id', leadId)
+        if (leadId) await intentarAvanzarEtapaBot(supabase, leadId, 'archivado')
         return buildProviderResponse(provider, resp, waNumber)
       }
 
@@ -4094,7 +4044,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
 
       // Persistir datos capturados por GPT
       if (gpt.nombre && leadId && !hasLeadName(leadSnapshot?.nombre, waNumber) && hasLeadName(gpt.nombre, waNumber)) {
-        await supabase.from('leads').update({ nombre: gpt.nombre, stage: 'contactado' }).eq('id', leadId)
+        await supabase.from('leads').update({ nombre: gpt.nombre }).eq('id', leadId)
       }
       if (gpt.email && leadId) {
         await supabase.from('leads').update({ email: gpt.email }).eq('id', leadId)
@@ -4108,16 +4058,12 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         await supabase.from('leads').update({ curso: cursoCanonico, ...(getValorPrograma(cursoCanonico) ? { valor: getValorPrograma(cursoCanonico) } : {}) }).eq('id', leadId)
       }
 
-      // Actualizar stage del lead según la fase destino
-      const newStage = getStageForPhase(gpt.siguienteFase)
-      if (newStage && leadId) {
-        await supabase.from('leads').update({ stage: newStage }).eq('id', leadId)
-      }
+      if (leadId && gpt.siguienteFase) await intentarAvanzarPorFase(supabase, leadId, gpt.siguienteFase)
 
       // Si GPT avanza a programa, interceptar
       if (gpt.siguienteFase === 'programa') {
         if (gpt.nombre && leadId && !hasLeadName(leadSnapshot?.nombre, waNumber) && hasLeadName(gpt.nombre, waNumber)) {
-          await supabase.from('leads').update({ nombre: gpt.nombre, stage: 'contactado' }).eq('id', leadId)
+          await supabase.from('leads').update({ nombre: gpt.nombre }).eq('id', leadId)
         }
         // Si venimos de saludo sin nombre válido, volver a pedir nombre (no mostrar catálogo con teléfono)
         const nombreValido = hasLeadName(gpt.nombre || leadSnapshot?.nombre, waNumber)

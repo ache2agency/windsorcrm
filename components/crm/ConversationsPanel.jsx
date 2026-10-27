@@ -1460,7 +1460,7 @@ function ConversationsPanel({
                               🚩
                             </button>
                           )}
-                          {m.rol === "agente" && <div className="wa-msg-role" style={{ color: "#A8263C" }}>Vendedor</div>}
+                          {m.rol === "agente" && <div className="wa-msg-role" style={{ color: "#A8263C" }}>{m.enviado_por_nombre || (m.enviado_por ? vendedores.find(v => v.id === m.enviado_por)?.nombre : null) || "Asesor sin registro histórico"}</div>}
                           {m.rol === "bot" && <div className="wa-msg-role" style={{ color: WA_TEAL }}>Bot</div>}
                           {m.media_url && m.media_tipo === "document" && (
                             <a

@@ -1,3 +1,4 @@
+import { etapaTrasBot } from '../lib/crm/kanban'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createClient } from '@supabase/supabase-js'
@@ -102,26 +103,27 @@ for (const escenario of ['recordatorio', 'reactivar', 'sin_ventana', 'sin_claim'
 }
 
 // Se recorre el webhook real con servicios simulados, sin datos ni envíos reales.
-for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'confirmacion', 'revision_nueva', 'revalidacion', 'ia_promesa', 'programa_precio', 'programa_licenciatura', 'programa_lista_doble_precio', 'programa_lista_doble_licenciatura', 'alumno_clases', 'alumno_calificacion', 'alumno_constancia', 'alumno_regularizacion', 'alumno_inscrito', 'correo', 'correo_sin_email', 'cerrado', 'perdido', 'humano_viejo', 'humano_reciente', 'humano_legacy']) {
+for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'confirmacion', 'revision_nueva', 'revalidacion', 'ia_promesa', 'programa_precio', 'programa_licenciatura', 'programa_lista_doble_precio', 'programa_lista_doble_licenciatura', 'alumno_clases', 'alumno_calificacion', 'alumno_constancia', 'alumno_regularizacion', 'alumno_inscrito', 'correo', 'correo_sin_email', 'cerrado', 'perdido', 'inscribiendo_precio', 'rpc_falla', 'humano_viejo', 'humano_reciente', 'humano_legacy']) {
   test(`webhook real: ${escenario}`, async t => {
-    const usaIA = ['revision_nueva', 'ia_promesa', 'programa_precio', 'correo', 'correo_sin_email'].includes(escenario)
+    const usaIA = ['revision_nueva', 'ia_promesa', 'programa_precio', 'correo', 'correo_sin_email', 'inscribiendo_precio'].includes(escenario)
     const esRevision = escenario.startsWith('alumno_') || escenario === 'revision_nueva' || escenario === 'ia_promesa' || escenario.startsWith('programa_lista_doble')
     const env = { ...process.env }
     Object.assign(process.env, { NEXT_PUBLIC_SUPABASE_URL: 'https://webhook-test.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'fake', WHATSAPP_PROVIDER: 'meta', META_WHATSAPP_TOKEN: 'fake', META_PHONE_NUMBER_ID: 'fake', OPENAI_API_KEY: usaIA ? 'fake' : '' })
     t.after(() => { process.env = env })
+    if (escenario === 'rpc_falla') t.mock.method(console, 'error', () => {})
     const patches: Array<Record<string, unknown>> = []
     const reservas: unknown[] = []
     if (usaIA) t.mock.method(console, 'log', () => {})
     const sent: Array<{ to: string; text: { body: string } }> = [], saved: Array<{ rol: string; contenido: string }> = []
-    let fase = escenario.startsWith('correo') ? 'correo' : ['cerrado','perdido'].includes(escenario) ? escenario : escenario.startsWith('programa_') ? 'inscripcion_programa' : escenario === 'revision_nueva' || escenario === 'ia_promesa' ? 'dudas' : escenario === 'elegir_diplomado' ? 'inscripcion_programa' : escenario === 'confirmacion' ? 'inscripcion_pendiente' : 'accion'
-    const lead = { id: 'lead-1', nombre: escenario.startsWith('correo') ? 'Slaudos' : 'Ana Prueba', whatsapp: '+525500000001', curso: escenario === 'desconocido' || escenario === 'elegir_diplomado' || escenario.startsWith('programa_') ? 'Curso no registrado' : 'Diplomado en Epidemiología', email: escenario === 'correo_sin_email' ? '' : 'ana@example.test', stage: escenario === 'alumno_inscrito' ? 'inscrito' : 'contactado' }
+    let fase = escenario === 'inscribiendo_precio' ? 'inscribiendo' : escenario.startsWith('correo') ? 'correo' : ['cerrado','perdido'].includes(escenario) ? escenario : escenario.startsWith('programa_') ? 'inscripcion_programa' : escenario === 'revision_nueva' || escenario === 'ia_promesa' ? 'dudas' : escenario === 'elegir_diplomado' ? 'inscripcion_programa' : escenario === 'confirmacion' ? 'inscripcion_pendiente' : 'accion'
+    const lead = { id: 'lead-1', nombre: escenario.startsWith('correo') ? 'Slaudos' : 'Ana Prueba', whatsapp: '+525500000001', curso: escenario === 'desconocido' || escenario === 'elegir_diplomado' || escenario.startsWith('programa_') ? 'Curso no registrado' : 'Diplomado en Epidemiología', email: escenario === 'correo_sin_email' ? '' : 'ana@example.test', stage: escenario === 'alumno_inscrito' ? 'inscrito' : escenario === 'inscribiendo_precio' ? 'inscripcion_pendiente' : 'contactado' }
     const originalTimer = globalThis.setTimeout
     t.mock.method(globalThis, 'setTimeout', ((fn: (...args: unknown[]) => void, ms: number, ...args: unknown[]) => originalTimer(fn, ms === 8000 ? 0 : ms, ...args)) as typeof setTimeout)
     t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
       const req = new Request(input, init), url = new URL(req.url), q = url.searchParams
       if (url.hostname === 'api.openai.com' && usaIA) return Response.json({ choices: [{ message: { content: JSON.stringify({
-        respuesta: escenario.startsWith('correo') ? 'Te comparto la información del diplomado.' : escenario === 'ia_promesa' ? 'Un asesor te contacta para resolverlo.' : escenario === 'programa_precio' ? 'Para darte el costo exacto, ¿qué programa te interesa?' : MENSAJE_ESPERA,
-        necesitaRevision: escenario === 'revision_nueva', siguienteFase: 'dudas',
+        respuesta: escenario === 'inscribiendo_precio' ? 'El diplomado tiene la información de precios que ya te compartimos.' : escenario.startsWith('correo') ? 'Te comparto la información del diplomado.' : escenario === 'ia_promesa' ? 'Un asesor te contacta para resolverlo.' : escenario === 'programa_precio' ? 'Para darte el costo exacto, ¿qué programa te interesa?' : MENSAJE_ESPERA,
+        necesitaRevision: escenario === 'revision_nueva', siguienteFase: escenario === 'inscribiendo_precio' ? 'accion' : 'dudas',
       }) } }] })
       if (url.hostname === 'localhost' && usaIA) return Response.json({ context: '' })
       if (url.hostname === 'graph.facebook.com') { sent.push(await req.json()); return Response.json({ messages: [{ id: 'wamid.fake' }] }) }
@@ -143,6 +145,10 @@ for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'co
       if (req.method === 'POST') {
         const data = await req.json()
         if (tabla === 'liberar_modo_humano_inactivo') { assert.deepEqual(data, { p_id: 'conv-1', p_dias: 7 }); return Response.json(escenario === 'humano_viejo') }
+        if (tabla === 'avanzar_etapa_bot') {
+          if (escenario === 'rpc_falla') return Response.json({ message: 'RPC no disponible' }, { status: 503 })
+          lead.stage = etapaTrasBot(lead.stage, data.p_etapa, lead.curso); return Response.json(lead.stage)
+        }
         if (tabla === 'asignar_revision_codigo') { reservas.push(data); return Response.json('a') }
         if (tabla === 'whatsapp_mensajes') {
           saved.push(...data)
@@ -164,7 +170,7 @@ for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'co
       if (tabla === 'push_subscriptions') return Response.json([])
       return Response.json([])
     })
-    const textos: Record<string, string> = { alumno_clases: 'El día de hoy si habrá clases?', alumno_calificacion: 'Envío la calificación de Luna', alumno_constancia: 'Pueden darme una constancia de que estoy haciendo el curso?', alumno_regularizacion: 'Y para la regularización del mes que no asistí…', alumno_inscrito: 'Tengo una duda', correo: '12praxmax@gmail.com', correo_sin_email: '12praxmax@gmail.com' }
+    const textos: Record<string, string> = { alumno_clases: 'El día de hoy si habrá clases?', alumno_calificacion: 'Envío la calificación de Luna', alumno_constancia: 'Pueden darme una constancia de que estoy haciendo el curso?', alumno_regularizacion: 'Y para la regularización del mes que no asistí…', alumno_inscrito: 'Tengo una duda', correo: '12praxmax@gmail.com', correo_sin_email: '12praxmax@gmail.com', inscribiendo_precio: '¿Cuál es el precio?' }
     const text = textos[escenario] || (escenario === 'revalidacion' ? '¿Puedo revalidar materias de otra institución?' : escenario === 'ia_promesa' ? '¿El trámite especial está disponible?' : escenario.startsWith('programa_') ? escenario.endsWith('licenciatura') ? 'Licenciatura' : '¿cuánto cuesta?' : escenario === 'revision_nueva' ? '¿El trámite especial está disponible?' : escenario === 'elegir_diplomado' ? 'Diplomado en Epidemiología' : escenario === 'confirmacion' ? 'Ya pagué' : 'Me quiero inscribir')
     const req = new Request('http://localhost/api/whatsapp/webhook', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ object: 'whatsapp_business_account', entry: [{ changes: [{ value: { messages: [{ id: `wamid.${escenario}`, from: '525500000001', type: 'text', text: { body: text } }], contacts: [{ profile: { name: 'Ana' } }] } }] }] }) })
     const response = await POST(req)
@@ -197,6 +203,8 @@ for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'co
       assert.doesNotMatch(toLead.at(-1)!.text.body, /Elige una opción/)
       assert.equal(patches.some(p => p.revision_codigo), false)
     }
+    else if (escenario === 'inscribiendo_precio') { assert.match(toLead.at(-1)!.text.body, /precios/); assert.equal(lead.stage, 'inscripcion_pendiente') }
+    else if (escenario === 'rpc_falla') { assert.ok(toLead.length > 0, 'el webhook debe contestar aunque falle la RPC'); assert.equal(saved.some(m => m.rol === 'bot'), true) }
     else if (escenario.startsWith('correo')) { assert.match(toLead.at(-1)!.text.body, /ya tengo tu correo/); assert.equal(lead.email, '12praxmax@gmail.com'); assert.equal(fase, 'accion') }
     else { assert.match(toLead.at(-1)!.text.body, /INSCRIPCIÓN DIPLOMADOS/); if (['cerrado','perdido'].includes(escenario)) assert.ok(patches.some(p => p.estado === 'abierta' && p.fase === 'info_enviada')) }
     for (const m of sent) { assert.ok(['525500000001', ADMIN_WA_ALERTA].includes(m.to.replace(/\D/g, ''))); if (m.to !== ADMIN_WA_ALERTA) sinPromesas(m.text.body) }

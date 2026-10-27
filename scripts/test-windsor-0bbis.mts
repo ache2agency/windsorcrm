@@ -1,3 +1,4 @@
+import { etapaTrasBot } from '../lib/crm/kanban'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createHmac } from 'node:crypto'
@@ -69,6 +70,7 @@ for (const escenario of ['sin_secreto', 'firmado', 'anuncio_ninos']) test(`webho
     }
     if (req.method === 'POST') {
       const p = await req.json()
+      if (tabla === 'avanzar_etapa_bot') { lead.stage = etapaTrasBot(lead.stage, p.p_etapa, lead.curso); return Response.json(lead.stage) }
       if (tabla === 'registrar_entrega_whatsapp') { rpc.push(p); return Response.json(1) }
       if (tabla === 'whatsapp_mensajes') {
         saved.push(...p)

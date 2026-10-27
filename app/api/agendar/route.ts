@@ -1,3 +1,5 @@
+import { intentarAvanzarEtapaBot } from '@/lib/crm/etapas-bot'
+import { esCursoIdioma } from '@/lib/crm/kanban'
 import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/utils/supabase/server'
 import { normalizePhoneNumber } from '@/lib/whatsapp/provider'
@@ -11,7 +13,6 @@ export async function POST(request: Request) {
       whatsapp,
       cursoLabel,
       notas,
-      stage,
       fechaIso,
       hora,
       duracion,
@@ -69,7 +70,6 @@ export async function POST(request: Request) {
           .update({
             nombre: nombre.trim(),
             email: email.trim(),
-            stage: stage || 'inscripcion_pendiente',
             fecha: fechaIso,
           })
           .eq('id', leadExistente.id)
@@ -79,7 +79,8 @@ export async function POST(request: Request) {
         if (updateError || !leadActualizado) {
           return NextResponse.json({ error: 'No pudimos actualizar tus datos' }, { status: 500 })
         }
-        leadData = leadActualizado
+        const etapa = await intentarAvanzarEtapaBot(supabase, leadExistente.id, citaTipo === 'inscripcion' ? 'inscripcion_pendiente' : esCursoIdioma(cursoLabel) ? 'examen_ubicacion' : 'segundo_contacto')
+        leadData = { ...leadActualizado, ...(etapa ? { stage: etapa } : {}) }
       }
     }
 
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
           curso: cursoLabel || 'Inscripción',
           valor: 0,
           notas: notas || '',
-          stage: stage || 'inscripcion_pendiente',
+          stage: citaTipo === 'inscripcion' ? 'inscripcion_pendiente' : esCursoIdioma(cursoLabel) ? 'examen_ubicacion' : 'segundo_contacto',
           fecha: fechaIso,
           user_id: vendedor.id,
           asignado_a: vendedor.id,
