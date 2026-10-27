@@ -1275,7 +1275,7 @@ Beneficiarios: Trabajador, hijos y cónyuges
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   suspeg: `*Convenio: SUSPEG Central*
-Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: 15-Dic-2025
+Beneficiarios: Trabajador, hijos y cónyuges
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 25% descuento
@@ -1285,7 +1285,7 @@ Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: 15-Dic-2025
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   seccion7: `*Convenio: Sección VII*
-Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Marzo 2027
+Beneficiarios: Trabajador, hijos y cónyuges
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 25% descuento
@@ -1295,7 +1295,7 @@ Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Marzo 2027
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   seccion36: `*Convenio: Sección 36 de Salud*
-Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Noviembre 2025
+Beneficiarios: Trabajador, hijos y cónyuges
 
 📌 *Inscripción:* 30% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 25% descuento
@@ -1305,7 +1305,7 @@ Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Noviembre 2025
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   tribunal: `*Convenio: Tribunal Electoral del Estado de Guerrero*
-Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Marzo 2026
+Beneficiarios: Trabajador, hijos y cónyuges
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 20% descuento
@@ -1315,7 +1315,7 @@ Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Marzo 2026
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   cobach: `*Convenio: Colegios de Bachilleres del Estado de Guerrero*
-Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Marzo 2027
+Beneficiarios: Trabajadores, hijos y estudiantes de planteles
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 20% descuento
@@ -1325,7 +1325,7 @@ Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Marzo 
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   migrantes: `*Convenio: Secretaría de Migrantes y Asuntos Internacionales*
-Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Mayo 2026
+Beneficiarios: Trabajadores, hijos y estudiantes de planteles
 
 📌 *Inscripción:* 40% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 20% descuento
@@ -1335,7 +1335,7 @@ Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Mayo 2
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   proteccioncivil: `*Convenio: Secretaría de Gestión Integral y Protección Civil*
-Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Sep-2027
+Beneficiarios: Trabajadores, hijos y estudiantes de planteles
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 20% descuento
@@ -1345,7 +1345,7 @@ Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Sep-20
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   sitmabeg: `*Convenio: SITMABEG*
-Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Mayo 2027
+Beneficiarios: Trabajadores, hijos y estudiantes de planteles
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 20% descuento
@@ -1355,7 +1355,7 @@ Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Mayo 2
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   metro: `*Convenio: Sindicato del Metro CD. México*
-Beneficiarios: Trabajadores e hijos | Vigencia: Ene-2027
+Beneficiarios: Trabajadores e hijos
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 20% descuento
@@ -1365,7 +1365,7 @@ Beneficiarios: Trabajadores e hijos | Vigencia: Ene-2027
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   egresados: `*Convenio: Egresados Instituto Windsor*
-Beneficiarios: Egresados de Licenciaturas | Vigencia: Permanente
+Beneficiarios: Egresados de Licenciaturas
 
 📌 *Inscripción:* Condonación nuevo ingreso | 50% reingreso
 📚 *Licenciatura:* No aplica
@@ -1834,16 +1834,15 @@ ${TEXTO_PLANTELES}
 ${agendarSection}`
 }
 
-// Pendiente: agregar link del PDF del examen cuando el usuario lo proporcione
+// Registro nuevo del placement (9-oct-2026): examen.windsor.edu.mx crea la cuenta en Moodle y manda directo al examen;
+// coordinación ve el resultado en /resultados, así que ya no se pide foto del puntaje.
 const EXAMEN_UBICACION_MSG = `¡Perfecto! 😊 El examen de ubicación es completamente *gratuito* y te tomará solo unos minutos.
 
-Por favor haz clic en la liga, revisa el manual y sigue los pasos indicados:
+Regístrate aquí con tu nombre, WhatsApp y correo; al terminar el registro te lleva directo al examen:
 
-📄 https://drive.google.com/file/d/1Ej1ZXKYnqFIi9J0SVrRyBHmAb-ohZ7A_/view?usp=sharing
+👉 https://examen.windsor.edu.mx
 
-Al finalizar, en la parte superior de la pantalla tendrás tu puntaje — toma una foto y envíanosla por este medio. 📸
-
-Una vez que lo termines, te agendaremos tu clase de prueba gratuita. 🎓`
+Cuando lo termines, nosotros vemos tu resultado y te escribimos por aquí para recomendarte tu nivel y agendar tu clase de prueba gratuita. 🎓`
 
 // Las clases de prueba se agendan en Confirmafy (Harold, 2026-10-08), no en /agendar del CRM.
 const CLASE_PRUEBA_LINK = 'https://confirmafy.com/iwindsor'
