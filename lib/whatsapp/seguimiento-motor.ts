@@ -1,3 +1,4 @@
+import { hasLeadName } from './nombres'
 import { esDiplomado, tipoInscripcion } from './programas'
 import { esTrackA, obtenerMensajeReactivacion20h } from './reactivacion-messages'
 import { buildMensajeDudasDiplomado20h, buildMensajeReactivacionDiplomado20h } from './reactivacion-diplomados'
@@ -101,7 +102,7 @@ export function clasificarCarril(curso: string | null | undefined): CarrilSeguim
 }
 
 function primerNombre(nombre: string | null | undefined): string {
-  return (nombre || '').trim().split(/\s+/)[0]?.replace(/[.,;:]+$/, '') || ''
+  return hasLeadName(nombre, '') ? (nombre || '').trim().split(/\s+/)[0]?.replace(/[.,;:]+$/, '') || '' : ''
 }
 
 function saludo(nombre: string | null | undefined): string {
@@ -110,12 +111,12 @@ function saludo(nombre: string | null | undefined): string {
 }
 
 function paramsNombreDiplomado(ctx: ContextoSeguimiento): string[] {
-  const n = primerNombre(ctx.lead.nombre) || 'Windsor'
+  const n = primerNombre(ctx.lead.nombre) || '👋'
   return [n, ctx.lead.curso || 'tu diplomado']
 }
 
 function templateNombre(ctx: ContextoSeguimiento): string[] {
-  return [primerNombre(ctx.lead.nombre) || 'Windsor']
+  return [primerNombre(ctx.lead.nombre) || '👋']
 }
 
 function mensajeFichaPrograma(ctx: ContextoSeguimiento): DecisionSeguimiento | null {
@@ -276,11 +277,11 @@ export function decidirSeguimientoAutomatico(ctx: ContextoSeguimiento): Decision
       }
     }
     if (ctx.dentroVentana24h && ctx.horasDesdeBot >= 3 && ctx.ultimoBotFuePreguntaDato && !ctx.yaRecibioInfo) {
-      const dato = fase === 'saludo' ? 'tu nombre' : fase === 'correo' ? 'tu correo (si prefieres, te atiendo por aqui)' : 'que programa te interesa'
+      const dato = fase === 'saludo' ? 'tu nombre' : fase === 'correo' ? 'tu correo (si prefieres, te atiendo por aquí)' : 'qué programa te interesa'
       return {
         ...decisionBase(ctx, 'nuevo_3h_dato', 'Nuevo', carril),
         accion: 'texto',
-        mensaje: `${saludo(ctx.lead.nombre)} Para ayudarte mejor, me faltaria confirmar ${dato}.`,
+        mensaje: `${saludo(ctx.lead.nombre)} Para ayudarte mejor, me faltaría confirmar ${dato}.`,
         detalle: '3h pidiendo dato pendiente',
       }
     }

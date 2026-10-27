@@ -27,7 +27,7 @@ export function matchOfertaEducativa(input: string): OfertaMatchResult {
     if (esAdulto) return { match: 'Cursos de verano adultos', ambiguous: false }
     return { match: null, ambiguous: true }
   }
-  if (/ingles|english/.test(norm)) {
+  if (/ingles|english/.test(norm) || (/idiomas?/.test(norm) && esNino)) {
     if (/licenciatura|^lic\b/.test(norm)) return { match: esOnline ? 'Licenciatura en Inglés online' : 'Licenciatura en Inglés', ambiguous: false }
     if (esNino) return { match: 'Inglés para niños', ambiguous: false }
     if (esAdulto) return { match: 'Inglés para adultos', ambiguous: false }
@@ -259,7 +259,7 @@ export function detectarPrograma(msg: string): string | null {
   const esOnline = /online|virtual|distancia|en linea/.test(norm)
   const diplomado = detectarDiplomadoEnTexto(norm)
   if (diplomado) return diplomado
-  if (/ingles para nin|nin.*ingles|ingles.*nin/.test(norm)) return 'Inglés para niños'
+  if (/ingles para nin|nin.*ingles|ingles.*nin|idiomas?.*nin|nin.*idiomas?/.test(norm)) return 'Inglés para niños'
   if (/ingles para adult|adult.*ingles|ingles.*adult/.test(norm)) return 'Inglés para adultos'
   if (/licenciatura.*ingles|ingles.*licenciatura|\blic\b.*ingles|ingles.*\blic\b/.test(norm)) return esOnline ? 'Licenciatura en Inglés online' : 'Licenciatura en Inglés'
   if (/psicoterap|habilidades.*(practica|clinica).*psic/.test(norm)) return 'Habilidades para la práctica psicoterapéutica'

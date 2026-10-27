@@ -2139,10 +2139,13 @@ export async function POST(request: Request) {
     const raw = await request.clone().text()
     const payload = (() => { try { return JSON.parse(raw) } catch { return null } })()
     if (payload?.object === 'whatsapp_business_account' && payload.entry?.some((e: { changes?: Array<{ value?: { statuses?: unknown[] } }> }) => e.changes?.some(c => c.value?.statuses?.length))) {
-      if (!getMetaConfig().appSecret) return Response.json({ error: 'Falta META_APP_SECRET' }, { status: 503 })
-      if (!firmaMetaValida(raw, request.headers.get('x-hub-signature-256'), getMetaConfig().appSecret)) return Response.json({ error: 'Firma inválida' }, { status: 401 })
-      try { await registrarEstados(createServiceRoleClient(), payload) }
-      catch { return Response.json({ error: 'No se pudo registrar entrega' }, { status: 503 }) }
+      if (!getMetaConfig().appSecret) {
+        console.warn('[WhatsApp statuses] META_APP_SECRET ausente: estados ignorados; mensajes siguen su flujo.')
+      } else {
+        if (!firmaMetaValida(raw, request.headers.get('x-hub-signature-256'), getMetaConfig().appSecret)) return Response.json({ error: 'Firma inválida' }, { status: 401 })
+        try { await registrarEstados(createServiceRoleClient(), payload) }
+        catch { return Response.json({ error: 'No se pudo registrar entrega' }, { status: 503 }) }
+      }
       // No repetir avisos ante reintentos de estados ni recursión si falla un aviso interno.
       if (!payload.entry?.some((e: { changes?: Array<{ value?: { messages?: unknown[] } }> }) => e.changes?.some(c => c.value?.messages?.length))) return Response.json({ ok: true })
     }
@@ -2319,6 +2322,14 @@ export async function POST(request: Request) {
           }
         }
 
+        // Guardar el programa explícito del anuncio antes de cualquier retorno
+        // de saludo/captura de nombre, sin depender de historial o de la IA.
+        const cursoDelTexto = detectarPrograma(originalText)
+        if (leadId && !hasLeadProgram(leadSnapshot?.curso) && cursoDelTexto) {
+          await supabase.from('leads').update({ curso: cursoDelTexto }).eq('id', leadId)
+          leadSnapshot = { ...leadSnapshot, curso: cursoDelTexto } as LeadSnapshot
+        }
+
         const desiredPhase = getNextDataPhase(leadSnapshot, whatsappValue)
 
         // Crear o reutilizar conversación de WhatsApp
@@ -2342,7 +2353,8 @@ export async function POST(request: Request) {
           if (!liberarError && liberado === true) existingConv.modo_humano = false
         }
 
-        tipoContacto = clasificarContacto(originalText, (leadSnapshot?.stage === 'inscrito' && !existingConv?.tipo_contacto_manual ? 'alumno' : existingConv?.tipo_contacto || 'prospecto'), Boolean(existingConv?.tipo_contacto_manual))
+        tipoContacto = clasificarContacto(originalText, existingConv?.tipo_contacto || 'prospecto',
+          Boolean(existingConv?.tipo_contacto_manual), leadSnapshot?.stage === 'inscrito')
         if (existingConv?.id) {
           conversacionId = existingConv.id
           const nextConversationUpdate: {
@@ -2975,6 +2987,19 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
             }))
         }
       } catch { /* sin historial */ }
+
+      // Programa ya identificado por el anuncio: precio o edad del niño no
+      // vuelven a abrir el catálogo ni dependen de una respuesta de la IA.
+      const edadNino = originalText.trim().match(/^(?:(?:de|tiene|para|es de)\s+)?(\d{1,2})\s*a[nñ]os?\s*[.!]?$/i)
+      const preguntaPrecioNino = /precio|costo|cu[aá]nto (?:cuesta|vale)|mensualidad/i.test(originalText)
+      const programaEnPregunta = detectarPrograma(originalText)
+      if (leadSnapshot?.curso === 'Inglés para niños' && (!programaEnPregunta || programaEnPregunta === leadSnapshot.curso) && hasLeadName(leadSnapshot?.nombre, waNumber) &&
+          ['programa', 'correo', 'info_enviada', 'accion', 'dudas', 'seguimiento'].includes(phase) &&
+          (preguntaPrecioNino || (edadNino && Number(edadNino[1]) >= 4 && Number(edadNino[1]) <= 12))) {
+        const ficha = INFO_MSGS['Inglés para niños'] + buildCTA('Inglés para niños')
+        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, ficha, 'accion', leadId)
+        return buildProviderResponse(provider, ficha, waNumber)
+      }
 
       // ── Fase saludo: detectar programa del mensaje inicial y captura de nombre ─
       if (phase === 'saludo') {
