@@ -223,14 +223,15 @@ Modalidad: Presencial | Duración: 2 años
 
 // ─── MENSAJES DE FLUJO ────────────────────────────────────────────────────────
 
-// Pendiente: agregar link del PDF del examen cuando el usuario lo proporcione
+// Registro nuevo del placement (9-oct-2026): examen.windsor.edu.mx crea la cuenta en Moodle y manda directo al examen;
+// coordinación ve el resultado en /resultados, así que ya no se pide foto del puntaje.
 const EXAMEN_UBICACION_MSG = `¡Perfecto! 😊 El examen de ubicación es completamente *gratuito* y te tomará solo unos minutos.
 
-Te enviamos las instrucciones paso a paso para realizarlo:
+Regístrate aquí con tu nombre, WhatsApp y correo; al terminar el registro te lleva directo al examen:
 
-📄 *Instrucciones del examen:* [PENDIENTE — link PDF]
+👉 https://examen.windsor.edu.mx
 
-Una vez que lo termines, confírmanos aquí por WhatsApp y te agendaremos tu clase de prueba gratuita. 🎓`
+Cuando lo termines, nosotros vemos tu resultado y te escribimos por aquí para recomendarte tu nivel y agendar tu clase de prueba gratuita. 🎓`
 
 function buildClasePruebaMsg(baseUrl: string, nombre?: string | null, email?: string | null, programa?: string | null, telefono?: string | null): string {
   const link = buildAgendarLink('clase_prueba', baseUrl, nombre, email, programa, telefono)

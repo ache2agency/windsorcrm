@@ -1834,16 +1834,15 @@ ${TEXTO_PLANTELES}
 ${agendarSection}`
 }
 
-// Pendiente: agregar link del PDF del examen cuando el usuario lo proporcione
+// Registro nuevo del placement (9-oct-2026): examen.windsor.edu.mx crea la cuenta en Moodle y manda directo al examen;
+// coordinación ve el resultado en /resultados, así que ya no se pide foto del puntaje.
 const EXAMEN_UBICACION_MSG = `¡Perfecto! 😊 El examen de ubicación es completamente *gratuito* y te tomará solo unos minutos.
 
-Por favor haz clic en la liga, revisa el manual y sigue los pasos indicados:
+Regístrate aquí con tu nombre, WhatsApp y correo; al terminar el registro te lleva directo al examen:
 
-📄 https://drive.google.com/file/d/1Ej1ZXKYnqFIi9J0SVrRyBHmAb-ohZ7A_/view?usp=sharing
+👉 https://examen.windsor.edu.mx
 
-Al finalizar, en la parte superior de la pantalla tendrás tu puntaje — toma una foto y envíanosla por este medio. 📸
-
-Una vez que lo termines, te agendaremos tu clase de prueba gratuita. 🎓`
+Cuando lo termines, nosotros vemos tu resultado y te escribimos por aquí para recomendarte tu nivel y agendar tu clase de prueba gratuita. 🎓`
 
 // Las clases de prueba se agendan en Confirmafy (Harold, 2026-10-08), no en /agendar del CRM.
 const CLASE_PRUEBA_LINK = 'https://confirmafy.com/iwindsor'
