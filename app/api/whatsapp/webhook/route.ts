@@ -1275,7 +1275,7 @@ Beneficiarios: Trabajador, hijos y cónyuges
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   suspeg: `*Convenio: SUSPEG Central*
-Beneficiarios: Trabajador, hijos y cónyuges | Convenio vigente
+Beneficiarios: Trabajador, hijos y cónyuges
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 25% descuento
@@ -1285,7 +1285,7 @@ Beneficiarios: Trabajador, hijos y cónyuges | Convenio vigente
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   seccion7: `*Convenio: Sección VII*
-Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Marzo 2027
+Beneficiarios: Trabajador, hijos y cónyuges
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 25% descuento
@@ -1295,7 +1295,7 @@ Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Marzo 2027
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   seccion36: `*Convenio: Sección 36 de Salud*
-Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Noviembre 2025
+Beneficiarios: Trabajador, hijos y cónyuges
 
 📌 *Inscripción:* 30% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 25% descuento
@@ -1305,7 +1305,7 @@ Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Noviembre 2025
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   tribunal: `*Convenio: Tribunal Electoral del Estado de Guerrero*
-Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Marzo 2026
+Beneficiarios: Trabajador, hijos y cónyuges
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 20% descuento
@@ -1315,7 +1315,7 @@ Beneficiarios: Trabajador, hijos y cónyuges | Vigencia: Marzo 2026
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   cobach: `*Convenio: Colegios de Bachilleres del Estado de Guerrero*
-Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Marzo 2027
+Beneficiarios: Trabajadores, hijos y estudiantes de planteles
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 20% descuento
@@ -1325,7 +1325,7 @@ Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Marzo 
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   migrantes: `*Convenio: Secretaría de Migrantes y Asuntos Internacionales*
-Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Mayo 2026
+Beneficiarios: Trabajadores, hijos y estudiantes de planteles
 
 📌 *Inscripción:* 40% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 20% descuento
@@ -1335,7 +1335,7 @@ Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Mayo 2
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   proteccioncivil: `*Convenio: Secretaría de Gestión Integral y Protección Civil*
-Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Sep-2027
+Beneficiarios: Trabajadores, hijos y estudiantes de planteles
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 20% descuento
@@ -1345,7 +1345,7 @@ Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Sep-20
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   sitmabeg: `*Convenio: SITMABEG*
-Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Mayo 2027
+Beneficiarios: Trabajadores, hijos y estudiantes de planteles
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 20% descuento
@@ -1355,7 +1355,7 @@ Beneficiarios: Trabajadores, hijos y estudiantes de planteles | Vigencia: Mayo 2
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   metro: `*Convenio: Sindicato del Metro CD. México*
-Beneficiarios: Trabajadores e hijos | Vigencia: Ene-2027
+Beneficiarios: Trabajadores e hijos
 
 📌 *Inscripción:* 50% nuevo ingreso | 30% reingreso
 📚 *Licenciatura:* 20% descuento
@@ -1365,7 +1365,7 @@ Beneficiarios: Trabajadores e hijos | Vigencia: Ene-2027
 ☀️ *Verano 2026:* 20% descuento (nuevo ingreso)`,
 
   egresados: `*Convenio: Egresados Instituto Windsor*
-Beneficiarios: Egresados de Licenciaturas | Vigencia: Permanente
+Beneficiarios: Egresados de Licenciaturas
 
 📌 *Inscripción:* Condonación nuevo ingreso | 50% reingreso
 📚 *Licenciatura:* No aplica
