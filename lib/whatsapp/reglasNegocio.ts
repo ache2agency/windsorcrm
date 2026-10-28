@@ -35,16 +35,16 @@ export const TEXTO_HORARIO_ATENCION = `Lun–Vie 8:00–14:00 y 17:00–20:00 | 
 // Si cambian precios/promo, actualizar aquí Y en los docs RAG (ver memoria
 // windsorcrm_diplomados_precios_sep2026).
 export const CALENDARIO_INICIO_DIPLOMADOS =
-  'lunes 9 de noviembre de 2026; lunes 18 de enero de 2027; lunes 1 de marzo de 2027; lunes 5 de abril de 2027; lunes 3 de mayo de 2027; lunes 7 de junio de 2027; lunes 5 de julio de 2027; lunes 2 de agosto de 2027; lunes 6 de septiembre de 2027; lunes 4 de octubre de 2027'
+  'miércoles 11 de noviembre de 2026; miércoles 20 de enero de 2027; miércoles 3 de marzo de 2027; miércoles 7 de abril de 2027; miércoles 5 de mayo de 2027; miércoles 2 de junio de 2027; miércoles 7 de julio de 2027; miércoles 4 de agosto de 2027; miércoles 1 de septiembre de 2027; miércoles 6 de octubre de 2027'
 
 export const DATOS_DIPLOMADOS = {
   modalidad:
     'SOLO EN LÍNEA, con clases en vivo por la plataforma del Instituto Windsor. NO hay modalidad presencial, mixta ni semipresencial, y no se asiste al plantel. Si preguntan por presencial o "mixto", aclara con amabilidad que el diplomado es 100% en línea con clases en vivo.',
   horario:
-    '2 horas a la semana de clase en vivo en línea, por la tarde; el día y la hora exactos se confirman al iniciar el grupo. Las clases se graban. Además ~3 horas de autoestudio por semana. NUNCA des una hora fija de clase.',
+    'una clase en vivo en línea a la semana, los MIÉRCOLES de 7:00 a 9:00 p.m. (hora del centro de México); las clases se graban por si no puedes conectarte. Además ~3 horas de autoestudio por semana.',
   duracion: '120 horas, divididas en 3 o 6 meses.',
   // Calendario decidido por Harold el 28-oct-2026. Al agregar el siguiente año, extender la lista.
-  fechaInicio: `calendario FIJO de inicio de grupos (inscripciones abiertas hasta el MISMO día de inicio): ${CALENDARIO_INICIO_DIPLOMADOS}. En diciembre de 2026 y febrero de 2027 NO abren grupos. Usa la FECHA DE HOY del prompt: da SIEMPRE la primera fecha del calendario que sea hoy o posterior, con día y mes (ej. "el próximo grupo inicia el lunes 9 de noviembre"), y menciona que puede inscribirse hasta ese mismo día. NUNCA digas "abrimos cada mes", "empiezas cuando quieras" ni que no hay fecha.`,
+  fechaInicio: `calendario FIJO de inicio de grupos (inscripciones abiertas hasta el MISMO día de inicio): ${CALENDARIO_INICIO_DIPLOMADOS}. En diciembre de 2026 y febrero de 2027 NO abren grupos. Usa la FECHA DE HOY del prompt: da SIEMPRE la primera fecha del calendario que sea hoy o posterior, con día y mes (ej. "el próximo grupo inicia el miércoles 11 de noviembre"), y menciona que puede inscribirse hasta ese mismo día. NUNCA digas "abrimos cada mes", "empiezas cuando quieras" ni que no hay fecha.`,
   grupo: 'grupos reducidos. NUNCA des un número de participantes por grupo.',
   calificacion: '80% por módulo. Diploma con valor curricular (120 horas) al aprobar y cubrir los pagos.',
   aval: 'avalado por el Instituto Windsor; NO tiene RVOE ni validez oficial de la SEP/SEG (la SEP no otorga RVOE a diplomados), pero sí tiene valor curricular.',
