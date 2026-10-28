@@ -52,7 +52,7 @@ export const DATOS_DIPLOMADOS = {
   promocionVigente:
     'Promoción vigente (septiembre, octubre y noviembre 2026) SOLO para la modalidad GRUPAL: 30% de descuento SOLO en las mensualidades → 6 mensualidades de $1,730 o 3 pagos de $3,470 (costo académico $10,430).',
   modalidadIndividual:
-    'Modalidad INDIVIDUAL (alternativa para quien no puede los miércoles): el alumno elige día, hora y fecha de inicio; 10% de descuento SOLO en las mensualidades → 6 mensualidades de $2,230 o 3 pagos de $4,460 (costo académico $13,410), más la inscripción de $700. El 30% es solo para grupo y el 10% solo para individual: NUNCA los combines ni ofrezcas otros descuentos.',
+    'Modalidad INDIVIDUAL (alternativa para quien no puede los miércoles): el alumno elige día, hora y fecha de inicio; promoción vigente (septiembre, octubre y noviembre 2026): 10% de descuento SOLO en las mensualidades → 6 mensualidades de $2,230 o 3 pagos de $4,460 (costo académico $13,410), más la inscripción de $700. El 30% es solo para grupo y el 10% solo para individual: NUNCA los combines ni ofrezcas otros descuentos.',
   presentacion:
     'Al dar información o precios, presenta SIEMPRE primero la modalidad GRUPAL (miércoles 7-9 p.m., próxima fecha de inicio y precio con 30%) como la opción principal, y menciona la INDIVIDUAL en UNA sola línea como alternativa ("¿No puedes los miércoles? También puedes tomarlo individual, en el horario que elijas, con 10% de descuento: 6 × $2,230"). Da el detalle completo del individual solo si dice que no puede los miércoles o pide horario flexible. Cierra invitando a inscribirse al grupo de la próxima fecha.',
   inscripcionSinDescuento:
