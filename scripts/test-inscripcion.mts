@@ -11,6 +11,7 @@ import { camposPrograma, diplomadoCanonico, esPrograma, MAX_ARCHIVO } from '../l
 import type { EnviarDrive } from '../lib/inscripcion/drive'
 import { urlInscripcion } from '../lib/inscripcion/enlace'
 import { mensajeDocumentosInscripcion } from '../lib/whatsapp/seguimiento-motor'
+import { mensajeInscripcionPara, INSCRIPCION_DIPLOMADO_MSG } from '../lib/whatsapp/inscripcion'
 
 const pg = new PGlite()
 const asesor = '10000000-0000-4000-8000-000000000001'
@@ -230,4 +231,21 @@ test('diplomados: lista cerrada del catálogo y prellenado desde leads.curso', (
 test('verano en pausa: sin formulario público y el bot conserva la página anterior', () => {
   assert.equal(esPrograma('verano'), false)
   assert.equal(urlInscripcion('Verano niños', '+527471234567', 'Ana'), 'https://www.windsor.edu.mx/solicitud-de-inscripcion')
+})
+test('proceso de diplomados: formulario propio solo con INSCRIPCION_FORMULARIO_BOT=on', () => {
+  const lead = { curso: 'Diplomado en Tanatología', whatsapp: '+527471234567', nombre: 'Ana' }
+  const antes = process.env.INSCRIPCION_FORMULARIO_BOT
+  try {
+    delete process.env.INSCRIPCION_FORMULARIO_BOT
+    assert.equal(mensajeInscripcionPara('diplomado', lead), INSCRIPCION_DIPLOMADO_MSG)
+    process.env.INSCRIPCION_FORMULARIO_BOT = 'on'
+    const msg = mensajeInscripcionPara('diplomado', lead)
+    assert.match(msg, /\/inscripcion\/diplomados\?/)
+    assert.match(msg, /curso=Diplomado\+en\+Tanatolog/)
+    assert.doesNotMatch(msg, /solicitud-de-inscripcion/)
+    assert.notEqual(mensajeInscripcionPara('licenciatura', lead), msg)
+  } finally {
+    if (antes === undefined) delete process.env.INSCRIPCION_FORMULARIO_BOT
+    else process.env.INSCRIPCION_FORMULARIO_BOT = antes
+  }
 })

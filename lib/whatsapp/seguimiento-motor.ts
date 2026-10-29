@@ -99,9 +99,14 @@ export function dentroHorarioMexico(date: Date): boolean {
 }
 
 export function inicioDiaMexicoIso(date: Date): string {
-  const mx = new Date(date.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }))
-  mx.setHours(0, 0, 0, 0)
-  return mx.toISOString()
+  // No interpretar la hora de México como hora local del servidor (Vercel usa UTC).
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZoneName: 'longOffset',
+  }).formatToParts(date)
+  const valor = (tipo: Intl.DateTimeFormatPartTypes) => partes.find((p) => p.type === tipo)!.value
+  const offset = valor('timeZoneName').replace('GMT', '') || 'Z'
+  return new Date(`${valor('year')}-${valor('month')}-${valor('day')}T00:00:00${offset}`).toISOString()
 }
 
 export function clasificarCarril(curso: string | null | undefined): CarrilSeguimiento {
@@ -241,6 +246,7 @@ export function decidirSeguimientoAutomatico(ctx: ContextoSeguimiento): Decision
   const fase = String(ctx.fase || '').trim() || 'saludo'
   const carril = clasificarCarril(ctx.lead.curso)
 
+  if (esCanalInternoSeguimiento(ctx.lead.whatsapp)) return null
   if (FASES_EXCLUIDAS.has(fase)) return null
   if (ctx.lead.stage && ['perdido', 'inscrito'].includes(ctx.lead.stage)) return null
 
@@ -399,4 +405,30 @@ export function faseEsDeMotor(fase: string | null | undefined): boolean {
 
 export function requiereLinkInscripcion(curso: string | null | undefined): boolean {
   return tipoInscripcion(curso) !== 'desconocido'
+}
+
+// Canal operativo; aceptar formato Meta, E.164 y el prefijo mexicano heredado.
+export function esCanalInternoSeguimiento(whatsapp: string | null | undefined): boolean {
+  const digits = String(whatsapp || '').replace(/\D/g, '').replace(/^521(?=\d{10}$)/, '52')
+  return digits === '527474722466'
+}
+
+export function datoPendienteSeguimiento(fase: string | null): 'nombre' | 'correo' | 'programa' {
+  return fase === 'saludo' ? 'nombre' : fase === 'correo' ? 'correo' : 'programa'
+}
+
+export function recordatorioDatoReciente(
+  mensajes: Array<{ created_at: string; contenido: string | null; raw_payload?: Record<string, unknown> | null }>,
+  fase: string,
+  ahora: Date,
+): boolean {
+  const dato = datoPendienteSeguimiento(fase)
+  return mensajes.some((m) => {
+    const raw = m.raw_payload?.seguimiento_motor as Record<string, unknown> | undefined
+    if (raw?.reglaId !== 'nuevo_3h_dato') return false
+    // Compatibilidad con envíos anteriores a datoPendiente.
+    const tipo = raw.datoPendiente || (/tu nombre/i.test(m.contenido || '') ? 'nombre'
+      : /tu correo/i.test(m.contenido || '') ? 'correo' : 'programa')
+    return tipo === dato && ahora.getTime() - new Date(m.created_at).getTime() < 24 * 3600_000
+  })
 }

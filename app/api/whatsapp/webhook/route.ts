@@ -1,3 +1,5 @@
+import { INSCRIPCION_ONLINE_MSG, INSCRIPCION_BACHILLERATO_MSG, INSCRIPCION_DIPLOMADO_MSG, INSCRIPCION_IDIOMA_MSG, INSCRIPCION_HABILIDADES_MSG, INSCRIPCION_DESCONOCIDA_MSG, mensajeInscripcionPara, resolverTipoInscripcion } from '@/lib/whatsapp/inscripcion'
+import { ADMIN_WA_ALERTA, MENSAJE_ESPERA, quitarPromesasAsesor } from '@/lib/whatsapp/atencion'
 import { createServiceRoleClient } from '@/utils/supabase/server'
 import { mensajeDocumentosInscripcion } from '@/lib/whatsapp/seguimiento-motor'
 import {
@@ -19,10 +21,8 @@ import {
   esBachillerato,
   esDiplomado,
   esInglesIdioma,
-  tipoInscripcion,
   detectarPrograma,
   cambioDePrograma,
-  type TipoInscripcion,
   type OfertaMatchResult,
 } from '@/lib/whatsapp/programas'
 import { TEXTO_PLANTELES } from '@/lib/whatsapp/reglasNegocio'
@@ -71,7 +71,6 @@ type IncomingWhatsAppMessage = {
   mediaId?: string
 }
 
-const ADMIN_WA_ALERTA = '527471028306'
 
 function extraerWamid(rawPayload: Record<string, unknown>): string | null {
   const entry = (rawPayload as { entry?: Array<{ changes?: Array<{ value?: { messages?: Array<{ id?: string }> } }> }> }).entry
@@ -471,24 +470,6 @@ async function notifyAsesor(
       })
     }
 
-    // 2. Obtener el asesor asignado al lead y su número de WhatsApp
-    const { data: lead } = await supabase
-      .from('leads')
-      .select('asignado_a')
-      .eq('id', leadId)
-      .maybeSingle()
-
-    if (!lead?.asignado_a) return
-
-    const { data: perfil } = await supabase
-      .from('profiles')
-      .select('whatsapp, nombre')
-      .eq('id', lead.asignado_a)
-      .maybeSingle()
-
-    const asesorWhatsapp = perfil?.whatsapp as string | null | undefined
-    if (!asesorWhatsapp) return
-
     // 3. Enviar WhatsApp al asesor
     const msgAsesor = [
       NOTIFY_LABELS[evento],
@@ -502,11 +483,7 @@ async function notifyAsesor(
     if (provider === 'meta') {
       const metaConfig = getMetaConfig()
       if (metaConfig) {
-        await sendMetaWhatsAppMessage({ to: asesorWhatsapp, body: msgAsesor })
-        // Copia al admin en eventos críticos
-        if (evento === 'inscripcion_confirmada' && asesorWhatsapp !== ADMIN_WA_ALERTA) {
-          await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: msgAsesor }).catch(() => {})
-        }
+        await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: msgAsesor })
       }
     } else {
       // Twilio
@@ -524,7 +501,7 @@ async function notifyAsesor(
             },
             body: new URLSearchParams({
               From: `whatsapp:${from}`,
-              To: `whatsapp:${asesorWhatsapp}`,
+              To: `whatsapp:${ADMIN_WA_ALERTA}`,
               Body: msgAsesor,
             }).toString(),
           }
@@ -1438,7 +1415,7 @@ const REVALIDACION_MATERIAS_MSG = `Para revisar si podemos revalidarte materias 
 • Tu nombre completo
 • Tu número de WhatsApp
 
-En cuanto lo envíes, confírmanoslo por aquí para darle seguimiento. Un asesor revisará tu kardex y te dirá qué materias aplican. 😊`
+En cuanto lo envíes, confírmanoslo por aquí y revisamos qué materias aplican 😊`
 
 /** Detecta si el mensaje es alguien buscando trabajo/vacante docente, NO un prospecto de inscripción */
 function detectarConsultaVacante(msg: string): boolean {
@@ -1759,154 +1736,76 @@ function respuestaDatoConfirmado(
 }
 
 
-const INSCRIPCION_LICS_MSG = `🎉 ¡Felicidades por tomar esta decisión!
-
-¿Cómo prefieres hacer tu inscripción?
-
-*A)* En línea desde aquí 💻
-*B)* Presencial en las instalaciones 🏫`
-
-const INSCRIPCION_ONLINE_MSG = `¡Perfecto! Aquí está todo lo que necesitas:
-
-*📄 Documentos necesarios:*
-1. Acta de nacimiento
-2. Certificado de bachillerato
-3. Comprobante de pago de inscripción
-
-*🏦 Información bancaria:*
-https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
-
-*📋 Pasos a seguir:*
-1️⃣ Realiza el pago de inscripción con los datos bancarios del enlace anterior.
-2️⃣ Ingresa a https://www.windsor.edu.mx/solicitud-de-inscripcion y llena la *Solicitud de Inscripción para Licenciaturas* — ahí podrás adjuntar tus documentos directamente.
-3️⃣ Confírmanos aquí por WhatsApp cuando hayas completado el formulario.
-4️⃣ Un asesor revisará todo y confirmará tu inscripción. 😊`
-
-const INSCRIPCION_BACHILLERATO_MSG = `🔴PROCESO DE INSCRIPCIÓN BACHILLERATO 🔴
-
-Antes que nada permítenos felicitarte por tomar acción en tu proceso de crecimiento profesional y personal, estamos seguros que has tomado la decisión correcta y nos dará mucho gusto acompañarte en este proceso.
-
-Para empezar tu proceso de inscripción vas a necesitar los siguientes archivos:
-
-Acta de nacimiento, el archivo debe llevar el siguiente nombre:
-Acta de nacimiento (tu nombre)
-
-Certificado de secundaria, el archivo debe llevar el siguiente nombre:
-Certificado de secundaria (tu nombre)
-
-Comprobante de pago, el archivo debe llevar el siguiente nombre:
-Comprobante de pago (tu nombre)
-
-Haz clic en la liga para descargar la información de nuestra cuenta bancaria:
-https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
-
-🔵¿Ya tienes todos los documentos?
-
-Por favor, sigue las indicaciones para completar tu inscripción.
-
-1️⃣ Ingresar a https://www.windsor.edu.mx/solicitud-de-inscripcion y llenar la "solicitud de inscripción bachillerato / licenciatura"
-
-2️⃣ Envíanos un mensaje por este medio cuando hayas terminado.
-
-Listo, ya eres parte de la familia Windsor 🎉🎉🎉
-
-¡¡BIENVENID@!!`
-
-const INSCRIPCION_DIPLOMADO_MSG = `🔴PROCESO DE INSCRIPCIÓN DIPLOMADOS🔴
-
-1️⃣ Enviar documentación escaneada al correo hola@windsor.edu.mx (copia de Acta de Nacimiento)
-
-2️⃣ Ingresar a https://www.windsor.edu.mx/solicitud-de-inscripcion y llenar la solicitud de inscripción.
-
-3️⃣ Una vez recibida la solicitud, te enviamos una referencia y la cuenta a la que harás tu pago.
-
-Listo, ya eres parte de la familia Windsor 🎉🎉🎉
-
-¡¡BIENVENID@!!`
-
-const INSCRIPCION_IDIOMA_MSG = `🔴PROCESO DE INSCRIPCIÓN CURSOS DE IDIOMAS🔴
-
-Antes que nada permítenos felicitarte por tomar acción en tu proceso de crecimiento profesional y personal, estamos seguros que has tomado la decisión correcta y nos dará mucho gusto acompañarte en este proceso.
-
-Para empezar tu proceso de inscripción vas a necesitar los siguientes archivos:
-
-Acta de nacimiento, el archivo debe llevar el siguiente nombre:
-Acta de nacimiento (tu nombre)
-
-Comprobante de pago, el archivo debe llevar el siguiente nombre:
-Comprobante de pago (tu nombre)
-
-Haz clic en la liga para descargar la información de nuestra cuenta bancaria:
-https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
-
-🔵¿Ya tienes todos los documentos?
-
-Por favor, sigue las indicaciones para completar tu inscripción.
-
-1️⃣ Ingresar a https://www.windsor.edu.mx/solicitud-de-inscripcion y llenar la "solicitud de inscripción cursos de idiomas"
-
-2️⃣ Envíanos un mensaje por este medio cuando hayas terminado.
-
-Listo, ya eres parte de la familia Windsor 🎉🎉🎉
-
-¡¡BIENVENID@!!`
-
-const INSCRIPCION_DESCONOCIDA_MSG = `¡Perfecto! 🎉 Para darte el proceso de inscripción exacto de tu programa, permíteme confirmarlo un momento con un asesor. En breve te contactamos. 😊`
-
-/** Mensaje de inscripción para un tipo ya conocido (no llamar con 'desconocido': ese caso se maneja aparte, con alerta a Harold). */
-function mensajeInscripcionPara(tipo: Exclude<TipoInscripcion, 'desconocido'>): string {
-  switch (tipo) {
-    // Verano ya concluyó: quien dice "me quiero inscribir" recibe directo el proceso de idiomas
-    // (antes recibía otra vez la ficha con "B) Quiero inscribirme"). Cubre también Francés/Italiano.
-    case 'verano': return INSCRIPCION_IDIOMA_MSG
-    case 'habilidades': return INSCRIPCION_HABILIDADES_MSG
-    case 'bachillerato': return INSCRIPCION_BACHILLERATO_MSG
-    case 'diplomado': return INSCRIPCION_DIPLOMADO_MSG
-    case 'idioma': return INSCRIPCION_IDIOMA_MSG
-    case 'licenciatura': return INSCRIPCION_LICS_MSG
-  }
-}
-
-async function alertarProgramaNoReconocido(nombreLead: string | null | undefined, waNumber: string, curso: string | null | undefined) {
+// Un solo flujo de código/aviso para incertidumbre de IA o inscripción atascada.
+async function solicitarRevisionCodigo(params: {
+  supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
+  conversacionId: string, provider: WhatsAppProvider, waNumber: string,
+  leadSnapshot: Pick<LeadSnapshot, 'nombre' | 'curso'> | null, originalText: string,
+}): Promise<Response> {
+  const { supabase, conversacionId, provider, waNumber, leadSnapshot, originalText } = params
+  // Asignar código de a-z según cuántos pendientes hay. Un código solo cuenta como
+  // "usado" si se asignó en las últimas 48h — evita que uno quede pegado para
+  // siempre cuando Harold nunca llega a aprobarlo con "X ok" (bug real: 88
+  // conversaciones acabaron compartiendo 'c' desde jun-2026 con el pool viejo de a-c).
+  const CODIGOS_REVISION = 'abcdefghijklmnopqrstuvwxyz'.split('')
+  let codigo = CODIGOS_REVISION[0]
   try {
-    await sendMetaWhatsAppMessage({
-      to: ADMIN_WA_ALERTA,
-      body: `⚠️ Programa no reconocido en flujo de inscripción: "${curso || '(vacío)'}"\nLead: ${nombreLead || waNumber} (${waNumber})\n\nAgrégalo a la lista correspondiente en lib/whatsapp/programas.ts (PROGRAMAS_LICENCIATURA, PROGRAMAS_VERANO_CORTO o PROGRAMAS_DIPLOMADO).`,
-    })
-  } catch (err) {
-    console.error('[INSCRIPCION] Error alertando programa no reconocido:', err)
+    const hace48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+    const { data: pendientes } = await supabase
+      .from('whatsapp_conversaciones')
+      .select('revision_codigo')
+      .not('revision_codigo', 'is', null)
+      .gte('revision_codigo_asignado_at', hace48h)
+    const usados = new Set((pendientes || []).map((c: any) => c.revision_codigo))
+    codigo = CODIGOS_REVISION.find(c => !usados.has(c)) || CODIGOS_REVISION[CODIGOS_REVISION.length - 1]
+  } catch { /* usar 'a' por defecto */ }
+
+  // Mensaje al lead avisando que se escala con un asesor
+  const msgEspera = MENSAJE_ESPERA
+  await supabase.from('whatsapp_mensajes').insert([{
+    conversacion_id: conversacionId,
+    rol: 'bot',
+    contenido: msgEspera,
+  }])
+  // Guardar pausa y vencimiento juntos: si falta la migración o falla BD,
+  // no dejar el bot apagado sin una revisión recuperable.
+  const revisionDesde = new Date().toISOString()
+  const { error: revisionError } = await supabase.from('whatsapp_conversaciones')
+    .update({ modo_humano: true, ultimo_mensaje_at: revisionDesde,
+      revision_codigo: codigo, revision_codigo_asignado_at: revisionDesde,
+      revision_timeout_desde_at: revisionDesde, revision_recordatorio_at: null,
+      revision_timeout_claim_at: null, revision_draft: null })
+    .eq('id', conversacionId)
+  if (revisionError) throw new Error(`No se pudo guardar revisión: ${revisionError.message}`)
+
+  // Alerta a Harold con código
+  const nombreLead = leadSnapshot?.nombre || waNumber
+  const programa = leadSnapshot?.curso || 'programa desconocido'
+  const notif = `❓ *[${codigo.toUpperCase()}]* ${nombreLead} — ${programa}\n"${originalText}"\n\nResponde: ${codigo.toUpperCase()}: tu explicación aquí`
+  try {
+    await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: notif })
+  } catch (notifErr) {
+    console.error('[REVISION] Error notificando a Harold:', notifErr)
   }
+  return buildProviderResponse(provider, msgEspera, waNumber)
 }
 
-/** Cuando el lead quiere inscribirse pero su curso no cae en ninguna lista cerrada conocida
- * (bachillerato, diplomado, idioma, licenciatura, verano, habilidades): no adivinar el proceso —
- * alertar a un asesor y responder con un mensaje de espera, fase 'pendiente'. Este combo
- * (alertarProgramaNoReconocido + INSCRIPCION_DESCONOCIDA_MSG + fase 'pendiente') estaba
- * copiado a mano de forma idéntica en 4 sitios distintos del state machine. */
+// Releer el curso guardado antes de preguntar la lista cerrada; nunca escalar por descarte.
 async function respondProgramaDesconocido(
   supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
-  conversacionId: string,
-  provider: WhatsAppProvider,
-  waNumber: string,
-  leadId: string | null | undefined,
-  nombre: string | null | undefined,
-  curso: string | null | undefined
+  conversacionId: string, provider: WhatsAppProvider, waNumber: string,
+  leadId: string | null | undefined, _nombre: string | null | undefined, curso: string | null | undefined
 ): Promise<Response> {
-  await alertarProgramaNoReconocido(nombre, waNumber, curso)
-  await logBotMessageAndUpdateFase(supabase, conversacionId, INSCRIPCION_DESCONOCIDA_MSG, 'pendiente', leadId)
-  // Todos los que llegan aquí dijeron que se quieren inscribir — sin esto se quedaban en su
-  // stage anterior (p. ej. promocion_enviada) y el asesor no los veía en la columna de
-  // inscripción (campaña windsor_nuevo_ciclo, 2026-09-24: ~5 de 32 casos).
+  const { data: lead } = leadId
+    ? await supabase.from('leads').select('curso').eq('id', leadId).maybeSingle()
+    : { data: null }
+  const tipo = resolverTipoInscripcion(lead?.curso, curso)
+  const respuesta = tipo === 'desconocido' ? INSCRIPCION_DESCONOCIDA_MSG : mensajeInscripcionPara(tipo, { curso: lead?.curso || curso, whatsapp: waNumber, nombre: _nombre })
+  const fase = tipo === 'desconocido' ? 'inscripcion_programa' : tipo === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
+  await logBotMessageAndUpdateFase(supabase, conversacionId, respuesta, fase, leadId)
   if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
-  return buildProviderResponse(provider, INSCRIPCION_DESCONOCIDA_MSG, waNumber)
+  return buildProviderResponse(provider, respuesta, waNumber)
 }
-
-const INSCRIPCION_HABILIDADES_MSG = `¡Perfecto! 😊 Para inscribirte al curso *Habilidades para la práctica psicoterapéutica* solo necesitas:
-
-1️⃣ Llenar este formulario: https://docs.google.com/forms/d/e/1FAIpQLSf2QqhL5xo-C35_g2suWzMpX0oWpdvZS082DPHNksY-CcPNBQ/viewform
-2️⃣ Realizar tu pago en efectivo directamente en las instalaciones ($300 alumnos Windsor / $400 público)
-
-Confírmanos aquí cuando hayas completado el formulario. 🎉`
 
 function buildInscripcionPresencialMsg(nombre?: string | null, email?: string | null, programa?: string | null, telefono?: string | null): string {
   // CRÍTICO: nunca generar el link de /agendar sin correo — el endpoint /api/agendar
@@ -2662,7 +2561,7 @@ export async function POST(request: Request) {
             contenido: draft,
           }])
           await supabaseHL.from('whatsapp_conversaciones')
-            .update({ revision_codigo: null, revision_draft: null, revision_codigo_asignado_at: null, modo_humano: false, ultimo_mensaje_at: new Date().toISOString() })
+            .update({ revision_codigo: null, revision_draft: null, revision_codigo_asignado_at: null, revision_timeout_desde_at: null, revision_timeout_claim_at: null, modo_humano: false, ultimo_mensaje_at: new Date().toISOString() })
             .eq('id', (convAprobacion as any).id)
           await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: `✅ [${codigo.toUpperCase()}] Enviado.` })
         } else {
@@ -2715,7 +2614,7 @@ export async function POST(request: Request) {
             const draft = draftData.choices?.[0]?.message?.content?.trim() || instruccion
 
             await supabaseHL.from('whatsapp_conversaciones')
-              .update({ revision_draft: draft })
+              .update({ revision_draft: draft, revision_timeout_desde_at: null })
               .eq('id', (convInstruccion as any).id)
 
             const nombre = (leadInfo as any)?.nombre || 'el lead'
@@ -3045,7 +2944,25 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
 
     // Compatibilidad: fases antiguas se tratan como programa; las fases separadas de
     // 'seguimiento' (inscribiendo, pendiente, con_asesor…) se comportan como 'seguimiento'.
-    const phase = currentFase === 'datos' || currentFase === 'info_programa' ? 'programa' : faseLogica(currentFase)
+    const phase = currentFase === 'datos' || currentFase === 'info_programa' || currentFase === 'inscripcion_programa' ? 'programa' : faseLogica(currentFase)
+    if (conversacionIdOuter && currentFase === 'inscripcion_programa') {
+      const supabase = createServiceRoleClient()
+      const cursoElegido = detectarPrograma(originalText)
+      if (cursoElegido) {
+        if (leadId) await supabase.from('leads').update({ curso: cursoElegido }).eq('id', leadId)
+        return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, null, cursoElegido)
+      }
+      const { count, error } = await supabase.from('whatsapp_mensajes')
+        .select('id', { count: 'exact', head: true }).eq('conversacion_id', conversacionIdOuter)
+        .eq('rol', 'bot').eq('contenido', INSCRIPCION_DESCONOCIDA_MSG)
+      if (error) console.error('[INSCRIPCION] No se pudo contar listas enviadas:', error.message)
+      if (!error && count !== null && count >= 2) {
+        return solicitarRevisionCodigo({ supabase, conversacionId: conversacionIdOuter, provider, waNumber, leadSnapshot, originalText })
+      }
+      // Sin programa detectado, dejar responder a las reglas/IA: una pregunta de
+      // precio o una categoría genérica no son otra solicitud de la misma lista.
+    }
+
 
     // ── Flow de reglas por keyword (respuesta fija, sin GPT) ─────────────────
     if (flowAnswer && !flowUsesRag && conversacionIdOuter) {
@@ -3265,7 +3182,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         return buildProviderResponse(provider, resp, waNumber)
       }
       if (/^ya\s+tengo\s+mis\s+documentos[\s\S]*$/i.test(msgTrimBtn)) {
-        const tipoIns = tipoInscripcion(leadSnapshot?.curso)
+        const tipoIns = resolverTipoInscripcion(leadSnapshot?.curso, originalText)
         if (tipoIns === 'desconocido') {
           return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, leadSnapshot?.nombre, leadSnapshot?.curso)
         }
@@ -3275,7 +3192,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         return buildProviderResponse(provider, resp, waNumber)
       }
       if (/no\s+(puedo|me\s+deja|logro).{0,40}(subir|adjuntar|cargar)|problema.{0,30}(subir|adjuntar|cargar)/i.test(msgTrimBtn)) {
-        const resp = `Gracias por avisarnos. Te paso con un asesor para revisar el problema con el formulario y ayudarte a terminar tu inscripción.`
+        const resp = MENSAJE_ESPERA
         if (leadId) await notifyAsesor(supabase, leadId, 'lead_pide_humano', leadSnapshot?.nombre, waNumber, leadSnapshot?.curso, originalText)
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, resp, 'pendiente', leadId)
         return buildProviderResponse(provider, resp, waNumber)
@@ -3292,11 +3209,11 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         return buildProviderResponse(provider, resp, waNumber)
       }
       if (/^no\s*tengo\s*dudas[\s\S]*$/i.test(msgTrimBtn)) {
-        const tipoIns = tipoInscripcion(leadSnapshot?.curso)
+        const tipoIns = resolverTipoInscripcion(leadSnapshot?.curso, originalText)
         if (tipoIns === 'desconocido') {
           return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, leadSnapshot?.nombre, leadSnapshot?.curso)
         }
-        const botMsg = mensajeInscripcionPara(tipoIns)
+        const botMsg = mensajeInscripcionPara(tipoIns, { curso: leadSnapshot?.curso, whatsapp: waNumber, nombre: leadSnapshot?.nombre })
         const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
         // Asegurar que el stage del lead llegue a inscripcion_pendiente en Kanban
@@ -3329,16 +3246,16 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         // Sin programa capturado (placeholder "WhatsApp - Instituto Windsor"): preguntar cuál,
         // igual que en fase inscripcion, pero ya dejarlo en la columna de inscripción.
         if (!hasLeadProgram(leadSnapshot?.curso)) {
-          const msgPreguntaPrograma = '¡Con gusto! 😊 ¿A qué programa te gustaría inscribirte?'
-          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgPreguntaPrograma, 'programa', leadId)
+          const msgPreguntaPrograma = INSCRIPCION_DESCONOCIDA_MSG
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgPreguntaPrograma, 'inscripcion_programa', leadId)
           if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
           return buildProviderResponse(provider, msgPreguntaPrograma, waNumber)
         }
-        const tipoIns = tipoInscripcion(leadSnapshot?.curso)
+        const tipoIns = resolverTipoInscripcion(leadSnapshot?.curso, originalText)
         if (tipoIns === 'desconocido') {
           return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, leadSnapshot?.nombre, leadSnapshot?.curso)
         }
-        const botMsg = mensajeInscripcionPara(tipoIns)
+        const botMsg = mensajeInscripcionPara(tipoIns, { curso: leadSnapshot?.curso, whatsapp: waNumber, nombre: leadSnapshot?.nombre })
         const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
         if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
@@ -3347,11 +3264,11 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
 
       // ── Interceptor de botones de template reactivacion_verano ──────────────
       if (/^quiero\s*apartar\s*mi\s*lugar[\s\S]*$/i.test(msgTrimBtn)) {
-        const tipoIns = tipoInscripcion(leadSnapshot?.curso)
+        const tipoIns = resolverTipoInscripcion(leadSnapshot?.curso, originalText)
         if (tipoIns === 'desconocido') {
           return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, leadSnapshot?.nombre, leadSnapshot?.curso)
         }
-        const botMsg = mensajeInscripcionPara(tipoIns)
+        const botMsg = mensajeInscripcionPara(tipoIns, { curso: leadSnapshot?.curso, whatsapp: waNumber, nombre: leadSnapshot?.nombre })
         const nextF = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsg, nextF, leadId)
         if (leadId) await supabase.from('leads').update({ stage: 'inscripcion_pendiente' }).eq('id', leadId)
@@ -3713,11 +3630,11 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           return buildProviderResponse(provider, EXAMEN_UBICACION_MSG, waNumber)
         }
         if (eligeB(originalText)) {
-          const tipoIns = tipoInscripcion(leadSnapshot?.curso)
+          const tipoIns = resolverTipoInscripcion(leadSnapshot?.curso, originalText)
           if (tipoIns === 'desconocido') {
             return respondProgramaDesconocido(supabase, conversacionIdOuter, provider, waNumber, leadId, leadSnapshot?.nombre, leadSnapshot?.curso)
           }
-          const botMsgAccion = mensajeInscripcionPara(tipoIns)
+          const botMsgAccion = mensajeInscripcionPara(tipoIns, { curso: leadSnapshot?.curso, whatsapp: waNumber, nombre: leadSnapshot?.nombre })
           const nextFAccion = tipoIns === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, botMsgAccion, nextFAccion, leadId)
           return buildProviderResponse(provider, botMsgAccion, waNumber)
@@ -3806,7 +3723,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         }
         if (/ya.*llen[eé]|ya.*hice|ya.*complet|ya\s+(estoy\s+)?listo|ya.*pagu[eé]|ya.*realic[eé]|ya.*env[ií]|ya.*subi|ya.*adjunt/i.test(originalText)) {
           const nombreLead = leadSnapshot?.nombre || ''
-          const msg = `¡Perfecto${nombreLead ? ' ' + nombreLead : ''}! 🎉 Ya recibimos tu confirmación. Un asesor revisará tu formulario y te confirmará tu lugar en My Best Summer en breve. ¡Nos vemos en julio! ☀️`
+          const msg = `¡Perfecto${nombreLead ? ' ' + nombreLead : ''}! 🎉 Ya recibimos tu confirmación. Déjame confirmarlo y te respondo en breve 😊`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msg, 'inscribiendo', leadId)
           if (leadId) {
             await notifyAsesor(supabase, leadId, 'inscripcion_confirmada',
@@ -3840,8 +3757,8 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         // reales no contemplados en las listas) — preguntar primero cuál programa quiere.
         // Caso real: lead sin nombre, curso="WhatsApp - Instituto Windsor", 2026-09-07.
         if (!hasLeadProgram(leadSnapshot?.curso)) {
-          const msgPreguntaPrograma = '¡Con gusto! 😊 ¿A qué programa te gustaría inscribirte?'
-          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgPreguntaPrograma, 'programa', leadId)
+          const msgPreguntaPrograma = INSCRIPCION_DESCONOCIDA_MSG
+          await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msgPreguntaPrograma, 'inscripcion_programa', leadId)
           return buildProviderResponse(provider, msgPreguntaPrograma, waNumber)
         }
         // Si el mensaje parece pregunta de seguimiento (no una confirmación corta tipo
@@ -3890,7 +3807,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         }
         if (/ya.*llen[eé]|ya.*hice|ya.*complet|ya\s+(estoy\s+)?listo|ya.*pagu[eé]|ya.*realic[eé]/i.test(msgI)) {
           const nombreLead = leadSnapshot?.nombre || ''
-          const msg = `¡Perfecto${nombreLead ? ' ' + nombreLead : ''}! 🎉 Un asesor revisará tu información y confirmará tu inscripción en breve. ¡Bienvenid@ a la familia Windsor!`
+          const msg = `¡Perfecto${nombreLead ? ' ' + nombreLead : ''}! 🎉 Déjame confirmarlo y te respondo en breve 😊`
           await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, msg, 'inscribiendo')
           if (leadId) {
             await notifyAsesor(supabase, leadId, 'inscripcion_confirmada',
@@ -4142,14 +4059,8 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
       const botTurnsInHistory = convHistory.filter(m => m.role === 'assistant').length
       const esMensajePositivo = /^\s*(s[ií]|claro|ok|okay|exacto|de acuerdo|perfecto|estoy interesado|me interesa|interesado|interesada|bien|buenas?\s+(tardes?|d[ií]as?|noches?)|hola|gracias|muchas gracias|genial|excelente|adelante|quiero|s[ií] quiero)\b/i.test(originalText.trim())
       if (botTurnsInHistory >= 5 && gpt.siguienteFase === phase && !gpt.requestedHuman && !gpt.noInterest && !esMensajePositivo) {
-        const escalMsg = 'Parece que no te he podido ayudar bien por aquí. 😊 Déjame conectarte con uno de nuestros asesores que podrá orientarte mejor. ¡En breve te contactan!'
-        await logBotMessageAndUpdateFase(supabase, conversacionIdOuter, escalMsg)
-        await supabase.from('whatsapp_conversaciones').update({ modo_humano: true }).eq('id', conversacionIdOuter)
-        if (leadId) {
-          await notifyAsesor(supabase, leadId, 'lead_pide_humano',
-            leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
-        }
-        return buildProviderResponse(provider, escalMsg, waNumber)
+        // Reusar la escalación con código y vencimiento de abajo.
+        gpt.necesitaRevision = true
       }
 
       // ── Human-in-the-loop: detectar incertidumbre en respuesta del GPT ──────────
@@ -4167,61 +4078,11 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         'déjame confirmar', 'lo confirmo en', 'un momento para verificar',
         'dame un momento', 'un momento para', 'espera un momento',
       ]
-      const respuestaIncierta = gpt.necesitaRevision ||
-        FRASES_INCERTIDUMBRE.some(f => gpt.respuesta.toLowerCase().includes(f))
+      const respuestaIncierta = gpt.necesitaRevision || gpt.requestedHuman ||
+        FRASES_INCERTIDUMBRE.some(f => gpt.respuesta.toLowerCase().includes(f)) || quitarPromesasAsesor(gpt.respuesta) !== gpt.respuesta
 
       if (respuestaIncierta) {
-        // Asignar código de a-z según cuántos pendientes hay. Un código solo cuenta como
-        // "usado" si se asignó en las últimas 48h — evita que uno quede pegado para
-        // siempre cuando Harold nunca llega a aprobarlo con "X ok" (bug real: 88
-        // conversaciones acabaron compartiendo 'c' desde jun-2026 con el pool viejo de a-c).
-        const CODIGOS_REVISION = 'abcdefghijklmnopqrstuvwxyz'.split('')
-        let codigo = CODIGOS_REVISION[0]
-        try {
-          const hace48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
-          const { data: pendientes } = await supabase
-            .from('whatsapp_conversaciones')
-            .select('revision_codigo')
-            .not('revision_codigo', 'is', null)
-            .gte('revision_codigo_asignado_at', hace48h)
-          const usados = new Set((pendientes || []).map((c: any) => c.revision_codigo))
-          codigo = CODIGOS_REVISION.find(c => !usados.has(c)) || CODIGOS_REVISION[CODIGOS_REVISION.length - 1]
-        } catch { /* usar 'a' por defecto */ }
-
-        // Mensaje al lead avisando que se escala con un asesor
-        const msgEspera = `Déjame consultarlo con un asesor para darte la respuesta exacta 😊 En breve te respondemos.`
-        await supabase.from('whatsapp_mensajes').insert([{
-          conversacion_id: conversacionIdOuter,
-          rol: 'bot',
-          contenido: msgEspera,
-        }])
-        // modo_humano: true — antes la conversación quedaba "sin bloquear": el siguiente
-        // mensaje del lead se procesaba de nuevo con GPT como si nada hubiera pasado,
-        // pudiendo contestar cosas distintas/contradictorias a la pregunta ya escalada
-        // (ver bug reportado 2026-08-06, caso +527472532394). Bloquear aquí es consistente
-        // con el resto del código: es el mismo flag que ya usa la escalación por 5 turnos
-        // sin avance (línea ~3733) y con cómo ya se resuelven manualmente estos casos en
-        // la revisión diaria de 24h (mandando la corrección con modoHumano:false explícito).
-        await supabase.from('whatsapp_conversaciones')
-          .update({ modo_humano: true, ultimo_mensaje_at: new Date().toISOString() })
-          .eq('id', conversacionIdOuter)
-        // Guardar código en la conversación (columna aparte, puede no existir aún)
-        try {
-          await supabase.from('whatsapp_conversaciones')
-            .update({ revision_codigo: codigo, revision_codigo_asignado_at: new Date().toISOString() })
-            .eq('id', conversacionIdOuter)
-        } catch { /* columna puede no existir aún — ver supabase/revision_pendiente.sql */ }
-
-        // Alerta a Harold con código
-        const nombreLead = leadSnapshot?.nombre || waNumber
-        const programa = leadSnapshot?.curso || 'programa desconocido'
-        const notif = `❓ *[${codigo.toUpperCase()}]* ${nombreLead} — ${programa}\n"${originalText}"\n\nResponde: ${codigo.toUpperCase()}: tu explicación aquí`
-        try {
-          await sendMetaWhatsAppMessage({ to: ADMIN_WA_ALERTA, body: notif })
-        } catch (notifErr) {
-          console.error('[REVISION] Error notificando a Harold:', notifErr)
-        }
-        return buildProviderResponse(provider, msgEspera, waNumber)
+        return solicitarRevisionCodigo({ supabase, conversacionId: conversacionIdOuter, provider, waNumber, leadSnapshot, originalText })
       }
 
       // Persistir datos capturados por GPT
@@ -4359,19 +4220,18 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         nextFase = 'clase_prueba'
       } else if (nextFase === 'inscripcion' && phase !== 'inscripcion') {
         // Track B: proceso de inscripción — según lista cerrada de programas, nunca por descarte
-        const tipoInsGPT = tipoInscripcion(leadSnapshot?.curso)
+        const tipoInsGPT = resolverTipoInscripcion(leadSnapshot?.curso, gpt.programa, originalText)
         if (tipoInsGPT === 'desconocido' && !hasLeadProgram(leadSnapshot?.curso)) {
           // Curso sigue en el placeholder ("WhatsApp/Messenger - Instituto Windsor") —
           // no es un programa real no reconocido, es que nunca se identificó. No alertar
           // como "programa no reconocido", solo preguntar cuál quiere.
-          botMessage = '¡Con gusto! 😊 ¿A qué programa te gustaría inscribirte?'
-          nextFase = 'programa'
-        } else if (tipoInsGPT === 'desconocido') {
-          await alertarProgramaNoReconocido(leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
           botMessage = INSCRIPCION_DESCONOCIDA_MSG
-          nextFase = 'pendiente'
+          nextFase = 'inscripcion_programa'
+        } else if (tipoInsGPT === 'desconocido') {
+          botMessage = INSCRIPCION_DESCONOCIDA_MSG
+          nextFase = 'inscripcion_programa'
         } else {
-          botMessage = mensajeInscripcionPara(tipoInsGPT)
+          botMessage = mensajeInscripcionPara(tipoInsGPT, { curso: leadSnapshot?.curso, whatsapp: waNumber, nombre: leadSnapshot?.nombre })
           nextFase = tipoInsGPT === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
         }
       } else if (nextFase === 'inscripcion_online') {
@@ -4383,22 +4243,21 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           botMessage = buildInscripcionPresencialMsg(leadSnapshot?.nombre, leadSnapshot?.email, leadSnapshot?.curso, leadSnapshot?.whatsapp)
           nextFase = 'inscribiendo'
         } else {
-          const tipoInsPres = tipoInscripcion(leadSnapshot?.curso)
+          const tipoInsPres = resolverTipoInscripcion(leadSnapshot?.curso, gpt.programa, originalText)
           if (tipoInsPres === 'desconocido' && !hasLeadProgram(leadSnapshot?.curso)) {
-            botMessage = '¡Con gusto! 😊 ¿A qué programa te gustaría inscribirte?'
-            nextFase = 'programa'
-          } else if (tipoInsPres === 'desconocido') {
-            await alertarProgramaNoReconocido(leadSnapshot?.nombre, waNumber, leadSnapshot?.curso)
             botMessage = INSCRIPCION_DESCONOCIDA_MSG
-            nextFase = 'pendiente'
+            nextFase = 'inscripcion_programa'
+          } else if (tipoInsPres === 'desconocido') {
+            botMessage = INSCRIPCION_DESCONOCIDA_MSG
+            nextFase = 'inscripcion_programa'
           } else {
-            botMessage = mensajeInscripcionPara(tipoInsPres)
+            botMessage = mensajeInscripcionPara(tipoInsPres, { curso: leadSnapshot?.curso, whatsapp: waNumber, nombre: leadSnapshot?.nombre })
             nextFase = tipoInsPres === 'verano' ? 'inscripcion_pendiente' : 'inscripcion'
           }
         }
       } else if (nextFase === 'inscripcion_confirmada') {
         const nombreLead = leadSnapshot?.nombre || ''
-        botMessage = `¡Perfecto${nombreLead ? ' ' + nombreLead : ''}! 🎉 Recibimos tu información. Un asesor revisará todo y te confirmará tu inscripción en breve. ¡Bienvenid@ a la familia Windsor!`
+        botMessage = `¡Perfecto${nombreLead ? ' ' + nombreLead : ''}! 🎉 Recibimos tu información. Déjame confirmarlo y te respondo en breve 😊`
         nextFase = 'inscribiendo'
       }
 

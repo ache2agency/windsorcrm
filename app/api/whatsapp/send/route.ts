@@ -161,7 +161,7 @@ export async function POST(request: Request) {
         messageId = result.id
         const templateDef = obtenerTemplateAprobado(templateName)
         contenidoHistorial = templateDef
-          ? renderizarTemplate(templateDef.body, templateParams?.[0] || '')
+          ? renderizarTemplate(templateDef.body, templateParams?.[0] || '', templateParams?.slice(1))
           : `[Template: ${templateName}]`
       } else {
         const result = await sendMetaWhatsAppMessage({ to, body: body! })

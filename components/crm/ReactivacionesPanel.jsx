@@ -23,7 +23,7 @@ function ReactivacionCard({ item, onProcessed, onOpenConversation }) {
   const [busy, setBusy] = useState(false);
   const primerNombre = (item.nombre || "").trim().split(/\s+/)[0] || "ahí";
   const template = useMemo(
-    () => TEMPLATES_APROBADOS.find((t) => t.name === templateSeleccionado) || null,
+    () => TEMPLATES_APROBADOS.find((t) => t.name === templateSeleccionado && !t.ocultoEnPanel) || null,
     [templateSeleccionado]
   );
   const previewTemplate = template ? renderizarTemplate(template.body, primerNombre) : "";
@@ -82,7 +82,7 @@ function ReactivacionCard({ item, onProcessed, onOpenConversation }) {
       style={{ width: "100%", boxSizing: "border-box", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 10px", font: "inherit", fontSize: 13, color: "#1e293b", background: "#fff", marginBottom: 10 }}
     >
       <option value="">Selecciona un template…</option>
-      {TEMPLATES_APROBADOS.map((t) => (
+      {TEMPLATES_APROBADOS.filter((t) => !t.ocultoEnPanel).map((t) => (
         <option key={t.name} value={t.name}>{t.label}</option>
       ))}
     </select>
