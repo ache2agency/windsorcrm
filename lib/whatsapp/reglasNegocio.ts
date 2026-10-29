@@ -52,7 +52,10 @@ export const DATOS_DIPLOMADOS = {
   promocionVigente:
     'Promoción vigente (septiembre, octubre y noviembre 2026) SOLO para la modalidad GRUPAL: 30% de descuento SOLO en las mensualidades → 6 mensualidades de $1,730 o 3 pagos de $3,470 (costo académico $10,430).',
   modalidadIndividual:
-    'Modalidad INDIVIDUAL (alternativa para quien no puede los miércoles): el alumno elige día, hora y fecha de inicio; promoción vigente (septiembre, octubre y noviembre 2026): 10% de descuento SOLO en las mensualidades → 6 mensualidades de $2,230 o 3 pagos de $4,460 (costo académico $13,410), más la inscripción de $700. El 30% es solo para grupo y el 10% solo para individual: NUNCA los combines ni ofrezcas otros descuentos.',
+    'Modalidad INDIVIDUAL (alternativa para quien no puede los miércoles): el alumno elige día, hora y fecha de inicio; promoción vigente (septiembre, octubre y noviembre 2026): 10% de descuento SOLO en las mensualidades → 6 mensualidades de $2,230 o 3 pagos de $4,460 (costo académico $13,410), más la inscripción de $700. El 30% es solo para grupo y el 10% solo para individual: NUNCA los combines ni ofrezcas otros descuentos (única excepción: la oferta del grupo del 11 de noviembre, abajo).',
+  // Oferta del template windsor_diplomado_inicio_11nov (Harold, 29-oct-2026). Quitar después del 11-nov-2026.
+  ofertaInicio11Nov:
+    'OFERTA GRUPO DEL 11 DE NOVIEMBRE DE 2026 (solo modalidad GRUPAL, válida para inscribirse hasta el miércoles 11 de noviembre de 2026): 10% de descuento EXTRA sobre la promoción del 30% → 6 mensualidades de $1,550 o 3 pagos de $3,120, más la inscripción de $700. Aplícala SOLO si en el historial de esta conversación ya aparece el mensaje "¡Tu ... ya tiene fecha de inicio!" con el 10% extra (o "[Template: windsor_diplomado_inicio_11nov]"), o si el prospecto menciona ese 10% extra o la oferta del 11 de noviembre; en ese caso confírmala con gusto y da estas cifras. No la ofrezcas por tu cuenta a quien no la recibió. Después del 11 de noviembre de 2026 ya no aplica.',
   presentacion:
     'Al dar información o precios, presenta SIEMPRE primero la modalidad GRUPAL (miércoles 7-9 p.m., próxima fecha de inicio y precio con 30%) como la opción principal, y menciona la INDIVIDUAL en UNA sola línea como alternativa ("¿No puedes los miércoles? También puedes tomarlo individual, en el horario que elijas, con 10% de descuento: 6 × $2,230"). Da el detalle completo del individual solo si dice que no puede los miércoles o pide horario flexible. Cierra invitando a inscribirse al grupo de la próxima fecha.',
   inscripcionSinDescuento:
@@ -73,6 +76,7 @@ export const TEXTO_DATOS_DIPLOMADOS = `Todos los diplomados tienen las MISMAS co
 - Inversión regular: ${DATOS_DIPLOMADOS.inversionRegular}
 - ${DATOS_DIPLOMADOS.promocionVigente}
 - ${DATOS_DIPLOMADOS.modalidadIndividual}
+- ${DATOS_DIPLOMADOS.ofertaInicio11Nov}
 - ${DATOS_DIPLOMADOS.presentacion}
 - ${DATOS_DIPLOMADOS.inscripcionSinDescuento}
 - ${DATOS_DIPLOMADOS.noRecalcular}

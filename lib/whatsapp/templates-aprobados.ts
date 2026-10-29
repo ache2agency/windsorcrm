@@ -16,12 +16,15 @@ export type TemplateAprobadoKey =
   | 'windsor_examen_clase'
   | 'lic_mkt'
   | 'windsor_nuevo_ciclo'
+  | 'windsor_diplomado_inicio_11nov'
 
 export interface TemplateAprobado {
   name: TemplateAprobadoKey
   category: 'Marketing' | 'Utility'
   label: string
   body: string
+  /** Usa más de un parámetro ({{2}}…): solo se manda por script, no desde el panel de reactivaciones. */
+  ocultoEnPanel?: boolean
 }
 
 export const TEMPLATES_APROBADOS: TemplateAprobado[] = [
@@ -91,12 +94,22 @@ export const TEMPLATES_APROBADOS: TemplateAprobado[] = [
     label: 'Reactivación · nuevo ciclo escolar',
     body: 'Hola {{1}} 👋 Se acerca el nuevo ciclo escolar en Instituto Windsor y tenemos promociones vigentes para ti. Por favor, selecciona una opción.',
   },
+  {
+    // {{2}} = diplomado del lead. Mismos 4 botones que windsor_nuevo_ciclo. Oferta válida hasta el 11-nov-2026.
+    name: 'windsor_diplomado_inicio_11nov',
+    category: 'Marketing',
+    label: 'Diplomados · inicio 11-nov + 10% extra',
+    body: 'Hola {{1}} 👋\n\n¡Tu *{{2}}* ya tiene fecha de inicio! 🎓\nArrancamos el *miércoles 11 de noviembre* con clases en vivo en línea, los miércoles de 7:00 a 9:00 p.m. (hora del centro).\n\nEsta es tu oportunidad: *inscríbete hoy y te regalamos un 10% extra de descuento* 🎁\nQuedan 6 pagos de $1,550 o 3 de $3,120 (inscripción $700).\n\n¿Te apartamos tu lugar?',
+    ocultoEnPanel: true,
+  },
 ]
 
 export function obtenerTemplateAprobado(name: string): TemplateAprobado | undefined {
   return TEMPLATES_APROBADOS.find((t) => t.name === name)
 }
 
-export function renderizarTemplate(body: string, primerNombre: string): string {
-  return body.replace(/\{\{1\}\}/g, primerNombre || 'Windsor')
+export function renderizarTemplate(body: string, primerNombre: string, otrosParams: string[] = []): string {
+  return otrosParams
+    .reduce((texto, valor, i) => texto.replace(new RegExp(`\\{\\{${i + 2}\\}\\}`, 'g'), valor), body)
+    .replace(/\{\{1\}\}/g, primerNombre || 'Windsor')
 }
