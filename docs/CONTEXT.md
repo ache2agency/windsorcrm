@@ -307,6 +307,8 @@ La lógica de roles se basa en el campo `rol` en `profiles` y/o metadatos de usu
 
 ### 10. Cómo seguir usando este archivo
 
+- **Formulario de inscripción (14/15-oct-2026, rama `formulario-inscripcion`, pendiente de merge):** rutas públicas `/inscripcion/[programa]`, recepción por service role en bucket privado, RPC transaccional que reutiliza lead por WhatsApp, actividad y aviso al asesor vía Meta. Revisión autenticada `/inscripciones/[id]` y enlaces desde el modal del lead. SQL manual `supabase/inscripciones_publicas.sql`; guía y pendientes de cotejo (verano) en `docs/INSCRIPCIONES.md`. No se aplicó SQL ni se desplegó.
+
 - **Cada nueva funcionalidad grande**: agregar un bloque corto aquí (qué hace, en qué archivos vive).
 - **Cambios en tablas de Supabase**: anotar nuevas tablas, columnas o funciones SQL.
 - **Flujos importantes de negocio** (por ejemplo, “nuevo lead desde WhatsApp” o “secuencia de correos desde página pública”): describirlos en 3–5 bullets.

@@ -1,4 +1,5 @@
 import { tipoInscripcion, detectarPrograma, type TipoInscripcion } from './programas'
+import { urlInscripcion } from '../inscripcion/enlace'
 
 export const INSCRIPCION_LICS_MSG = `🎉 ¡Felicidades por tomar esta decisión!
 
@@ -99,7 +100,36 @@ export const INSCRIPCION_HABILIDADES_MSG = `¡Perfecto! 😊 Para inscribirte al
 
 Confírmanos aquí cuando hayas completado el formulario. 🎉`
 
-export function mensajeInscripcionPara(tipo: Exclude<TipoInscripcion, 'desconocido'>): string {
+// Con INSCRIPCION_FORMULARIO_BOT=on los diplomados se inscriben en el formulario propio del CRM
+// (sin cuenta de Google; registra la fila en el Sheet y crea carpeta + ficha vía Apps Script).
+export function inscripcionDiplomadoFormularioMsg(lead: { curso?: string | null; whatsapp?: string | null; nombre?: string | null }) {
+  return `🔴PROCESO DE INSCRIPCIÓN DIPLOMADOS🔴
+
+¡Felicidades por tomar esta decisión! 🎉 Aquí está todo lo que necesitas:
+
+*📄 Documentos que vas a subir:*
+1. Acta de nacimiento
+2. Comprobante de pago de inscripción y primer módulo
+
+*🏦 Información bancaria:*
+https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
+
+*📋 Pasos a seguir:*
+1️⃣ Realiza tu pago de inscripción y primer módulo con los datos bancarios del enlace anterior.
+2️⃣ Llena tu solicitud y sube tus documentos aquí:
+${urlInscripcion(lead.curso || 'Diplomado', lead.whatsapp, lead.nombre)}
+3️⃣ Confírmanos por aquí cuando la envíes y te damos acceso a la plataforma.
+
+Listo, ya eres parte de la familia Windsor 🎉🎉🎉`
+}
+
+export function mensajeInscripcionPara(
+  tipo: Exclude<TipoInscripcion, 'desconocido'>,
+  lead?: { curso?: string | null; whatsapp?: string | null; nombre?: string | null },
+): string {
+  if (tipo === 'diplomado' && lead && process.env.INSCRIPCION_FORMULARIO_BOT?.trim() === 'on') {
+    return inscripcionDiplomadoFormularioMsg(lead)
+  }
   switch (tipo) {
     // Verano ya concluyó: quien dice "me quiero inscribir" recibe directo el proceso de idiomas
     // (antes recibía otra vez la ficha con "B) Quiero inscribirme"). Cubre también Francés/Italiano.
