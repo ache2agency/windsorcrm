@@ -109,13 +109,13 @@ export function inscripcionDiplomadoFormularioMsg(lead: { curso?: string | null;
 
 *📄 Documentos que vas a subir:*
 1. Acta de nacimiento
-2. Comprobante de pago de inscripción
+2. Comprobante de pago de inscripción y primer módulo
 
 *🏦 Información bancaria:*
 https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
 
 *📋 Pasos a seguir:*
-1️⃣ Realiza tu pago con los datos bancarios del enlace anterior.
+1️⃣ Realiza tu pago de inscripción y primer módulo con los datos bancarios del enlace anterior (es la misma cuenta para todos nuestros programas).
 2️⃣ Llena tu solicitud y sube tus documentos aquí:
 ${urlInscripcion(lead.curso || 'Diplomado', lead.whatsapp, lead.nombre)}
 3️⃣ Confírmanos por aquí cuando la envíes y te damos acceso a la plataforma.
