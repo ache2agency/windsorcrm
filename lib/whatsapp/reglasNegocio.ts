@@ -34,19 +34,30 @@ export const TEXTO_HORARIO_ATENCION = `Lun–Vie 8:00–14:00 y 17:00–20:00 | 
 // inscripción $700→$490 (🚩 +529212670886, Enseñanza del Inglés, 3-oct-2026).
 // Si cambian precios/promo, actualizar aquí Y en los docs RAG (ver memoria
 // windsorcrm_diplomados_precios_sep2026).
+export const CALENDARIO_INICIO_DIPLOMADOS =
+  'miércoles 11 de noviembre de 2026; miércoles 20 de enero de 2027; miércoles 3 de marzo de 2027; miércoles 7 de abril de 2027; miércoles 5 de mayo de 2027; miércoles 2 de junio de 2027; miércoles 7 de julio de 2027; miércoles 4 de agosto de 2027; miércoles 1 de septiembre de 2027; miércoles 6 de octubre de 2027'
+
 export const DATOS_DIPLOMADOS = {
   modalidad:
     'SOLO EN LÍNEA, con clases en vivo por la plataforma del Instituto Windsor. NO hay modalidad presencial, mixta ni semipresencial, y no se asiste al plantel. Si preguntan por presencial o "mixto", aclara con amabilidad que el diplomado es 100% en línea con clases en vivo.',
   horario:
-    '2 horas a la semana de clase en vivo en línea, de 17:00 a 19:00 hrs; el día de la semana varía según el módulo. Además ~3 horas de autoestudio por semana.',
+    'modalidad GRUPAL: una clase en vivo en línea a la semana, los MIÉRCOLES de 7:00 a 9:00 p.m. (hora del centro de México). Si no puede conectarse, la clase se queda grabada en la plataforma para verla después (dilo así; NUNCA escribas "(grabada)" junto al horario, se entiende que la clase es un video). Además ~3 horas de autoestudio por semana.',
   duracion: '120 horas, divididas en 3 o 6 meses.',
-  fechaInicio: 'abrimos grupo cada mes, así que puede incorporarse al próximo grupo. NUNCA des una fecha concreta de inicio (no hay una publicada).',
-  grupo: '12 a 25 participantes.',
+  // Calendario decidido por Harold el 28-oct-2026. Al agregar el siguiente año, extender la lista.
+  fechaInicio: `calendario FIJO de inicio de grupos (inscripciones abiertas hasta el MISMO día de inicio): ${CALENDARIO_INICIO_DIPLOMADOS}. En diciembre de 2026 y febrero de 2027 NO abren grupos. Usa la FECHA DE HOY del prompt: da SIEMPRE la primera fecha del calendario que sea hoy o posterior, con día y mes (ej. "el próximo grupo inicia el miércoles 11 de noviembre"), y menciona que puede inscribirse hasta ese mismo día. NUNCA digas "abrimos cada mes", "empiezas cuando quieras" ni que no hay fecha.`,
+  grupo: 'grupos reducidos. NUNCA des un número de participantes por grupo.',
   calificacion: '80% por módulo. Diploma con valor curricular (120 horas) al aprobar y cubrir los pagos.',
   aval: 'avalado por el Instituto Windsor; NO tiene RVOE ni validez oficial de la SEP/SEG (la SEP no otorga RVOE a diplomados), pero sí tiene valor curricular.',
   inversionRegular: 'costo académico $14,900 MXN, en 6 mensualidades de $2,480 o 3 pagos de $4,960. Inscripción: $700 MXN aparte.',
   promocionVigente:
-    'Promoción vigente (septiembre, octubre y noviembre 2026): 30% de descuento SOLO en las mensualidades → 6 mensualidades de $1,730 o 3 pagos de $3,470 (costo académico $10,430).',
+    'Promoción vigente (septiembre, octubre y noviembre 2026) SOLO para la modalidad GRUPAL: 30% de descuento SOLO en las mensualidades → 6 mensualidades de $1,730 o 3 pagos de $3,470 (costo académico $10,430).',
+  modalidadIndividual:
+    'Modalidad INDIVIDUAL (alternativa para quien no puede los miércoles): el alumno elige día, hora y fecha de inicio; promoción vigente (septiembre, octubre y noviembre 2026): 10% de descuento SOLO en las mensualidades → 6 mensualidades de $2,230 o 3 pagos de $4,460 (costo académico $13,410), más la inscripción de $700. El 30% es solo para grupo y el 10% solo para individual: NUNCA los combines ni ofrezcas otros descuentos (única excepción: la oferta del grupo del 11 de noviembre, abajo).',
+  // Oferta del template windsor_diplomado_inicio_11nov (Harold, 29-oct-2026). Quitar después del 11-nov-2026.
+  ofertaInicio11Nov:
+    'OFERTA GRUPO DEL 11 DE NOVIEMBRE DE 2026 (solo modalidad GRUPAL, válida para inscribirse hasta el miércoles 11 de noviembre de 2026): 10% de descuento EXTRA sobre la promoción del 30% → 6 mensualidades de $1,550 o 3 pagos de $3,120, más la inscripción de $700. Aplícala SOLO si en el historial de esta conversación ya aparece el mensaje "¡Tu ... ya tiene fecha de inicio!" con el 10% extra (o "[Template: windsor_diplomado_inicio_11nov]"), o si el prospecto menciona ese 10% extra o la oferta del 11 de noviembre; en ese caso confírmala con gusto y da estas cifras. No la ofrezcas por tu cuenta a quien no la recibió. Después del 11 de noviembre de 2026 ya no aplica.',
+  presentacion:
+    'Al dar información o precios, presenta SIEMPRE primero la modalidad GRUPAL (miércoles 7-9 p.m., próxima fecha de inicio y precio con 30%) como la opción principal, y menciona la INDIVIDUAL en UNA sola línea como alternativa ("¿No puedes los miércoles? También puedes tomarlo individual, en el horario que elijas, con 10% de descuento: 6 × $2,230"). Da el detalle completo del individual solo si dice que no puede los miércoles o pide horario flexible. Cierra invitando a inscribirse al grupo de la próxima fecha.',
   inscripcionSinDescuento:
     'La INSCRIPCIÓN de diplomado ($700) NO TIENE DESCUENTO NUNCA: no la taches, no le apliques porcentaje, no digas que es gratis.',
   noRecalcular: 'No multipliques ni recalcules: usa exactamente estas cifras.',
@@ -64,6 +75,9 @@ export const TEXTO_DATOS_DIPLOMADOS = `Todos los diplomados tienen las MISMAS co
 - Aval: ${DATOS_DIPLOMADOS.aval}
 - Inversión regular: ${DATOS_DIPLOMADOS.inversionRegular}
 - ${DATOS_DIPLOMADOS.promocionVigente}
+- ${DATOS_DIPLOMADOS.modalidadIndividual}
+- ${DATOS_DIPLOMADOS.ofertaInicio11Nov}
+- ${DATOS_DIPLOMADOS.presentacion}
 - ${DATOS_DIPLOMADOS.inscripcionSinDescuento}
 - ${DATOS_DIPLOMADOS.noRecalcular}
 - ${DATOS_DIPLOMADOS.noAplican}`
