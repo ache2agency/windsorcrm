@@ -15,7 +15,7 @@ export function mensajeDocumentosInscripcion(lead: LeadSeguimiento) {
   if (!formularioNuevoEnBot()) {
     return `¡Perfecto! 😊 Sube tus documentos en el formulario de inscripción de tu programa:\nhttps://www.windsor.edu.mx/solicitud-de-inscripcion\n\nCuando lo termines, avísanos por aquí para que un asesor revise tu proceso.`
   }
-  return `¡Perfecto! 😊 Completa tu solicitud y sube tus documentos aquí, sin cuenta de Google:\n${urlInscripcion(lead.curso, lead.whatsapp, lead.nombre)}\n\nAl enviarla, un asesor revisará tus documentos y pago para continuar tu inscripción.`
+  return `¡Perfecto! 😊 Completa tu solicitud y sube tus documentos aquí:\n${urlInscripcion(lead.curso, lead.whatsapp, lead.nombre)}\n\nAl enviarla, un asesor revisará tus documentos y pago para continuar tu inscripción.`
 }
 
 export type CarrilSeguimiento = 'A' | 'B' | 'C'

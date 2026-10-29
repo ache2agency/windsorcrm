@@ -116,7 +116,7 @@ https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drive
 
 *📋 Pasos a seguir:*
 1️⃣ Realiza tu pago con los datos bancarios del enlace anterior.
-2️⃣ Llena tu solicitud y sube tus documentos aquí (no necesitas cuenta de Google):
+2️⃣ Llena tu solicitud y sube tus documentos aquí:
 ${urlInscripcion(lead.curso || 'Diplomado', lead.whatsapp, lead.nombre)}
 3️⃣ Confírmanos por aquí cuando la envíes y te damos acceso a la plataforma.
 
