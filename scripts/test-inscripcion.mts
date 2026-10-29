@@ -7,7 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { recibirInscripcion } from '../lib/inscripcion/servicio'
 import { consultarInscripcion } from '../lib/inscripcion/consulta'
 import { validarArchivo, normalizarWhatsapp } from '../lib/inscripcion/validacion'
-import { camposPrograma, diplomadoCanonico, esPrograma, MAX_ARCHIVO } from '../lib/inscripcion/config'
+import { camposPrograma, documentosPrograma, diplomadoCanonico, esPrograma, MAX_ARCHIVO } from '../lib/inscripcion/config'
 import type { EnviarDrive } from '../lib/inscripcion/drive'
 import { urlInscripcion } from '../lib/inscripcion/enlace'
 import { mensajeDocumentosInscripcion } from '../lib/whatsapp/seguimiento-motor'
@@ -243,9 +243,15 @@ test('proceso de diplomados: formulario propio solo con INSCRIPCION_FORMULARIO_B
     assert.match(msg, /\/inscripcion\/diplomados\?/)
     assert.match(msg, /curso=Diplomado\+en\+Tanatolog/)
     assert.doesNotMatch(msg, /solicitud-de-inscripcion/)
+    assert.match(msg, /Acta de nacimiento[\s\S]*Comprobante de pago/)
+    assert.match(msg, /1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/)
     assert.notEqual(mensajeInscripcionPara('licenciatura', lead), msg)
   } finally {
     if (antes === undefined) delete process.env.INSCRIPCION_FORMULARIO_BOT
     else process.env.INSCRIPCION_FORMULARIO_BOT = antes
   }
+})
+test('diplomados solo piden acta y comprobante', () => {
+  assert.deepEqual(documentosPrograma('diplomados').map(d => d.id), ['acta', 'comprobante'])
+  assert.ok(documentosPrograma('licenciaturas').some(d => d.id === 'certificado'))
 })

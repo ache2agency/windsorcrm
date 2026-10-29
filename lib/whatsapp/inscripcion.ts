@@ -105,14 +105,22 @@ Confírmanos aquí cuando hayas completado el formulario. 🎉`
 export function inscripcionDiplomadoFormularioMsg(lead: { curso?: string | null; whatsapp?: string | null; nombre?: string | null }) {
   return `🔴PROCESO DE INSCRIPCIÓN DIPLOMADOS🔴
 
-1️⃣ Llena tu solicitud y sube tu acta de nacimiento aquí (no necesitas cuenta de Google):
+¡Felicidades por tomar esta decisión! 🎉 Aquí está todo lo que necesitas:
+
+*📄 Documentos que vas a subir:*
+1. Acta de nacimiento
+2. Comprobante de pago de inscripción
+
+*🏦 Información bancaria:*
+https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
+
+*📋 Pasos a seguir:*
+1️⃣ Realiza tu pago con los datos bancarios del enlace anterior.
+2️⃣ Llena tu solicitud y sube tus documentos aquí (no necesitas cuenta de Google):
 ${urlInscripcion(lead.curso || 'Diplomado', lead.whatsapp, lead.nombre)}
+3️⃣ Confírmanos por aquí cuando la envíes y te damos acceso a la plataforma.
 
-2️⃣ Al recibirla te enviamos por aquí la referencia y la cuenta a la que harás tu pago.
-
-Listo, ya eres parte de la familia Windsor 🎉🎉🎉
-
-¡¡BIENVENID@!!`
+Listo, ya eres parte de la familia Windsor 🎉🎉🎉`
 }
 
 export function mensajeInscripcionPara(

@@ -78,6 +78,8 @@ export function documentosPrograma(programa: ProgramaInscripcion) {
     { id: 'ine', label: 'INE (del alumno o tutor)', required: false },
   ]
   if (programa === 'licenciaturas') docs.push({ id: 'certificado', label: 'Certificado de bachillerato', required: true })
+  // Diplomados (Harold 29-oct-2026): solo acta y comprobante, igual que su Google Form.
+  if (programa === 'diplomados') return docs.filter(d => d.id === 'acta' || d.id === 'comprobante')
   return docs
 }
 // Las fotos se comprimen en el navegador antes de enviar (lib/inscripcion/comprimir.ts);
