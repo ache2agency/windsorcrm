@@ -115,7 +115,7 @@ export function inscripcionDiplomadoFormularioMsg(lead: { curso?: string | null;
 https://drive.google.com/file/d/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/view?usp=drivesdk
 
 *📋 Pasos a seguir:*
-1️⃣ Realiza tu pago de inscripción y primer módulo con los datos bancarios del enlace anterior (es la misma cuenta para todos nuestros programas).
+1️⃣ Realiza tu pago de inscripción y primer módulo con los datos bancarios del enlace anterior.
 2️⃣ Llena tu solicitud y sube tus documentos aquí:
 ${urlInscripcion(lead.curso || 'Diplomado', lead.whatsapp, lead.nombre)}
 3️⃣ Confírmanos por aquí cuando la envíes y te damos acceso a la plataforma.
