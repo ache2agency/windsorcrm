@@ -7,9 +7,9 @@ export const metadata: Metadata = { title: 'Solicitud de inscripción · Windsor
 export default async function InscripcionPage({ params }: { params: Promise<{ programa: string }> }) {
   const { programa } = await params
   if (!esPrograma(programa)) notFound()
-  return <main style={{ maxWidth: 760, margin: '0 auto', padding: '32px 20px', background: '#fff', color: '#182230', minHeight: '100vh' }}>
+  return <main style={{ maxWidth: 760, margin: '0 auto', padding: '32px 16px', boxSizing: 'border-box', overflowX: 'hidden', background: '#fff', color: '#182230', minHeight: '100vh' }}>
     <p style={{ color: '#835711', fontWeight: 700 }}>INSTITUTO WINDSOR</p>
-    <h1 style={{ fontSize: 30, margin: '12px 0' }}>Solicitud de inscripción · {TITULOS[programa]}</h1>
+    <h1 style={{ fontSize: 'clamp(22px, 6vw, 30px)', margin: '12px 0' }}>Solicitud de inscripción · {TITULOS[programa]}</h1>
     <p>Completa tus datos y adjunta tus documentos. Coordinación revisará tu solicitud y tu comprobante de pago.</p>
     <FormularioInscripcion programa={programa} />
   </main>
