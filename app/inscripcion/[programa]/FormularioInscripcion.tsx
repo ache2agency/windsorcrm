@@ -39,24 +39,24 @@ export default function FormularioInscripcion({ programa }: { programa: Programa
     } catch (e) { setError(e instanceof Error ? e.message : 'Revisa tu conexión e inténtalo de nuevo.') }
     finally { setBusy(false) }
   }
-  return <form onSubmit={enviar} style={{ display: 'grid', gap: 18, marginTop: 28 }}>
+  return <form onSubmit={enviar} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 18, marginTop: 28 }}>
     <input type="hidden" name="programa" value={programa} />
     <input type="hidden" name="solicitud_id" value={id} />
     <div aria-hidden="true" style={{ display: 'none' }}><label>Sitio web<input name="website" tabIndex={-1} autoComplete="off" /></label></div>
-    {camposPrograma(programa).map(campo => <label key={campo.id} style={{ display: 'grid', gap: 6 }}>
+    {camposPrograma(programa).map(campo => <label key={campo.id} style={{ display: 'grid', gap: 6, minWidth: 0 }}>
       <span>{campo.label}{campo.required ? ' *' : ''}</span>
-      {campo.options ? <select key={`${campo.id}-${initial[campo.id] || ''}`} name={campo.id} required={campo.required} defaultValue={initial[campo.id] || ''} style={{ padding: 10, border: '1px solid #aaa', borderRadius: 6 }}>
+      {campo.options ? <select key={`${campo.id}-${initial[campo.id] || ''}`} name={campo.id} required={campo.required} defaultValue={initial[campo.id] || ''} style={{ padding: 10, border: '1px solid #aaa', borderRadius: 6, width: '100%', maxWidth: '100%', boxSizing: 'border-box', fontSize: 16 }}>
         <option value="">Selecciona</option>{campo.options.map(o => <option key={o}>{o}</option>)}
       </select> : <input key={`${campo.id}-${initial[campo.id] || ''}`} name={campo.id} type={campo.type || 'text'} required={campo.required}
         defaultValue={initial[campo.id] || ''} maxLength={250} min={campo.type === 'number' ? 0 : undefined}
         max={campo.type === 'date' ? new Date().toISOString().slice(0, 10) : campo.type === 'number' ? 120 : undefined}
-        style={{ padding: 10, border: '1px solid #aaa', borderRadius: 6, width: '100%', boxSizing: 'border-box' }} />}
+        style={{ padding: 10, border: '1px solid #aaa', borderRadius: 6, width: '100%', boxSizing: 'border-box', fontSize: 16 }} />}
     </label>)}
     <h2 style={{ fontSize: 22, marginTop: 16, paddingTop: 20, borderTop: '2px solid #19394d' }}>📎 Documentos</h2>
     <p style={{ margin: 0 }}>Sube una foto o PDF de cada documento (PDF, JPG, PNG o HEIC). Las fotos se reducen solas; los PDF deben pesar máximo 1.5 MB. Los marcados con * son obligatorios.</p>
-    {documentosPrograma(programa).map(doc => <label key={doc.id} style={{ display: 'grid', gap: 8, padding: 14, border: '2px dashed #8aa4b8', borderRadius: 10, background: '#f4f8fb', cursor: 'pointer' }}>
+    {documentosPrograma(programa).map(doc => <label key={doc.id} style={{ display: 'grid', gap: 8, minWidth: 0, padding: 14, border: '2px dashed #8aa4b8', borderRadius: 10, background: '#f4f8fb', cursor: 'pointer' }}>
       <strong>{doc.label}{doc.required ? ' *' : ' (opcional)'}</strong>
-      <input type="file" name={doc.id} required={doc.required} accept=".pdf,.jpg,.jpeg,.png,.heic" style={{ fontSize: 16 }} onChange={async event => {
+      <input type="file" name={doc.id} required={doc.required} accept=".pdf,.jpg,.jpeg,.png,.heic" style={{ fontSize: 16, maxWidth: '100%' }} onChange={async event => {
         const input = event.currentTarget
         const original = input.files?.[0]
         if (original) {
