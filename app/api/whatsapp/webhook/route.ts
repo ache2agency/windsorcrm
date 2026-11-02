@@ -2536,7 +2536,7 @@ export async function POST(request: Request) {
               const etiqueta=cuando?({'pasado manana':'pasado mañana','manana':'mañana','miercoles':'el miércoles','sabado':'el sábado','hoy':'hoy','esta semana':'esta semana','la proxima semana':'la próxima semana'} as Record<string,string>)[cuando]||`el ${cuando}`:''
               const turno=/en la manana|por la manana|temprano/.test(t)?' por la mañana':/tarde/.test(t)?' por la tarde':''
               const nombre=lead.nombre?` ${lead.nombre.split(' ')[0]}`:''
-              return `¡Perfecto${nombre}! Te esperamos${etiqueta?` ${etiqueta}${turno}`:''} 😊\n\n📍 ${TEXTO_PLANTELES}\n🕐 ${TEXTO_HORARIO_ATENCION}\n\nTrae los documentos que te indicamos para la inscripción. Si quieres adelantar tu registro, aquí está el formulario:\n${urlInscripcion(lead.curso,lead.whatsapp,lead.nombre)}`
+              return `¡Perfecto${nombre}! Te esperamos${etiqueta?` ${etiqueta}${turno}`:''} 😊\n\n${TEXTO_PLANTELES}\n🕐 ${TEXTO_HORARIO_ATENCION}\n\nTrae los documentos que te indicamos para la inscripción. Si quieres adelantar tu registro, aquí está el formulario:\n${urlInscripcion(lead.curso,lead.whatsapp,lead.nombre)}`
             },
             catalogo: (texto,lead) => mensajeCategoriaInteres(detectarCategoriaInteres(texto),lead.nombre||'')?.replace(/^¡Hola[^!]*! 😊\s*/, '')||INSCRIPCION_DESCONOCIDA_MSG,
             agenda: texto => /clase/i.test(texto)?buildClasePruebaMsg():EXAMEN_UBICACION_MSG,

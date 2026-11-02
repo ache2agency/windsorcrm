@@ -308,3 +308,8 @@ test('2-nov: texto libre que no mueve la ruta se contesta en contexto antes de r
  const out=await responderRuta(db,id,'Mi hija sale de la escuela tarde',deps)
  assert.match(out!.mensaje,/Respuesta a la duda/)
 })
+test('2-nov: tras la visita, "ok gracias" recibe acuse corto',async()=>{
+ const id=await nuevoLeadRuta('Inglés para adultos',true)
+ await responderRuta(db,id,'Vamos mañana temprano',{...deps,visita:()=> 'Te esperamos'})
+ for(const t of ['Ok gracias','Gracias','Sale, nos vemos']) {const out=await responderRuta(db,id,t,deps);assert.match(out!.mensaje,/Con gusto/,t)}
+})
