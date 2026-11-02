@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises'
 import {randomUUID} from 'node:crypto'
 import vm from 'node:vm'
 import type {SupabaseClient} from '@supabase/supabase-js'
-import {marcar,rutaVacia,capturarEntrada,siguientePaso,pasoActual,equivalenciaFase,temasDuda,type LeadRuta} from '../lib/whatsapp/ruta'
+import {esPlanDeVisita,marcar,rutaVacia,capturarEntrada,siguientePaso,pasoActual,equivalenciaFase,temasDuda,type LeadRuta} from '../lib/whatsapp/ruta'
 import {datosEntrada,responderRuta,confirmarEntregaRuta} from '../lib/whatsapp/ruta-bot'
 import {cargarRuta,guardarRuta} from '../lib/whatsapp/ruta-servicio'
 import {recibirGoogleForm,aplicarRevision,faltantesDocumentos,folioGoogle} from '../lib/inscripcion/ruta'
@@ -293,4 +293,23 @@ test('2-nov: lead migrado (info saltada por migración) avanza al pedir inscripc
  }
  assert.deepEqual(temasDuda('Quiero iniciar mi inscripción.'),[])
  assert.ok(temasDuda('¿Cuándo inicia el curso?').includes('inicio'))
+})
+
+test('2-nov: "voy mañana" con info entregada confirma visita, no repite la pregunta',async()=>{
+ for(const t of ['Sería mañana por la mañana','vamos mañana temprano','Paso el lunes','Ok, mañana','Si me interesa así mañana ya k no somos de Chilpancingo']) assert.ok(esPlanDeVisita(t),t)
+ for(const t of ['¿Mañana abren?','Me llamo Ana','Quiero información','Mañanitas']) assert.ok(!esPlanDeVisita(t),t)
+ const id=await nuevoLeadRuta('Inglés para adultos',true)
+ const out=await responderRuta(db,id,'Sería mañana por la mañana',{...deps,visita:()=> 'Te esperamos mañana'})
+ assert.equal(out!.mensaje,'Te esperamos mañana')
+ const l=await cargarRuta(db,id); assert.equal(l.ruta!.quiereInscribirse,true); assert.ok(l.ruta!.visita); assert.equal(siguientePaso(l.ruta!),13)
+})
+test('2-nov: texto libre que no mueve la ruta se contesta en contexto antes de repetir',async()=>{
+ const id=await nuevoLeadRuta('Inglés para adultos',true)
+ const out=await responderRuta(db,id,'Mi hija sale de la escuela tarde',deps)
+ assert.match(out!.mensaje,/Respuesta a la duda/)
+})
+test('2-nov: tras la visita, "ok gracias" recibe acuse corto',async()=>{
+ const id=await nuevoLeadRuta('Inglés para adultos',true)
+ await responderRuta(db,id,'Vamos mañana temprano',{...deps,visita:()=> 'Te esperamos'})
+ for(const t of ['Ok gracias','Gracias','Sale, nos vemos']) {const out=await responderRuta(db,id,t,deps);assert.match(out!.mensaje,/Con gusto/,t)}
 })

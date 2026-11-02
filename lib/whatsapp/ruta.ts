@@ -23,6 +23,7 @@ export type EstadoPaso = { estado:'cumplido'|'saltado'; fecha:string; motivo?:st
 export type Ruta = {
   pasos: Record<string, EstadoPaso>; dudas:string[]; salida?:'archivado'|'perdido'|'vacante'|null;
   persona?:string|null; quiereInscribirse?:boolean; faltantes?:string[]; infoPendiente?:boolean;
+  visita?:{texto:string; fecha:string}|null;
 }
 export type LeadRuta = { id?:string; nombre?:string|null; email?:string|null; curso?:string|null; whatsapp?:string|null;
   modalidad?:string|null; edad?:number|null; stage?:string|null; paso?:number; ruta?:Ruta; ruta_version?:number;
@@ -118,4 +119,13 @@ export const equivalenciaFase:Record<string,number|null> = {
 // Se invoca solo sin modo humano activo; fechas históricas desconocidas no bloquean.
 export function personaVencida(persona:string, ahora:string):boolean {
  const fecha=Date.parse(persona);return !Number.isFinite(fecha)||Date.parse(ahora)-fecha>=20*3600_000
+}
+
+// "Voy mañana", "sería mañana por la mañana", "pasamos el lunes": plan de ir al plantel.
+export function esPlanDeVisita(texto:string):boolean {
+  const t=normalizar(texto).trim()
+  if(/[?¿]/.test(t)) return false
+  const cuando='(?:manana|hoy|pasado manana|lunes|martes|miercoles|jueves|viernes|sabado|esta semana|la proxima semana|el fin de semana)'
+  return new RegExp(`\\b(?:voy|vamos|iria|iriamos|ire|iremos|paso|pasamos|pasaria|llego|llegamos|estare|estaremos|seria|asisto|asistimos|nos vemos|si me interesa)\\b[^?]{0,40}\\b${cuando}\\b`).test(t)
+    || new RegExp(`^(?:si,? )?(?:seria|mejor|entonces|ok,? )?\\s*${cuando}\\b`).test(t)
 }

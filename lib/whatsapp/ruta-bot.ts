@@ -3,7 +3,7 @@ import { inscripcionDiplomadoFormularioMsg, mensajeInscripcionPara, INSCRIPCION_
 import { tipoInscripcion, esTextoPrograma } from './programas'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { cargarRuta,guardarRuta } from './ruta-servicio'
-import { capturarEntrada, faseParaRuta, inferirEdad, marcar, normalizar, preguntaPendiente, siguientePaso, temasDuda, type LeadRuta } from './ruta'
+import { esPlanDeVisita, capturarEntrada, faseParaRuta, inferirEdad, marcar, normalizar, preguntaPendiente, siguientePaso, temasDuda, type LeadRuta } from './ruta'
 import { urlInscripcion } from '../inscripcion/enlace'
 import { hasLeadName } from './nombres'
 const hasLeadProgram = (c?:string|null) => !!c && !/instituto windsor|sin definir/i.test(c) && (/^curso de ingl[eé]s$/i.test(c)||tipoInscripcion(c)!=='desconocido')
@@ -18,6 +18,7 @@ export type DependenciasRuta={
   catalogo?:(texto:string,lead:LeadRuta)=>string|null;
   agenda?:(texto:string)=>string;
   inscripcionPresencial?:(lead:LeadRuta)=>string;
+  visita?:(lead:LeadRuta,texto:string)=>string;
 }
 export function datosEntrada(lead:LeadRuta,texto:string,detectarPrograma:DependenciasRuta['detectarPrograma']):Partial<LeadRuta> {
   const t=normalizar(texto); const datos:Partial<LeadRuta>={}
@@ -61,9 +62,16 @@ async function construirRespuestaRuta(db:SupabaseClient,id:string,texto:string,d
     return `${mensajeInscripcionPara(tipo,lead)}\n\n${urlInscripcion(lead.curso,lead.whatsapp,lead.nombre)}`
   }
   const entrada=textoRuta==='__MEDIA__'||textoRuta==='__LOCATION__'?'':textoRuta
+  const pasoAntes=lead.ruta?siguientePaso(lead.ruta):null
   const captura=capturarEntrada(lead,textoRuta,datosEntrada(lead,entrada,dep.detectarPrograma),now)
   let {ruta}=captura;const {datos}=captura
+  // Con la info ya entregada, "voy mañana" es decisión de inscribirse en persona: se confirma, no se vuelve a preguntar.
+  const visita=!!ruta.pasos[6] && !ruta.salida && !ruta.persona && esPlanDeVisita(entrada)
+  if(visita) ruta=capturarEntrada({...lead,ruta:{...ruta,quiereInscribirse:true,visita:{texto:entrada.slice(0,120),fecha:now}}},'',{},now).ruta
   lead=await guardarRuta(db,lead,ruta,datos)
+  if(visita && dep.visita) return {mensaje:dep.visita(lead,entrada),fase:faseParaRuta(ruta)}
+  // Tras confirmar la visita, un "ok, gracias" no debe recibir otra vez la pregunta pendiente.
+  if(ruta.visita && /^(?:ok(?:ey)?|okay|gracias|muchas gracias|sale|va|perfecto|de acuerdo|si|claro|👍|🙏|🙌)(?:[\s,.!]+(?:gracias|muchas gracias|nos vemos|hasta manana))*[\s.!👍🙏😊]*$/.test(normalizar(entrada).trim())) return {mensaje:'¡Con gusto! Aquí estamos para lo que necesite 😊',fase:faseParaRuta(ruta)}
   const nombre=lead.nombre?` ${lead.nombre.split(' ')[0]}`:''
   if(ruta.salida||ruta.persona) return {mensaje:ruta.salida==='vacante'?(dep.vacante||'Gracias por tu interés. El área de personal revisará tu solicitud.'):ruta.persona?'Revisaremos tu solicitud.':/^quiz[aá]s? m[aá]s adelante/i.test(texto)?`¡Entendido${nombre}! Aquí seguimos, escríbenos cuando estés list@ para retomarlo. 😊`:/^a[uú]n lo estoy pensando/i.test(texto)?`¡Entendido${nombre}! Tómate tu tiempo. Si más adelante quieres retomarlo, escríbenos por aquí y con gusto te ayudamos. 😊`:/^tal vez el pr[oó]ximo a[ñn]o/i.test(texto)?`¡No hay problema${nombre}! Te quedamos atentos para el siguiente My Best Summer. ¡Que tengas un excelente día! ☀️`:`Entendido${nombre}, no hay problema. Si en algún momento cambias de opinión, aquí estaremos. ¡Que tengas un excelente día! 😊`,fase:faseParaRuta(ruta),revision:!!ruta.persona}
   let mensaje=texto==='__LOCATION__'?'Gracias por compartir tu ubicación.':texto==='__MEDIA__'?'Gracias por tu archivo. Para ayudarte con su contenido, escríbeme tu mensaje en texto.':'';let link=false;let convenio=false;let revision=false
@@ -94,6 +102,10 @@ async function construirRespuestaRuta(db:SupabaseClient,id:string,texto:string,d
     link=true
     mensaje+=`${mensaje?'\n\n':''}${inscripcion()}`
   } else {
+    // Texto libre que no movió la ruta ni trajo datos: contestarlo en contexto en vez de repetir la pregunta.
+    if(!mensaje && !revision && entrada.trim().split(/\s+/).length>=3 && Object.keys(datos).length===0 && siguientePaso(ruta)===pasoAntes) {
+      try {mensaje=await dep.duda(entrada,lead);if(!mensaje.trim()) throw new Error('Respuesta vacía')} catch {revision=true;mensaje=''}
+    }
     const pendiente=siguientePaso(ruta)===4 && !/curso de ingles/i.test(normalizar(lead.curso||'')) ? dep.catalogo?.(texto,lead)||preguntaPendiente(ruta,lead) : preguntaPendiente(ruta,lead)
     if(mensaje!==pendiente) mensaje+=`${mensaje?'\n\n':''}${pendiente}`
     if(siguientePaso(ruta)===14||siguientePaso(ruta)===15) mensaje+=`\n${urlInscripcion(lead.curso,lead.whatsapp,lead.nombre)}`
