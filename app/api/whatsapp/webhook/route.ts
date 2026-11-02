@@ -1,3 +1,4 @@
+import { urlInscripcion } from '@/lib/inscripcion/enlace'
 import { responderRuta, confirmarEntregaRuta, reintentarConflicto } from '@/lib/whatsapp/ruta-bot'
 import { esCanalInternoSeguimiento } from '@/lib/whatsapp/seguimiento-motor'
 import { INSCRIPCION_ONLINE_MSG, INSCRIPCION_BACHILLERATO_MSG, INSCRIPCION_DIPLOMADO_MSG, INSCRIPCION_IDIOMA_MSG, INSCRIPCION_HABILIDADES_MSG, INSCRIPCION_DESCONOCIDA_MSG, mensajeInscripcionPara, resolverTipoInscripcion } from '@/lib/whatsapp/inscripcion'
@@ -27,7 +28,7 @@ import {
   cambioDePrograma,
   type OfertaMatchResult,
 } from '@/lib/whatsapp/programas'
-import { TEXTO_PLANTELES } from '@/lib/whatsapp/reglasNegocio'
+import { TEXTO_PLANTELES, TEXTO_HORARIO_ATENCION } from '@/lib/whatsapp/reglasNegocio'
 import { construirSystemPrompt } from '@/lib/whatsapp/promptBot'
 import { detectarEmail, noQuiereEmail, esPreguntaDelLead } from '@/lib/whatsapp/captura'
 import { hasLeadName } from '@/lib/whatsapp/nombres'
@@ -2529,6 +2530,14 @@ export async function POST(request: Request) {
             vacante: VACANTE_DOCENTE_MSG,
             acuse: incoming.mediaKind==='image' && incoming.body!=='__MEDIA__'?'Gracias por la imagen.':undefined,
             inscripcionPresencial: lead => buildInscripcionPresencialMsg(lead.nombre,lead.email,lead.curso,lead.whatsapp),
+            visita: (lead, texto) => {
+              const t=texto.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+              const cuando=t.match(/pasado manana|manana|hoy|lunes|martes|miercoles|jueves|viernes|sabado|esta semana|la proxima semana/)?.[0]
+              const etiqueta=cuando?({'pasado manana':'pasado mañana','manana':'mañana','miercoles':'el miércoles','sabado':'el sábado','hoy':'hoy','esta semana':'esta semana','la proxima semana':'la próxima semana'} as Record<string,string>)[cuando]||`el ${cuando}`:''
+              const turno=/en la manana|por la manana|temprano/.test(t)?' por la mañana':/tarde/.test(t)?' por la tarde':''
+              const nombre=lead.nombre?` ${lead.nombre.split(' ')[0]}`:''
+              return `¡Perfecto${nombre}! Te esperamos${etiqueta?` ${etiqueta}${turno}`:''} 😊\n\n📍 ${TEXTO_PLANTELES}\n🕐 ${TEXTO_HORARIO_ATENCION}\n\nTrae los documentos que te indicamos para la inscripción. Si quieres adelantar tu registro, aquí está el formulario:\n${urlInscripcion(lead.curso,lead.whatsapp,lead.nombre)}`
+            },
             catalogo: (texto,lead) => mensajeCategoriaInteres(detectarCategoriaInteres(texto),lead.nombre||'')?.replace(/^¡Hola[^!]*! 😊\s*/, '')||INSCRIPCION_DESCONOCIDA_MSG,
             agenda: texto => /clase/i.test(texto)?buildClasePruebaMsg():EXAMEN_UBICACION_MSG,
             info: (curso, lead) => buildProgramInfoMessage(curso, request.url, lead),
