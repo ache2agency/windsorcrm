@@ -86,11 +86,15 @@ export function capturarEntrada(lead:LeadRuta, texto:string, datos:Partial<LeadR
   const temas=temasDuda(texto); r.dudas=[...new Set([...r.dudas,...temas])]
   if(temas.length && r.pasos[6]?.estado==='cumplido') mark(7)
   if(/quiero inscrib|me (quiero )?inscrib|inscribirme|registrarme|ya tengo mis documentos/.test(t)) r.quiereInscribirse=true
-  if(r.pasos[6]?.estado==='cumplido' && /no (tengo |hay )?dudas|todo claro|no tengo convenio|sin convenio|lo (voy a )?pensar|estoy pensando/.test(t)) {
+  // "No, gracias" a secas: con la info ya enviada equivale a "no tengo dudas" (sigue la ruta); antes de la info es un rechazo.
+  const noGracias=/^no,? gracias[.!\s]*$/.test(t.trim())
+  if(r.pasos[6]?.estado==='cumplido' && (noGracias || /no (tengo |hay )?dudas|todo claro|no tengo convenio|sin convenio|lo (voy a )?pensar|estoy pensando/.test(t))) {
     for(const n of [7,8]) if(!r.pasos[n]) skip(n,'El lead no reportó dudas ni convenio pendiente')
     mark(9)
   }
-  const rechazo = !/[?¿]/.test(t) && !temas.length && !/no (tengo |hay )?dudas/.test(t) && /^(?:(?:ya )?no me interesa|ya no quiero|ya no,? gracias|mas adelante te escribo|quizas? mas adelante|aun lo estoy pensando|tal vez el proximo ano)(?:[, ]+gracias)?[.!\s]*$/.test(t.trim())
+  // Si lo que se pidió fue el correo, "no, gracias" es negarse a darlo: se salta y la ruta sigue.
+  if(noGracias && !r.pasos[6] && siguientePaso(r)===3) skip(3,'El lead prefirió no dar su correo')
+  const rechazo = (noGracias && !r.pasos[6] && !r.pasos[3]?.motivo?.includes('prefirió no dar')) || !/[?¿]/.test(t) && !temas.length && !/no (tengo |hay )?dudas/.test(t) && /^(?:(?:ya )?no me interesa|ya no quiero|ya no,? gracias|mas adelante te escribo|quizas? mas adelante|aun lo estoy pensando|tal vez el proximo ano)(?:[, ]+gracias)?[.!\s]*$/.test(t.trim())
   if(rechazo) r.salida='archivado'
   // Rechazo requiere revisión humana para Perdido; el bot conserva el paso y detiene seguimiento.
   if(/(?:quiero|quisiera|necesito|puedo|podria) hablar con (?:un |una |el |la )?(?:asesor|persona|humano)|(?:me puede|puede|podria|que me) llamar (?:alguien|un asesor|una persona)|no quiero hablar con (?:un |el )?bot/.test(t)) r.persona=ahora

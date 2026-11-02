@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect, useMemo, Fragment, memo } from "react";
 import { isConvUnread } from "@/lib/whatsapp/conversation-filters.mjs";
+import { PASOS } from "@/lib/whatsapp/ruta";
 import { createClient } from "@/utils/supabase/client";
 
 const supabase = createClient();
@@ -693,6 +694,16 @@ const renderPlantillaPreview = (body, nombre) => (body || "").replace(/\{\{\d+\}
 // Variables en respuestas rápidas: {nombre} = primer nombre del lead, {programa} = su curso.
 // Sin nombre se quita el marcador junto con la coma/espacio previo ("Hola, {nombre} 👋" → "Hola 👋").
 // "WhatsApp - Instituto Windsor" es el placeholder de leads sin programa capturado, no un curso real.
+// La etiqueta sale de la ruta (misma fuente que el Kanban), no de la fase vieja.
+const etiquetaRuta = (lead, fase, getPhaseLabel) => {
+  const salida = lead?.ruta?.salida;
+  if (salida === "archivado") return "Archivado";
+  if (salida === "perdido") return "Perdido";
+  if (salida === "vacante") return "Vacante";
+  const paso = Number(lead?.paso);
+  if (!lead?.ruta || !paso || !PASOS[paso - 1]) return getPhaseLabel(fase);
+  return `${paso}. ${PASOS[paso - 1].nombre}`;
+};
 const cursoDeLead = (lead) => (lead?.curso && lead.curso !== "WhatsApp - Instituto Windsor" ? lead.curso : "");
 
 // El prospecto escribió al último y nadie (bot ni asesor) le ha contestado.
@@ -1280,7 +1291,7 @@ function ConversationsPanel({
                           </span>
                         )}
                         <span className="wa-badge" style={{ background: getModeColor(c) + "22", color: getModeColor(c) }}>
-                          {getPhaseLabel(c.fase)}
+                          {etiquetaRuta(leadsById.get(c.lead_id), c.fase, getPhaseLabel)}
                         </span>
                       </div>
                       {/* Altura fija (ROW_HEIGHT): el asesor va en esta misma línea, no en una cuarta */}
@@ -1319,7 +1330,7 @@ function ConversationsPanel({
                 <div className="wa-chat-header-info">
                   <div className="wa-chat-name">{selectedConvLead?.nombre || selectedConv.whatsapp}</div>
                   <div className="wa-chat-sub">
-                    {getModeLabel(selectedConv)} · {getPhaseLabel(selectedConv.fase)}
+                    {getModeLabel(selectedConv)} · {etiquetaRuta(selectedConvLead, selectedConv.fase, getPhaseLabel)}
                     {tiempoRestanteVentana(ultimoUsuarioAtPorConv?.[selectedConv.id]) && (
                       <> · ⏳ {tiempoRestanteVentana(ultimoUsuarioAtPorConv?.[selectedConv.id])}</>
                     )}
