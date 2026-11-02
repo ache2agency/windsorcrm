@@ -277,9 +277,9 @@ export default function LeadDetailModal({
           )}
 
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 8 }}>MOVER A ETAPA</div>
+            <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 8 }}>CONFIRMAR RESULTADO</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {STAGES.map((s) => (
+              {STAGES.filter(s=>["inscrito","perdido"].includes(s.id)).map((s) => (
                 <button
                   key={s.id}
                   className="btn"

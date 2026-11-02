@@ -41,7 +41,7 @@ export const ETIQUETA_FASE: Record<string, string> = {
   archivado: 'Archivado',
   vacante: 'Vacante',
   seguimiento: 'Seguimiento',
-  cerrado: 'Cerrada',      // se despidió; NO significa inscrito
+  cerrado: 'Conversación',      // se despidió; NO significa inscrito
   perdido: 'Perdido',
   nota: 'Nota',
 }
@@ -50,3 +50,6 @@ export function etiquetaFase(fase: string | null | undefined): string {
   if (!fase) return 'Sin fase'
   return ETIQUETA_FASE[fase] || fase
 }
+
+// Equivalencias de backfill; null significa marca, salida o evidencia insuficiente.
+export { equivalenciaFase as FASE_A_PASO } from './ruta'

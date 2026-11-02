@@ -170,9 +170,10 @@ async function reactivarConversacionesBot(
     if (conv.lead_id) {
       const { data: lead } = await supabase
         .from('leads')
-        .select('nombre, curso, stage')
+        .select('nombre, curso, stage, ruta')
         .eq('id', conv.lead_id)
         .maybeSingle()
+      if(lead?.ruta) continue // La ruta nueva la atiende exclusivamente seguimiento-motor.
       const rawNombre = lead?.nombre?.trim() || ''
       const nombre = esNombreValido(rawNombre) ? rawNombre : 'ahí'
       const trackA = esTrackA(lead?.curso)
@@ -238,7 +239,7 @@ async function moverATercerContacto(
   const { data: leads } = await supabase
     .from('leads')
     .select('id, nombre, whatsapp, curso, asignado_a')
-    .eq('stage', 'segundo_contacto')
+    .eq('stage', 'segundo_contacto').is('ruta',null)
     .not('whatsapp', 'is', null)
 
   for (const lead of leads || []) {
@@ -365,7 +366,7 @@ export async function POST(request: Request) {
   const { data: leads, error: leadsError } = await supabase
     .from('leads')
     .select('id, nombre, whatsapp, curso, stage')
-    .in('stage', STAGES_PARA_BUSCAR)
+    .in('stage', STAGES_PARA_BUSCAR).is('ruta',null)
     .not('whatsapp', 'is', null)
 
   if (leadsError) {

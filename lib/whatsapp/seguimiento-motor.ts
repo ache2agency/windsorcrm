@@ -1,3 +1,4 @@
+import { personaVencida, siguientePaso, faseParaRuta, preguntaPendiente, type Ruta, type LeadRuta } from './ruta'
 import { esDiplomado, tipoInscripcion } from './programas'
 import { esTrackA, obtenerMensajeReactivacion20h } from './reactivacion-messages'
 import { buildMensajeDudasDiplomado20h, buildMensajeReactivacionDiplomado20h } from './reactivacion-diplomados'
@@ -22,6 +23,8 @@ export type CarrilSeguimiento = 'A' | 'B' | 'C'
 export type TipoAccionSeguimiento = 'texto' | 'template' | 'archivar' | 'perder' | 'aviso_asesor'
 
 export type LeadSeguimiento = {
+  ruta?: Ruta; modalidad?:string|null; edad?:number|null
+
   nombre?: string | null
   whatsapp?: string | null
   curso?: string | null
@@ -242,7 +245,7 @@ function decisionBacklogMayor30(ctx: ContextoSeguimiento, fase: string, carril: 
   return null
 }
 
-export function decidirSeguimientoAutomatico(ctx: ContextoSeguimiento): DecisionSeguimiento | null {
+function decidirSeguimientoLegado(ctx: ContextoSeguimiento): DecisionSeguimiento | null {
   const fase = String(ctx.fase || '').trim() || 'saludo'
   const carril = clasificarCarril(ctx.lead.curso)
 
@@ -431,4 +434,29 @@ export function recordatorioDatoReciente(
       : /tu correo/i.test(m.contenido || '') ? 'correo' : 'programa')
     return tipo === dato && ahora.getTime() - new Date(m.created_at).getTime() < 24 * 3600_000
   })
+}
+
+// Mantiene umbrales, plantillas aprobadas, horario y cupos existentes; solo cambia la selección por ruta.
+export function decidirSeguimientoAutomatico(ctx:ContextoSeguimiento):DecisionSeguimiento|null {
+  let ruta=ctx.lead.ruta
+  if(!ruta) return decidirSeguimientoLegado(ctx) // compatibilidad de librería/tests; la API requiere ruta.
+  if(ruta.persona && personaVencida(ruta.persona,(ctx.ahora||new Date()).toISOString())) {ruta={...ruta,persona:null};ctx={...ctx,fase:faseParaRuta(ruta),lead:{...ctx.lead,ruta}}}
+  const next=siguientePaso(ruta)
+  if(['pendiente','asesor','con_asesor'].includes(ctx.fase) && !ruta.salida && next!==null && !ruta.pasos[14]) return decidirSeguimientoLegado(ctx)
+  if(next===null||ruta.salida==='vacante'||ruta.salida==='perdido'||ruta.persona) return null
+  // Desde formulario recibido ya no se envían promociones de venta. Revisión/aviso usa su cola.
+  if(ruta.pasos[14]?.estado==='cumplido') {
+    if(next===15 && ctx.dentroVentana24h && ctx.horasDesdeLead>=20) return {
+      accion:'texto',reglaId:'ruta_documentos_20h',etapa:'Inscripción',carril:clasificarCarril(ctx.lead.curso),
+      mensaje:preguntaPendiente(ruta,ctx.lead as LeadRuta)+'\n'+urlInscripcion(ctx.lead.curso,ctx.lead.whatsapp,ctx.lead.nombre),detalle:'Documentos faltantes, sin promoción',
+    }
+    return null
+  }
+  const phase=faseParaRuta(ruta)
+  const decision=decidirSeguimientoLegado({...ctx,fase:phase})
+  if(decision?.accion==='perder') return null // Perdido es decisión humana.
+  if(decision?.accion==='texto' && next && next<=5 && decision.reglaId!=='nuevo_20h_ficha') {
+    decision.mensaje=preguntaPendiente(ruta,ctx.lead as LeadRuta)
+  }
+  return decision
 }

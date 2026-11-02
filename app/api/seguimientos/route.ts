@@ -248,7 +248,7 @@ export async function POST(request: Request) {
       const { data: page } = await supabase
         .from('leads')
         .select('id, nombre, whatsapp, curso, stage, asignado_a')
-        .in('stage', STAGES_ACTIVOS)
+        .in('stage', STAGES_ACTIVOS).is('ruta',null)
         .not('whatsapp', 'is', null)
         .order('created_at', { ascending: true })
         .range(from, from + PAGE - 1)

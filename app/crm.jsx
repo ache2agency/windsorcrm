@@ -1,4 +1,5 @@
 "use client";
+import EmbudoPanel from '@/components/crm/EmbudoPanel';
 import { useState, useEffect, useRef, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import AgendaPanel from "@/components/crm/AgendaPanel";
@@ -651,7 +652,7 @@ export default function CRM() {
         .select("*")
         .order("created_at", { ascending: false })
         .range(from, to);
-      if (!admin) query = query.eq("asignado_a", userId);
+      // El equipo comparte lectura; RLS mantiene permisos de escritura.
       return query;
     };
 
@@ -947,7 +948,7 @@ export default function CRM() {
     if (!silent) setConvMessages([]);
     const { data, error } = await supabase
       .from("whatsapp_mensajes")
-      .select("id, rol, contenido, media_url, media_tipo, created_at, marcado_error")
+      .select("id, rol, contenido, raw_payload, media_url, media_tipo, created_at, marcado_error")
       .eq("conversacion_id", convId)
       .order("created_at", { ascending: true });
     if (error) {
@@ -1558,10 +1559,6 @@ export default function CRM() {
   }, [leads]);
 
   const filteredLeads = useMemo(() => leads.filter(l => {
-    // Asesores solo ven sus propios leads
-    if (!isAdmin && currentProfile?.id) {
-      if (l.asignado_a !== currentProfile.id) return false;
-    }
     const matchV = filterVendedor === "Todos" || l.asignado_a === filterVendedor;
     const matchF = filterFuente === "Todos" || getFuenteLead(l) === filterFuente;
     const matchO = filterOferta === "Todos" || getProgramaResumen(l.curso)?.key === filterOferta;
@@ -1598,11 +1595,6 @@ export default function CRM() {
     }).length;
   }, [whatsConvs, ultimoUsuarioAtPorConv]);
   const filteredWhatsConvs = useMemo(() => whatsConvs.filter((conv) => {
-    // Asesores solo ven conversaciones de sus leads
-    if (!isAdmin && currentProfile?.id) {
-      const lead = leads.find((l) => l.id === conv.lead_id);
-      if (lead && lead.asignado_a !== currentProfile.id) return false;
-    }
     const searchValue = convSearch.trim().toLowerCase();
     const matchesSearch =
       !searchValue ||
@@ -1705,7 +1697,7 @@ export default function CRM() {
       promocion_enviada: "seguimiento",
       tercer_contacto: "seguimiento",
       inscripcion_pendiente: "accion",
-      inscrito: "cerrado",
+      inscrito: "accion",
       perdido: "perdido",
       archivado: "seguimiento",
     };
@@ -1735,7 +1727,7 @@ export default function CRM() {
   const moveStage = async (leadId, newStage, notas = "") => {
     const lead = leads.find((item) => item.id === leadId);
     const previousStage = normalizeStage(lead?.stage);
-    const { data: updData, error } = await supabase.from("leads").update({ stage: newStage }).eq("id", leadId).select("id");
+    const { data: updData, error } = await supabase.from("leads").update({ stage: newStage }).eq("id", leadId).select("*");
     if (error) return showToast("Error actualizando: " + error.message, "error");
     if (!updData || updData.length === 0) return showToast("Sin permiso para mover este lead", "error");
 
@@ -1758,7 +1750,8 @@ export default function CRM() {
       );
     }
 
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage } : l));
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updData[0] } : l));
+    setSelectedLead(prev => prev?.id===leadId?{...prev,...updData[0]}:prev);
     const notaTrim = (notas || "").trim();
     await logLeadActivity({
       leadId,
@@ -2231,6 +2224,7 @@ export default function CRM() {
           {/* Desktop nav */}
           <div className="desktop-nav" style={{ display: "flex", gap: 8 }}>
             <button className={`nav-btn ${view === "kanban" ? "active" : ""}`} onClick={() => confirmReturnToBotIfNeeded(() => setView("kanban"))}>KANBAN</button>
+            <button className={`nav-btn ${view === "embudo" ? "active" : ""}`} onClick={() => setView("embudo")}>EMBUDO</button>
             <button className={`nav-btn ${view === "lista" ? "active" : ""}`} onClick={() => confirmReturnToBotIfNeeded(() => setView("lista"))}>LISTA</button>
             <button className={`nav-btn ${view === "agenda" ? "active" : ""}`} onClick={() => confirmReturnToBotIfNeeded(() => setView("agenda"))}>AGENDA</button>
             <button
@@ -2297,6 +2291,7 @@ export default function CRM() {
           <div className="mobile-menu">
             {[
               { label: "KANBAN", v: "kanban", action: () => setView("kanban") },
+              { label: "EMBUDO", v: "embudo", action: () => setView("embudo") },
               { label: "LISTA", v: "lista", action: () => setView("lista") },
               { label: "AGENDA", v: "agenda", action: () => setView("agenda") },
               { label: "CONVERSACIONES", v: "convs", action: () => { setView("convs"); fetchWhatsConvs(); setSelectedConv(null); setConvMessages([]); } },
@@ -2387,7 +2382,7 @@ export default function CRM() {
         {/* FILTROS */}
         <div style={{ display: (view === "convs" || view === "agenda") ? "none" : "flex", flexWrap: "wrap", gap: 12, marginBottom: 24, alignItems: "center" }}>
           <input className="input" style={{ maxWidth: 260, flex: "1 1 180px" }} placeholder="🔍  Buscar lead..." value={search} onChange={e => setSearch(e.target.value)} />
-          {isAdmin && (
+          {(
             <select className="select" style={{ maxWidth: 200, flex: "1 1 160px" }} value={filterVendedor} onChange={e => setFilterVendedor(e.target.value)}>
               <option value="Todos">Todos los vendedores</option>
               {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre || v.email}</option>)}
@@ -2438,6 +2433,7 @@ export default function CRM() {
         {!loading && view === "kanban" && (
           <div style={{ width: "100%", maxWidth: "100%", overflowX: "auto", WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", paddingBottom: 16 }}>
           <KanbanBoard
+            leads={filteredLeads}
             STAGES={STAGES}
             byStage={byStage}
             formatPeso={formatPeso}
@@ -2454,6 +2450,7 @@ export default function CRM() {
           </div>
         )}
 
+        {!loading && view === "embudo" && <EmbudoPanel leads={filteredLeads} />}
         {/* LISTA */}
         {!loading && view === "lista" && (
           <LeadsTable
@@ -3013,6 +3010,7 @@ export default function CRM() {
         {/* CONVERSACIONES WHATSAPP */}
         {view === "convs" && (
           <ConversationsPanel
+            getNombreVendedor={getNombreVendedor}
             key={selectedConv?.id || "no-selected-conv"}
             filteredWhatsConvs={filteredWhatsConvs}
             ultimoUsuarioAtPorConv={ultimoUsuarioAtPorConv}
