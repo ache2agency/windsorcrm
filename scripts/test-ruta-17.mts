@@ -266,3 +266,18 @@ test('reversa local conserva documentos, nuevos leads e historial y retira autom
  assert.deepEqual((await pg.query('select count(*)::int n from lead_ruta_eventos')).rows[0],eventos)
  assert.equal((await cargarRuta(db,karla)).paso,17)
 })
+
+test('2-nov: "No, gracias" depende del paso',()=>{
+ const fecha='2026-11-02T12:00:00.000Z'
+ const cumplidos=(ns:number[])=>({pasos:Object.fromEntries(ns.map(n=>[n,{estado:'cumplido',fecha,fuente:'test'}])),dudas:[]}) as any
+ const base={nombre:'Ana López',whatsapp:'+527471111111',email:'ana@x.com',curso:'Licenciatura en Psicología',modalidad:'Presencial'}
+ // Con la info enviada: equivale a "no tengo dudas" → Decidiendo, sin archivar.
+ let r=capturarEntrada({...base,ruta:cumplidos([1,2,3,4,5,6])},'No, gracias',{},fecha).ruta
+ assert.equal(r.salida??null,null); assert.equal(r.pasos[9]?.estado,'cumplido')
+ // Pidiendo correo: se salta el correo con motivo y no se archiva.
+ r=capturarEntrada({nombre:'Ana López',whatsapp:'+527471111111',ruta:cumplidos([1,2])},'no gracias',{},fecha).ruta
+ assert.equal(r.salida??null,null); assert.equal(r.pasos[3]?.estado,'saltado')
+ // Antes de la info, en otro paso: rechazo → archivado.
+ r=capturarEntrada({whatsapp:'+527471111111',ruta:cumplidos([1])},'No gracias',{},fecha).ruta
+ assert.equal(r.salida,'archivado')
+})
