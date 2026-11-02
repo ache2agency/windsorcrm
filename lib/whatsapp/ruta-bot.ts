@@ -52,7 +52,7 @@ async function construirRespuestaRuta(db:SupabaseClient,id:string,texto:string,d
     return {mensaje:/^a/i.test(texto)?`${INSCRIPCION_ONLINE_MSG}\n\n${urlInscripcion(lead.curso,lead.whatsapp,lead.nombre)}`:dep.inscripcionPresencial?.(lead)||preguntaPendiente(lead.ruta,lead),fase:faseParaRuta(lead.ruta)}
   }
   const now=new Date().toISOString()
-  const textoRuta=lead.ruta?.pasos[6]?.estado==='cumplido' && /^b[).]?$/i.test(texto.trim())?'quiero inscribirme':/^(?:quiero apartar mi lugar|no tengo dudas|ya tengo mis documentos)$/i.test(texto.trim())?'quiero inscribirme':texto
+  const textoRuta=lead.ruta?.pasos[6] && /^b[).]?$/i.test(texto.trim())?'quiero inscribirme':/^(?:quiero apartar mi lugar|no tengo dudas|ya tengo mis documentos)$/i.test(texto.trim())?'quiero inscribirme':texto
   const inscripcion=()=>{
     const tipo=tipoInscripcion(lead.curso)
     if(tipo==='desconocido') return INSCRIPCION_DESCONOCIDA_MSG
@@ -71,7 +71,7 @@ async function construirRespuestaRuta(db:SupabaseClient,id:string,texto:string,d
   if(/^(?:necesito m[aá]s tiempo)$/i.test(texto.trim())) mensaje='Claro, no hay problema. 😊 Te damos espacio y más adelante te recordamos el proceso para que puedas retomarlo sin empezar de cero.'
   if(/^(?:bachillerato|licenciaturas?|maestr[ií]as?|idiomas|diplomados?)$/i.test(texto.trim())) mensaje=dep.catalogo?.(texto,lead)||''
   if(/^(?:a[).]?|(?:sí,?\s*)?tengo dudas)$/i.test(texto.trim())) return {mensaje:`¡Claro que sí! 😊 Con gusto resuelvo tus dudas. ¿Qué quisiera saber sobre ${hasLeadProgram(lead.curso)?lead.curso:'el programa'}?${ruta.pasos[6]?'':`\n\n${preguntaPendiente(ruta,lead)}`}`,fase:faseParaRuta(ruta)}
-  if(ruta.pasos[6]?.estado==='cumplido' && (/^c[).]?$/i.test(texto.trim())||/agendar.*examen|clase de prueba/i.test(texto))) {
+  if(ruta.pasos[6] && (/^c[).]?$/i.test(texto.trim())||/agendar.*examen|clase de prueba/i.test(texto))) {
     if(dep.agenda) return {mensaje:dep.agenda(texto),fase:faseParaRuta(ruta)}
     const tipo=/clase/i.test(texto)?'clase_prueba':'examen_ubicacion'
     const url=new URL('/agendar/hola@windsor.edu.mx',process.env.NEXT_PUBLIC_APP_URL||'https://crm.windsor.edu.mx');url.searchParams.set('tipo',tipo);url.searchParams.set('whatsapp',lead.whatsapp||'');url.searchParams.set('nombre',lead.nombre||'')
@@ -81,7 +81,7 @@ async function construirRespuestaRuta(db:SupabaseClient,id:string,texto:string,d
   const pregunta=temasDuda(texto).length>0||/[?¿]/.test(texto)||eleccionConvenio
   // Responder dudas con el RAG existente; su salida jamás cambia el estado de la ruta.
   if(pregunta) {
-    try {mensaje=await dep.duda(texto,lead);if(!mensaje.trim()) throw new Error('Duda sin respuesta');convenio=(temasDuda(texto).includes('convenio')||eleccionConvenio)&&ruta.pasos[6]?.estado==='cumplido'}
+    try {mensaje=await dep.duda(texto,lead);if(!mensaje.trim()) throw new Error('Duda sin respuesta');convenio=(temasDuda(texto).includes('convenio')||eleccionConvenio)&&!!ruta.pasos[6]}
     catch {revision=true}
   }
   if(siguientePaso(ruta)===6 || (/^s[ií],?\s*env[ií]ame la info/i.test(texto.trim()) && ruta.pasos[6] && hasLeadProgram(lead.curso))) {

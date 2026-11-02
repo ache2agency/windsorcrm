@@ -43,7 +43,7 @@ export function temasDuda(texto:string):string[] {
   const t=normalizar(texto)
   return Object.entries({horario:/horario|hora |sabado|domingo/,precio:/precio|costo|cuanto|mensualidad|pago/,
     requisitos:/requisito|documento|acta|certificado/,ubicación:/ubicacion|direccion|donde|domicilio/,
-    convenio:/convenio|descuento|beca|suspeg/,inicio:/cuando|inicio|empieza|inicia/}).filter(([,rx])=>(rx as RegExp).test(t)).map(([k])=>k)
+    convenio:/convenio|descuento|beca|suspeg/,inicio:/cuando|\binicio\b|empieza|\binicia\b|fecha de inicio/}).filter(([,rx])=>(rx as RegExp).test(t)).map(([k])=>k)
 }
 export function faseParaRuta(r:Ruta):string {
   if(r.salida==='archivado') return 'archivado'
@@ -84,11 +84,12 @@ export function capturarEntrada(lead:LeadRuta, texto:string, datos:Partial<LeadR
   if(r.pasos[3] && l.curso && tipoInscripcion(l.curso)!=='desconocido' && !/^(licenciaturas?|diplomados?|maestrias?|idiomas?)$/i.test(normalizar(l.curso)) && !/instituto windsor|sin definir/i.test(l.curso) && (!/ingles/.test(normalizar(l.curso)) || /licenciatura|diplomado|maestria/.test(normalizar(l.curso)) || l.edad || /adultos|ninos/.test(normalizar(l.curso)))) mark(4)
   if(l.modalidad && r.pasos[4]) mark(5)
   const temas=temasDuda(texto); r.dudas=[...new Set([...r.dudas,...temas])]
-  if(temas.length && r.pasos[6]?.estado==='cumplido') mark(7)
-  if(/quiero inscrib|me (quiero )?inscrib|inscribirme|registrarme|ya tengo mis documentos/.test(t)) r.quiereInscribirse=true
+  if(temas.length && r.pasos[6]) mark(7)
+  // Incluye la frase que el propio bot ofrece ("¿quieres iniciar tu inscripción?").
+  if(/quiero inscrib|me (quiero )?inscrib|inscribirme|registrarme|ya tengo mis documentos|(?:quiero|quisiera|deseo|me gustaria|vamos a|podemos) (?:iniciar|empezar|hacer|comenzar) (?:mi |la |el |su )?(?:inscripcion|proceso|registro)|^(?:si,? )?(?:iniciar|empezar) (?:mi |la )?inscripcion|inscribir(?:la|lo|los|las)?\b|como (?:me )?inscribo|apartar (?:mi |su )?lugar/.test(t)) r.quiereInscribirse=true
   // "No, gracias" a secas: con la info ya enviada equivale a "no tengo dudas" (sigue la ruta); antes de la info es un rechazo.
   const noGracias=/^no,? gracias[.!\s]*$/.test(t.trim())
-  if(r.pasos[6]?.estado==='cumplido' && (noGracias || /no (tengo |hay )?dudas|todo claro|no tengo convenio|sin convenio|lo (voy a )?pensar|estoy pensando/.test(t))) {
+  if(r.pasos[6] && (noGracias || /no (tengo |hay )?dudas|todo claro|no tengo convenio|sin convenio|lo (voy a )?pensar|estoy pensando/.test(t))) {
     for(const n of [7,8]) if(!r.pasos[n]) skip(n,'El lead no reportó dudas ni convenio pendiente')
     mark(9)
   }
@@ -99,7 +100,7 @@ export function capturarEntrada(lead:LeadRuta, texto:string, datos:Partial<LeadR
   // Rechazo requiere revisión humana para Perdido; el bot conserva el paso y detiene seguimiento.
   if(/(?:quiero|quisiera|necesito|puedo|podria) hablar con (?:un |una |el |la )?(?:asesor|persona|humano)|(?:me puede|puede|podria|que me) llamar (?:alguien|un asesor|una persona)|no quiero hablar con (?:un |el )?bot/.test(t)) r.persona=ahora
   if(/busco trabajo|solicito empleo|vacantes? (?:de|para) (?:maestr[oa]|docente)|(?:estan|estais) contratando/.test(t)) r.salida='vacante'
-  if(r.quiereInscribirse && r.pasos[6]?.estado==='cumplido') {
+  if(r.quiereInscribirse && r.pasos[6]) {
     for(const n of [7,8,9,10,11,12]) if(!r.pasos[n]) skip(n,n>=10?'Agenda opcional: eligió inscripción directa':'Eligió inscribirse sin esta interacción')
   }
   return {ruta:r,datos}
