@@ -58,6 +58,7 @@ export async function POST(request: Request) {
     })
     // Con sesión, el asesor es quien está logueado — no lo que diga el body.
     if (sessionUserId) agentUserId = sessionUserId
+    const actorPayload=agentUserId?{asesor_id:agentUserId}:{}
 
     if (!to || (!body && !templateName)) {
       return NextResponse.json(
@@ -146,7 +147,7 @@ export async function POST(request: Request) {
 
       if (conversacionId) {
         await supabase.from('whatsapp_mensajes').insert([
-          { conversacion_id: conversacionId, rol: 'agente', contenido: body },
+          { conversacion_id: conversacionId, rol: 'agente', raw_payload:actorPayload, contenido: body },
         ])
       }
 
@@ -224,7 +225,7 @@ export async function POST(request: Request) {
         await supabase.from('whatsapp_mensajes').insert([
           {
             conversacion_id: conversacionId,
-            rol: 'agente',
+            rol: 'agente', raw_payload:actorPayload,
             contenido: contenidoHistorial || `[Template: ${templateName}]`,
           },
         ])
@@ -313,7 +314,7 @@ export async function POST(request: Request) {
         await supabase.from('whatsapp_mensajes').insert([
           {
             conversacion_id: conversacionId,
-            rol: 'agente',
+            rol: 'agente', raw_payload:actorPayload,
             contenido: body,
           },
         ])

@@ -84,6 +84,7 @@ function doPost(e) {
     var secreto = props.getProperty("INSCRIPCION_SECRETO");
     if (!secreto || body.secreto !== secreto) return crmRespuesta_({ ok: false, error: "No autorizado" });
 
+    if (body.accion === "revisar") return crmRespuesta_(crmRevisarDocumentos_(body.pestana, body.fila));
     var nombrePestana = CRM_PESTANAS[body.programa];
     if (!nombrePestana) return crmRespuesta_({ ok: false, error: "Programa inválido" });
     if (!/^[0-9a-f-]{36}$/i.test(body.id || "")) return crmRespuesta_({ ok: false, error: "Folio inválido" });
@@ -231,4 +232,91 @@ function crmValor_(campo, valor) {
 
 function crmRespuesta_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/** Instalar UN trigger de envío de formulario sobre crmAlRecibirGoogleForm.
+ * Sustituye el trigger directo de onFormSubmit: primero conserva su trabajo, luego avisa al CRM.
+ * No instalar ambos o se duplicaría el procesamiento de carpeta/PDF.
+ */
+function crmAlRecibirGoogleForm(e) {
+  var sheet=e.range.getSheet(),fila=e.range.getRow();
+  var clave="CRM_PENDIENTE_"+sheet.getSheetId()+"_"+fila;
+  var props=PropertiesService.getScriptProperties();
+  props.setProperty(clave,JSON.stringify({pestana:sheet.getName(),fila:fila}));
+  crmAsegurarDiplomados_(props);
+  try { onFormSubmit(e); } catch(err) { Logger.log("Procesamiento Drive pendiente: "+err); }
+  crmNotificarFila_(sheet,fila);
+  props.deleteProperty(clave);
+}
+function crmNotificarFila_(sheet, fila) {
+  var props = PropertiesService.getScriptProperties();
+  var url = props.getProperty("CRM_EVENTO_URL");
+  var secreto = props.getProperty("CRM_EVENTO_SECRETO");
+  if (!url || !/^https:\/\//.test(url) || !secreto) throw new Error("Falta configurar evento CRM");
+  var programa = null;
+  for (var p in CRM_PESTANAS) if (CRM_PESTANAS[p] === sheet.getName()) programa = p;
+  if (!programa) return;
+  var headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
+  var values = sheet.getRange(fila,1,1,headers.length).getValues()[0];
+  var datos = {};
+  for (var i=0;i<headers.length;i++) { var campo=crmCampoDe_(headers[i]); if(campo) datos[campo]=String(values[i]||""); }
+  var resultado=crmResultado_(sheet,fila,sheet.getName());
+  // La solicitud ya llegó aunque Drive todavía no tenga carpeta; el CRM conserva paso 14.
+  var respuesta=UrlFetchApp.fetch(url,{method:"post",contentType:"application/json",headers:{Authorization:"Bearer "+secreto},
+    payload:JSON.stringify({programa:programa,pestana:sheet.getName(),fila:fila,datos:datos,carpeta:resultado.carpeta||"",ficha:resultado.ficha||""}),muteHttpExceptions:true});
+  if(respuesta.getResponseCode()!==200) throw new Error("Evento CRM no registrado: fila "+fila);
+}
+/** Reintentar una fila manualmente (también Karla CL 30-oct) o ejecutar por lote desde un cursor.
+ * Guardar CRM_REINTENTO_PESTANA y CRM_REINTENTO_FILA; no busca alumnos por nombre.
+ * Un fallo conserva el cursor para que el trigger temporal vuelva a intentarlo.
+ */
+function crmReintentarPendientes() {
+  var props=PropertiesService.getScriptProperties();
+  var sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName(props.getProperty("CRM_REINTENTO_PESTANA"));
+  if(!sheet) return;
+  var fila=Number(props.getProperty("CRM_REINTENTO_FILA")||2);
+  for(var i=0;i<20 && fila<=sheet.getLastRow();i++,fila++) {
+    crmNotificarFila_(sheet,fila);
+    props.setProperty("CRM_REINTENTO_FILA",String(fila+1));
+  }
+}
+/** Revisa los IDs de documentos indicados por la fila y verifica que existan EN la carpeta.
+ * No considera la ficha PDF como documento del alumno ni confía en la lista de uploads del cliente.
+ */
+function crmRevisarDocumentos_(pestana, fila) {
+  var permitido=false;
+  for(var p in CRM_PESTANAS) if(CRM_PESTANAS[p]===pestana) permitido=true;
+  if(!permitido || fila<2 || Math.floor(fila)!==fila) throw new Error("Fila inválida");
+  var sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName(pestana);
+  if(!sheet || fila>sheet.getLastRow()) throw new Error("Fila no existe");
+  var resultado=crmResultado_(sheet,fila,pestana);
+  if(!resultado.ok) throw new Error(resultado.error);
+  var carpetaId=resultado.carpeta.match(/[-\w]{25,}/);
+  if(!carpetaId) throw new Error("Carpeta inválida");
+  var carpeta=DriveApp.getFolderById(carpetaId[0]);
+  var files=carpeta.getFiles(); var existentes={};
+  while(files.hasNext()) {var f=files.next();if(!f.isTrashed()) existentes[f.getId()]=true;}
+  var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
+  var values=sheet.getRange(fila,1,1,headers.length).getValues()[0];
+  var tipos=[];
+  for(var i=0;i<headers.length;i++) {
+    var campo=crmCampoDe_(headers[i]);
+    if(!CRM_NOMBRE_DOC[campo]) continue;
+    var ids=String(values[i]||"").match(/[-\w]{25,}/g)||[];
+    for(var j=0;j<ids.length;j++) if(existentes[ids[j]]) {tipos.push(campo);break;}
+  }
+  return {ok:true,tipos:tipos};
+}
+
+/** Trigger temporal cada 10 minutos; persiste fallos del callback aunque el CRM esté caído. */
+function crmReintentarEventos() {
+  var props=PropertiesService.getScriptProperties(),valores=props.getProperties(),n=0;
+  for(var clave in valores) if(clave.indexOf("CRM_PENDIENTE_")===0 && n++<20) {
+    try {
+      var p=JSON.parse(valores[clave]);
+      var sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName(p.pestana);
+      crmNotificarFila_(sheet,p.fila);
+      props.deleteProperty(clave);
+    } catch(err) { Logger.log("Pendiente CRM: "+clave+" "+err); }
+  }
 }

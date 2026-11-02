@@ -26,6 +26,7 @@ export async function recibirInscripcion(db: SupabaseClient, form: FormData, cla
   const drive = await enviar({ id, programa, datos, archivos })
   const documentos = [
     { tipo: 'carpeta_drive', url: drive.carpeta },
+    { tipo: 'origen_sheet', pestana: drive.pestana, fila: drive.fila },
     ...(drive.ficha ? [{ tipo: 'ficha_pdf', url: drive.ficha }] : []),
   ]
   const { data, error } = await db.rpc('registrar_inscripcion', {

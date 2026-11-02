@@ -1,3 +1,5 @@
+import { responderRuta, confirmarEntregaRuta } from '@/lib/whatsapp/ruta-bot'
+import { esCanalInternoSeguimiento } from '@/lib/whatsapp/seguimiento-motor'
 import { INSCRIPCION_ONLINE_MSG, INSCRIPCION_BACHILLERATO_MSG, INSCRIPCION_DIPLOMADO_MSG, INSCRIPCION_IDIOMA_MSG, INSCRIPCION_HABILIDADES_MSG, INSCRIPCION_DESCONOCIDA_MSG, mensajeInscripcionPara, resolverTipoInscripcion } from '@/lib/whatsapp/inscripcion'
 import { ADMIN_WA_ALERTA, MENSAJE_ESPERA, quitarPromesasAsesor } from '@/lib/whatsapp/atencion'
 import { createServiceRoleClient } from '@/utils/supabase/server'
@@ -1015,7 +1017,7 @@ async function finalizarRegistro(
   } else {
     await supabase
       .from('whatsapp_conversaciones')
-      .update({ fase: nuevaFase, estado: 'cerrada', ultimo_mensaje_at: now })
+      .update({ lead_id: null, fase: nuevaFase, estado: 'cerrada', ultimo_mensaje_at: now })
       .eq('id', conversacionId)
   }
 
@@ -2274,7 +2276,7 @@ export async function POST(request: Request) {
     let leadSnapshot: LeadSnapshot | null = null
 
     // Crear lead y conversación automáticamente en Supabase con el número de WhatsApp
-    if (waNumber) {
+    if (waNumber && !esCanalInternoSeguimiento(waNumber)) {
       try {
         const supabase = createServiceRoleClient()
 
@@ -2504,6 +2506,51 @@ export async function POST(request: Request) {
         }
       } catch (e) {
         console.error('[webhook] Error creando lead/conversación:', e)
+      }
+    }
+
+    // Ruta 17: única autoridad para prospectos. Los comandos internos ya retornaron arriba.
+    if (leadId && conversacionIdOuter && !esCanalInternoSeguimiento(waNumber)) {
+      const dbRuta = createServiceRoleClient()
+      if (!humanMode) {
+        try {
+          const resultado = await responderRuta(dbRuta, leadId, originalText, {
+            detectarPrograma,
+            catalogo: (texto,lead) => mensajeCategoriaInteres(detectarCategoriaInteres(texto),lead.nombre||'')?.replace(/^¡Hola[^!]*! 😊\s*/, '')||INSCRIPCION_DESCONOCIDA_MSG,
+            agenda: texto => /clase/i.test(texto)?buildClasePruebaMsg():EXAMEN_UBICACION_MSG,
+            info: (curso, lead) => buildProgramInfoMessage(curso, request.url, lead),
+            duda: async (pregunta, lead) => {
+              if(detectarRevalidacion(pregunta)) return REVALIDACION_MATERIAS_MSG
+              if(detectarPreguntaConvenio(pregunta)) return CONVENIOS_LISTA_MSG
+              const institucion=detectarInstitucionConvenio(pregunta)
+              if(institucion&&CONVENIOS_DETALLE[institucion]) return CONVENIOS_DETALLE[institucion]
+              if(detectarPreguntaDireccion(pregunta)) return `Nos encontramos en:\n\n${TEXTO_PLANTELES}\n\n🕐 Horarios: Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00`
+              const fija=respuestaDatoConfirmado(pregunta,lead.curso,[])
+              if(fija && !/cursos? de ingl[eé]s/i.test(pregunta)) return fija.respuesta
+              const rag = await fetch(new URL('/api/rag/query', request.url), {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: `${lead.curso || 'Instituto Windsor'}: ${pregunta}`, solo_contexto: true }),
+                signal: AbortSignal.timeout(8000),
+              })
+              const contexto = rag.ok ? await rag.json() : {}
+              const respuesta = await askGPT({ fase: 'dudas', leadData: lead, userMessage: pregunta,
+                ragContext: String(contexto.context || '') + '\nResponde solo la duda. No pidas datos, no ofrezcas otro programa ni cambies el proceso.' })
+              if(respuesta.necesitaRevision||quitarPromesasAsesor(respuesta.respuesta)!==respuesta.respuesta) throw new Error('RUTA_REVISION_CODIGO')
+              return respuesta.respuesta
+            },
+          })
+          if (!resultado) return provider === 'meta' ? Response.json({ ok: true, revisionHumana: true }) : buildTwiml('')
+          const respuesta = await buildProviderResponse(provider, resultado.mensaje, waNumber)
+          await dbRuta.from('whatsapp_mensajes').insert([{ conversacion_id: conversacionIdOuter, rol: 'bot', contenido: resultado.mensaje }])
+          await confirmarEntregaRuta(dbRuta, leadId, resultado)
+          await dbRuta.from('whatsapp_conversaciones').update({ fase: resultado.fase, estado: 'abierta' }).eq('id', conversacionIdOuter)
+          return respuesta
+        } catch (error) {
+          // Nunca caer al flujo legado: puede mandar ventas después de recibir un formulario.
+          if(error instanceof Error && error.message==='RUTA_REVISION_CODIGO') return solicitarRevisionCodigo({supabase:dbRuta,conversacionId:conversacionIdOuter,provider,waNumber,leadSnapshot,originalText})
+          console.error('[ruta17] Respuesta pendiente de revisión:', error)
+          return provider === 'meta' ? Response.json({ ok: true, rutaPendiente: true }) : buildTwiml('')
+        }
       }
     }
 
@@ -2935,6 +2982,8 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
         // ignorar
       }
     }
+
+    if (esCanalInternoSeguimiento(waNumber)) return buildProviderResponse(provider, 'Usa Registro, Memoria o los comandos de revisión. Este canal no procesa ventas.', waNumber)
 
     // Archivado ("quizás más adelante") que vuelve a escribir: sale de Archivado.
     if (currentFase === 'archivado' && conversacionIdOuter) {

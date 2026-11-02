@@ -232,8 +232,9 @@ async function run(request: Request) {
     if (!toque) { r('omitido', `aún no toca (${horasDesdeUser.toFixed(1)}h desde el lead)`); continue }
 
     const { data: lead } = conv.lead_id
-      ? await supabase.from('leads').select('nombre, curso, stage').eq('id', conv.lead_id).maybeSingle()
+      ? await supabase.from('leads').select('nombre, curso, stage, ruta').eq('id', conv.lead_id).maybeSingle()
       : { data: null }
+    if(lead?.ruta) { r('omitido','lead gestionado por ruta17/seguimiento-motor');continue }
     if (lead?.stage && STAGES_EXCLUIDOS.includes(lead.stage)) { r('omitido', `stage ${lead.stage}`); continue }
 
     const textoLead = mensajes.filter(m => m.rol === 'usuario').map(m => m.contenido).join(' ')

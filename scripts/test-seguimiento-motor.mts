@@ -72,6 +72,7 @@ test('dry-run del endpoint: todas las páginas, canal interno y cooldown tras nu
     const q = url.searchParams
     if (q.has('revision_timeout_desde_at')) return Response.json([])
     const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } })
+    if (url.pathname.endsWith('/ruta_inscripcion_trabajos')) return json([])
     if (url.pathname.endsWith('/whatsapp_conversaciones')) {
       assert.equal(q.get('order'), 'ultimo_mensaje_at.desc.nullslast,id.asc')
       const offset = Number(q.get('offset'))
@@ -98,7 +99,7 @@ test('dry-run del endpoint: todas las páginas, canal interno y cooldown tras nu
       return json(msgs(id))
     }
     if (url.pathname.endsWith('/leads')) {
-      return json({ id: q.get('id')?.replace('eq.', ''), nombre: null, curso: null, whatsapp: '+525500000000', stage: 'contactado', asignado_a: q.get('id') === 'eq.lead-706' ? 'asesor-1' : null })
+      return json({ id: q.get('id')?.replace('eq.', ''), nombre: null, curso: null, whatsapp: '+525500000000', stage: 'contactado', asignado_a: q.get('id') === 'eq.lead-706' ? 'asesor-1' : null, ruta:{pasos:q.get('id')==='eq.lead-703'?{1:{estado:'cumplido',fecha:hace(4),fuente:'bot'},2:{estado:'cumplido',fecha:hace(4),fuente:'bot'}}:{1:{estado:'cumplido',fecha:hace(4),fuente:'bot'}},dudas:[]},ruta_version:0,paso:1 })
     }
     if (url.pathname.endsWith('/profiles')) return json({ whatsapp: '+527474722466', nombre: 'Canal interno' })
     assert.fail(`consulta inesperada: ${url.pathname}`)
@@ -222,6 +223,7 @@ test('tope diario del endpoint con envíos y persistencia simulados', async (t) 
       }
       if (request.method === 'PATCH') return new Response(null, { status: 204 })
       assert.equal(request.method, 'GET')
+      if (url.pathname.endsWith('/ruta_inscripcion_trabajos')) return json([])
       if (url.pathname.endsWith('/whatsapp_conversaciones')) return json(convs)
       if (url.pathname.endsWith('/whatsapp_mensajes')) {
         if (q.has('raw_payload->seguimiento_motor->>reglaId')) return json([])
@@ -236,7 +238,7 @@ test('tope diario del endpoint con envíos y persistencia simulados', async (t) 
         if (id === 'reciente-a') await new Promise((resolve) => setTimeout(resolve, 15))
         leadsEvaluados.add(id)
         const conv = convs.find((c) => c.id === id)!
-        return json({ id, nombre: null, whatsapp: conv.whatsapp, curso: null, stage: 'contactado', asignado_a: id === 'aviso' ? 'asesor' : null })
+        return json({ id, nombre: null, whatsapp: conv.whatsapp, curso: null, stage: 'contactado', asignado_a: id === 'aviso' ? 'asesor' : null, ruta: {pasos:{1:{estado:'cumplido',fecha:hace(conv.horas),fuente:'bot'}},dudas:[]},ruta_version:0,paso:1 })
       }
       if (url.pathname.endsWith('/profiles')) return json({ whatsapp: '+525599999999' })
       assert.fail(`consulta inesperada ${url.pathname}`)

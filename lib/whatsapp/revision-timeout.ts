@@ -1,3 +1,4 @@
+import { preguntaPendiente } from './ruta'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ADMIN_WA_ALERTA } from './atencion'
 import { DATOS_DIPLOMADOS } from './reglasNegocio'
@@ -107,10 +108,10 @@ export async function ejecutarRevisionesPendientes(
         if (!ventana) finalAccion = 'reactivar_sin_ventana'
         else {
           const { data: lead, error: leadError } = row.lead_id
-            ? await db.from('leads').select('curso').eq('id', row.lead_id).maybeSingle()
+            ? await db.from('leads').select('curso,ruta,paso,whatsapp,nombre').eq('id', row.lead_id).maybeSingle()
             : { data: null, error: null }
           if (leadError) throw leadError
-          texto = respuestaRevisionVencida(lead?.curso)
+          texto = lead?.ruta ? preguntaPendiente(lead.ruta,lead) : respuestaRevisionVencida(lead?.curso)
           const sent = await enviar({ to: row.whatsapp, body: texto })
           raw = { wamid: sent.id, seguimiento_motor: { accion: 'texto', reglaId: 'revision_timeout_reactivar' }, revision_timeout: { codigo: row.revision_codigo, desde: row.revision_timeout_desde_at } }
         }

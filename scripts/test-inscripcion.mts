@@ -178,7 +178,7 @@ test('fallo de Drive no registra nada; fallo del RPC se reintenta con el mismo f
   assert.equal((await recibir(form)).nuevo, true)
   assert.equal(filas.size, totalFilas)
   const { rows } = await pg.query<{ documentos: { tipo: string; url: string }[] }>('select documentos from inscripciones where id=$1', [id])
-  assert.deepEqual(rows[0]?.documentos.map(d => d.tipo), ['carpeta_drive', 'ficha_pdf'])
+  assert.deepEqual(rows[0]?.documentos.map(d => d.tipo), ['carpeta_drive', 'origen_sheet', 'ficha_pdf'])
 })
 test('anon y authenticated no leen solicitudes ni llaman al RPC', async () => {
   for (const role of ['anon','authenticated']) {

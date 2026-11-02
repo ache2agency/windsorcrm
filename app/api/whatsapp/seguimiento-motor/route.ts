@@ -1,3 +1,6 @@
+import { procesarInscripciones } from '@/lib/inscripcion/trabajos'
+import { cargarRuta, guardarRuta } from '@/lib/whatsapp/ruta-servicio'
+import { marcar, siguientePaso, type Ruta } from '@/lib/whatsapp/ruta'
 import { ADMIN_WA_ALERTA } from '@/lib/whatsapp/atencion'
 import { textoTemplateEnviado } from '@/lib/whatsapp/template-registro'
 import { ejecutarRevisionesPendientes } from '@/lib/whatsapp/revision-timeout'
@@ -10,7 +13,6 @@ import {
   datoPendienteSeguimiento,
   recordatorioDatoReciente,
   dentroHorarioMexico,
-  faseEsDeMotor,
   horaMexico,
   inicioDiaMexicoIso,
   type ContextoSeguimiento,
@@ -34,6 +36,7 @@ type LeadRow = {
   curso: string | null
   stage: string | null
   asignado_a: string | null
+  ruta: Ruta; ruta_version:number; paso:number; modalidad:string|null; edad:number|null
 }
 
 function verifyCronSecret(request: Request): boolean {
@@ -107,7 +110,7 @@ async function buscarLead(
   if (conv.lead_id) {
     const { data } = await supabase
       .from('leads')
-      .select('id, nombre, whatsapp, curso, stage, asignado_a')
+      .select('id, nombre, whatsapp, curso, stage, asignado_a, ruta, ruta_version, paso, modalidad, edad')
       .eq('id', conv.lead_id)
       .maybeSingle()
     if (data) return data as LeadRow
@@ -115,7 +118,7 @@ async function buscarLead(
   const whatsapp = normalizePhoneNumber(conv.whatsapp)
   const { data } = await supabase
     .from('leads')
-    .select('id, nombre, whatsapp, curso, stage, asignado_a')
+    .select('id, nombre, whatsapp, curso, stage, asignado_a, ruta, ruta_version, paso, modalidad, edad')
     .eq('whatsapp', whatsapp)
     .maybeSingle()
   return (data as LeadRow | null) || null
@@ -181,22 +184,25 @@ async function ejecutarDecision(params: {
     return { accion: dryRun ? 'dry_aviso_asesor' : 'aviso_asesor', detalle: aviso }
   }
 
-  if ((decision.accion === 'archivar' || decision.accion === 'perder') && !cierresAutomaticosActivos()) {
+  if (decision.accion === 'perder') return {accion:'omitido',detalle:'Perdido requiere persona'}
+
+  if ((decision.accion === 'archivar') && !cierresAutomaticosActivos()) {
     return { accion: `cierre_apagado_${decision.accion}`, detalle: `${decision.detalle} (cierres automaticos apagados)` }
   }
 
-  if (decision.accion === 'archivar' || decision.accion === 'perder') {
+  if (decision.accion === 'archivar') {
     if (!dryRun) {
       await supabase.from('whatsapp_conversaciones').update({
         fase: decision.nuevaFase,
-        estado: decision.accion === 'perder' ? 'cerrada' : 'abierta',
+        estado: 'abierta',
       }).eq('id', conv.id)
-      await supabase.from('leads').update({ stage: decision.nuevoStage }).eq('id', lead.id)
+      const actual=await cargarRuta(supabase,lead.id)
+      await guardarRuta(supabase,actual,{...actual.ruta!,salida:'archivado'},{},'seguimiento')
       await supabase.from('lead_activities').insert([{
         lead_id: lead.id,
         actor_id: null,
-        event_type: decision.accion === 'perder' ? 'seguimiento_motor_perdido' : 'seguimiento_motor_archivado',
-        title: decision.accion === 'perder' ? 'Lead marcado como perdido' : 'Lead archivado',
+        event_type: 'seguimiento_motor_archivado',
+        title: 'Lead archivado',
         detail: decision.detalle,
         meta: raw.seguimiento_motor,
       }])
@@ -208,6 +214,11 @@ async function ejecutarDecision(params: {
     if (!decision.mensaje) throw new Error('Decision texto sin mensaje')
     if (!dryRun) {
       await sendMetaWhatsAppMessage({ to: conv.whatsapp, body: decision.mensaje })
+      if(decision.reglaId==='nuevo_20h_ficha') {
+        const actual=await cargarRuta(supabase,lead.id); let r=actual.ruta!; const fecha=new Date().toISOString()
+        for(let n=2;n<=5;n++) if(!r.pasos[n]) r=marcar(r,n,'saltado',fecha,'seguimiento','Dato no recibido; a las 20 h se entregó información conforme al seguimiento vigente')
+        r=marcar(r,6,'cumplido',fecha,'seguimiento');await guardarRuta(supabase,actual,r,{},'seguimiento')
+      }
       await supabase.from('whatsapp_mensajes').insert([{
         conversacion_id: conv.id,
         rol: 'bot',
@@ -269,7 +280,6 @@ async function run(request: Request) {
       .from('whatsapp_conversaciones')
       .select('id, whatsapp, lead_id, fase, provider, estado, modo_humano, revision_codigo, ultimo_mensaje_at')
       .in('estado', ['abierta', 'cerrada'])
-      .in('fase', FASES_QUERY)
       .order('ultimo_mensaje_at', { ascending: false, nullsFirst: false })
       .order('id', { ascending: true })
       .range(offset, offset + pageSize - 1)
@@ -278,6 +288,7 @@ async function run(request: Request) {
     if (!data || data.length < pageSize) break
   }
 
+  const inscripciones = await procesarInscripciones(supabase,dryRun)
   const inicioDiaMx = inicioDiaMexicoIso(ahora)
   const resultados: Array<Record<string, unknown>> = []
   const decisiones: Array<{
@@ -294,7 +305,6 @@ async function run(request: Request) {
       const omit = (detalle: string) => resultados.push({ ...base, accion: 'omitido', detalle })
 
       if (esCanalInternoSeguimiento(conv.whatsapp)) { omit('canal interno de asesores'); return }
-      if (!faseEsDeMotor(conv.fase)) { omit('fase fuera del motor'); return }
       if (conv.provider === 'messenger') { omit('messenger sin templates WhatsApp'); return }
       if (conv.modo_humano) { omit('modo humano'); return }
       if (conv.revision_codigo) { omit('esperando revision de asesor'); return }
@@ -320,6 +330,7 @@ async function run(request: Request) {
       if (!ultimoUsuario) { omit('sin mensaje de usuario'); return }
       const lead = await buscarLead(supabase, conv)
       if (!lead) { omit('sin lead'); return }
+      if(!lead.ruta) {omit('ruta no migrada');return}
       if (esCanalInternoSeguimiento(lead.whatsapp)) { omit('canal interno de asesores'); return }
 
       const horasDesdeLead = msHoras(ultimoUsuario.created_at, ahora)
@@ -333,6 +344,7 @@ async function run(request: Request) {
           whatsapp: lead.whatsapp || conv.whatsapp,
           curso: lead.curso,
           stage: lead.stage,
+          ruta:lead.ruta, modalidad:lead.modalidad,edad:lead.edad,
         },
         horasDesdeLead,
         horasDesdeBot,
@@ -431,6 +443,7 @@ async function run(request: Request) {
     ok: true,
     dryRun,
     horaMexico: hora,
+    inscripciones,
     revisiones,
     templates: { limiteDia, enviadosHoy, cupoDisponible, propuestos: templates.length,
       seleccionados: seleccionados.length, diferidos: templates.length - seleccionados.length },
@@ -439,26 +452,6 @@ async function run(request: Request) {
     resultados: dryRun ? resultados : activos,
   })
 }
-
-const FASES_QUERY = [
-  'saludo',
-  'programa',
-  'correo',
-  'info_enviada',
-  'dudas',
-  'accion',
-  'seguimiento',
-  'examen',
-  'clase_prueba',
-  'inscripcion',
-  'inscripcion_pendiente',
-  'inscribiendo',
-  'pendiente',
-  'asesor',
-  'con_asesor',
-  'archivado',
-  'cerrado',
-]
 
 export async function GET(request: Request) {
   return run(request)
