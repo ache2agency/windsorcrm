@@ -281,3 +281,16 @@ test('2-nov: "No, gracias" depende del paso',()=>{
  r=capturarEntrada({whatsapp:'+527471111111',ruta:cumplidos([1])},'No gracias',{},fecha).ruta
  assert.equal(r.salida,'archivado')
 })
+
+test('2-nov: lead migrado (info saltada por migración) avanza al pedir inscripción',()=>{
+ const fecha='2026-11-02T18:03:00.000Z'
+ const mig=(n:number,estado='saltado')=>({estado,fecha:null,fuente:'migracion',motivo:'Equivalencia histórica; no acredita pasos intermedios ni fechas'})
+ const ruta={pasos:{1:{estado:'cumplido',fecha,fuente:'migracion'},2:mig(2),3:mig(3,'cumplido'),4:mig(4,'cumplido'),5:mig(5),6:mig(6),7:mig(7,'cumplido')},dudas:[]} as any
+ const lead={nombre:'Mamá',whatsapp:'+527471200488',email:'a@b.com',curso:'Inglés para niños',edad:8,ruta}
+ for(const texto of ['Quiero iniciar mi inscripción.','quiero inscribirla','Sí, iniciar inscripción','¿Cómo me inscribo?']) {
+  const r=capturarEntrada(lead as any,texto,{},fecha).ruta
+  assert.equal(r.quiereInscribirse,true,texto); assert.equal(siguientePaso(r),13,texto)
+ }
+ assert.deepEqual(temasDuda('Quiero iniciar mi inscripción.'),[])
+ assert.ok(temasDuda('¿Cuándo inicia el curso?').includes('inicio'))
+})
