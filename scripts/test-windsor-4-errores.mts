@@ -102,7 +102,7 @@ for (const escenario of ['recordatorio', 'reactivar', 'sin_ventana', 'sin_claim'
 }
 
 // Se recorre el webhook real con servicios simulados, sin datos ni envíos reales.
-for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'confirmacion', 'revision_nueva', 'revalidacion', 'ia_promesa', 'rag_timeout', 'rpc_caido', 'persona_explicita', 'ubicacion', 'audio', 'imagen', 'programa_precio', 'programa_licenciatura', 'programa_lista_doble_precio', 'programa_lista_doble_licenciatura']) {
+for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'confirmacion', 'revision_nueva', 'revalidacion', 'ia_promesa', 'rag_timeout', 'rpc_caido', 'persona_explicita', 'ubicacion', 'audio', 'imagen', 'america_correo', 'cerrada_vuelve', 'felipe_certificacion', 'programa_precio', 'programa_licenciatura', 'programa_lista_doble_precio', 'programa_lista_doble_licenciatura']) {
   test(`webhook real: ${escenario}`, async t => {
     const usaIA = ['elegir_diplomado','rag_timeout','persona_explicita','revision_nueva', 'ia_promesa', 'programa_precio','programa_lista_doble_precio'].includes(escenario)
     const esRevision = ['revision_nueva','ia_promesa','rag_timeout','rpc_caido','persona_explicita'].includes(escenario)
@@ -119,6 +119,9 @@ for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'co
     lead.modalidad = hasta >= 5 ? 'En línea' : null
     lead.ruta_version=0;lead.paso=hasta;lead.ruta={pasos:{},dudas:[]}
     for(let n=1;n<=hasta;n++) lead.ruta.pasos[n]={estado:'cumplido',fecha:ahora.toISOString(),fuente:'fixture'}
+    if(escenario==='felipe_certificacion') {fase='programa';lead.curso=null;lead.paso=1;lead.ruta.pasos={1:lead.ruta.pasos[1]}}
+    if(escenario==='america_correo') {fase='correo';lead.email=null;lead.curso='Diplomado en Farmacología';lead.ruta.pasos={1:lead.ruta.pasos[1],2:lead.ruta.pasos[2]};lead.paso=2}
+    if(escenario==='cerrada_vuelve') fase='cerrado'
     const originalTimer = globalThis.setTimeout
     t.mock.method(globalThis, 'setTimeout', ((fn: (...args: unknown[]) => void, ms: number, ...args: unknown[]) => originalTimer(fn, ms === 8000 ? 0 : ms, ...args)) as typeof setTimeout)
     t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
@@ -166,13 +169,16 @@ for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'co
       if (tabla === 'push_subscriptions') return Response.json([])
       return Response.json([])
     })
-    const text = escenario==='persona_explicita'?'quiero hablar con un asesor':escenario==='rag_timeout'?'¿El trámite especial está disponible?':escenario === 'revalidacion' ? '¿Puedo revalidar materias de otra institución?' : escenario === 'ia_promesa' ? '¿El trámite especial está disponible?' : escenario.startsWith('programa_') ? escenario.endsWith('licenciatura') ? 'Licenciatura' : '¿cuánto cuesta?' : escenario === 'revision_nueva' ? '¿El trámite especial está disponible?' : escenario === 'elegir_diplomado' ? 'Diplomado en Epidemiología' : escenario === 'confirmacion' ? 'Ya pagué' : 'Me quiero inscribir'
+    const text = escenario==='felipe_certificacion'?'Necesito constancia de inglés B1 para mi universidad':escenario==='america_correo'?'america@example.test':escenario==='cerrada_vuelve'?'Me quiero inscribir':escenario==='persona_explicita'?'quiero hablar con un asesor':escenario==='rag_timeout'?'¿El trámite especial está disponible?':escenario === 'revalidacion' ? '¿Puedo revalidar materias de otra institución?' : escenario === 'ia_promesa' ? '¿El trámite especial está disponible?' : escenario.startsWith('programa_') ? escenario.endsWith('licenciatura') ? 'Licenciatura' : '¿cuánto cuesta?' : escenario === 'revision_nueva' ? '¿El trámite especial está disponible?' : escenario === 'elegir_diplomado' ? 'Diplomado en Epidemiología' : escenario === 'confirmacion' ? 'Ya pagué' : 'Me quiero inscribir'
     const req = new Request('http://localhost/api/whatsapp/webhook', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ object: 'whatsapp_business_account', entry: [{ changes: [{ value: { messages: [{ id: `wamid.${escenario}`, from: '525500000001', type: escenario==='ubicacion'?'location':escenario==='audio'?'audio':escenario==='imagen'?'image':'text', text: { body: text } }], contacts: [{ profile: { name: 'Ana' } }] } }] }] }) })
     const response = await POST(req)
     assert.equal(response.status, 200)
     const toLead = sent.filter(m => m.to.replace(/\D/g, '') === '525500000001')
     assert.ok(toLead.length > 0, 'envía respuesta al lead')
-    if(['ubicacion','audio','imagen'].includes(escenario)) {assert.match(toLead.at(-1)!.text.body,/Gracias/);assert.match(toLead.at(-1)!.text.body,/¿Quieres agendar/)}
+    if(escenario==='felipe_certificacion') {assert.match(toLead.at(-1)!.text.body,/asesor educativo/);assert.doesNotMatch(toLead.at(-1)!.text.body,/Bachillerato/);assert.equal(typeof lead.ruta.persona,'object');assert.ok(sent.some(m=>m.to===ADMIN_WA_ALERTA))}
+    else if(escenario==='america_correo') {assert.match(toLead.at(-1)!.text.body,/Farmacología/);assert.match(toLead.at(-1)!.text.body,/10VmTr-H8lOu2urlEkC8A1D9rX5WBEakH/);assert.equal(lead.ruta.pasos[6].estado,'cumplido')}
+    else if(escenario==='cerrada_vuelve') {assert.ok(patches.some(p=>p.estado==='abierta'));assert.match(toLead.at(-1)!.text.body,/inscripcion/)}
+    else if(['ubicacion','audio','imagen'].includes(escenario)) {assert.match(toLead.at(-1)!.text.body,/Gracias/);assert.match(toLead.at(-1)!.text.body,/¿Quieres agendar/)}
     else if (escenario === 'desconocido') { assert.match(toLead.at(-1)!.text.body, /Elige una opción/); assert.equal(lead.paso,3) }
     else if (escenario === 'confirmacion') { assert.equal(lead.ruta.pasos[17],undefined);assert.match(toLead.at(-1)!.text.body, /formulario/);assert.equal(sent.some(m=>m.to===ADMIN_WA_ALERTA),false) }
     else if (esRevision) {

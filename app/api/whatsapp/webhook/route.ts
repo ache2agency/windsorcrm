@@ -1,3 +1,5 @@
+import { fichaDiplomado } from '@/lib/whatsapp/ficha-diplomado'
+import { horarioAtencion, avisoVisitaInhabil, INICIO_INGLES_NINOS } from '@/lib/whatsapp/servicio-calendario'
 import { urlInscripcion } from '@/lib/inscripcion/enlace'
 import { responderRuta, confirmarEntregaRuta, reintentarConflicto } from '@/lib/whatsapp/ruta-bot'
 import { esCanalInternoSeguimiento } from '@/lib/whatsapp/seguimiento-motor'
@@ -2118,6 +2120,8 @@ async function buildProgramInfoMessage(
   leadData: { nombre?: string | null; email?: string | null },
   history?: Array<{ role: 'user' | 'assistant'; content: string }>
 ): Promise<string> {
+  const ficha = fichaDiplomado(programa)
+  if(ficha) return ficha + buildCTA(programa)
   const infoMsg = INFO_MSGS[programa]
   if (infoMsg) {
     return infoMsg + buildCTA(programa)
@@ -2385,11 +2389,9 @@ export async function POST(request: Request) {
             fase?: string
           } = {
             lead_id: leadId ?? null,
-            estado:
-              existingConv.fase === 'cerrado' || existingConv.fase === 'perdido'
-                ? 'cerrada'
-                : 'abierta',
+            estado: existingConv.fase === 'perdido' ? 'cerrada' : 'abierta',
           }
+          if(existingConv.fase==='cerrado') nextConversationUpdate.fase=desiredPhase
           if (
             existingConv.fase === 'saludo' ||
             existingConv.fase === 'programa' ||
@@ -2524,29 +2526,37 @@ export async function POST(request: Request) {
       const dbRuta = createServiceRoleClient()
       if (!humanMode) {
         try {
+          const {data:histRuta,error:histError}=await dbRuta.from('whatsapp_mensajes').select('rol,contenido').eq('conversacion_id',conversacionIdOuter).order('created_at',{ascending:false}).limit(12)
+          if(histError) throw histError
+          const historialRuta=(histRuta||[]).filter(m=>m.rol==='usuario'||m.rol==='bot').reverse().map(m=>({role:(m.rol==='usuario'?'user':'assistant') as 'user'|'assistant',content:m.contenido||''}))
           const resultado = await responderRuta(dbRuta, leadId, originalText, {
             detectarPrograma,
+            ultimoBot:historialRuta.filter(m=>m.role==='assistant').at(-1)?.content,
             catalogoGeneral: CATALOGO_OFERTA,
             vacante: VACANTE_DOCENTE_MSG,
             acuse: incoming.mediaKind==='image' && incoming.body!=='__MEDIA__'?'Gracias por la imagen.':undefined,
             inscripcionPresencial: lead => buildInscripcionPresencialMsg(lead.nombre,lead.email,lead.curso,lead.whatsapp),
             visita: (lead, texto) => {
+              const sinServicio=avisoVisitaInhabil(texto)
+              if(sinServicio) return sinServicio
               const t=texto.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
               const cuando=t.match(/pasado manana|manana|hoy|lunes|martes|miercoles|jueves|viernes|sabado|esta semana|la proxima semana/)?.[0]
               const etiqueta=cuando?({'pasado manana':'pasado mañana','manana':'mañana','miercoles':'el miércoles','sabado':'el sábado','hoy':'hoy','esta semana':'esta semana','la proxima semana':'la próxima semana'} as Record<string,string>)[cuando]||`el ${cuando}`:''
               const turno=/en la manana|por la manana|temprano/.test(t)?' por la mañana':/tarde/.test(t)?' por la tarde':''
               const nombre=lead.nombre?` ${lead.nombre.split(' ')[0]}`:''
-              return `¡Perfecto${nombre}! Te esperamos${etiqueta?` ${etiqueta}${turno}`:''} 😊\n\n${TEXTO_PLANTELES}\n🕐 ${TEXTO_HORARIO_ATENCION}\n\nTrae los documentos que te indicamos para la inscripción. Si quieres adelantar tu registro, aquí está el formulario:\n${urlInscripcion(lead.curso,lead.whatsapp,lead.nombre)}`
+              return `¡Perfecto${nombre}! Te esperamos${etiqueta?` ${etiqueta}${turno}`:''} 😊\n\n${TEXTO_PLANTELES}\n🕐 ${horarioAtencion()}\n\nTrae los documentos que te indicamos para la inscripción. Si quieres adelantar tu registro, aquí está el formulario:\n${urlInscripcion(lead.curso,lead.whatsapp,lead.nombre)}`
             },
             catalogo: (texto,lead) => mensajeCategoriaInteres(detectarCategoriaInteres(texto),lead.nombre||'')?.replace(/^¡Hola[^!]*! 😊\s*/, '')||INSCRIPCION_DESCONOCIDA_MSG,
             agenda: texto => /clase/i.test(texto)?buildClasePruebaMsg():EXAMEN_UBICACION_MSG,
-            info: (curso, lead) => buildProgramInfoMessage(curso, request.url, lead),
+            info: (curso, lead) => buildProgramInfoMessage(curso, request.url, lead, historialRuta),
             duda: async (pregunta, lead) => {
+              if(/(?:horario|abiert|atend|puedo (?:ir|pasar)|hoy)/i.test(pregunta)&&!/clase|curso|materia/i.test(pregunta)) return `${TEXTO_PLANTELES}\n\n${horarioAtencion()}`
+              if(/ingl[eé]s para ni[ñn]os/i.test(lead.curso||'')&&/inicio|empiez|comienz|pr[oó]ximo|nuevo grupo|incorpor|inscripci/i.test(pregunta)) return INICIO_INGLES_NINOS
               if(detectarRevalidacion(pregunta)) return REVALIDACION_MATERIAS_MSG
               if(detectarPreguntaConvenio(pregunta)) return CONVENIOS_LISTA_MSG
               const institucion=detectarInstitucionConvenio(pregunta)
               if(institucion&&CONVENIOS_DETALLE[institucion]) return CONVENIOS_DETALLE[institucion]
-              if(detectarPreguntaDireccion(pregunta)) return `Nos encontramos en:\n\n${TEXTO_PLANTELES}\n\n🕐 Horarios: Lun–Vie 8:00–14:00 y 17:00–20:00 | Sáb 8:00–14:00`
+              if(detectarPreguntaDireccion(pregunta)) return `Nos encontramos en:\n\n${TEXTO_PLANTELES}\n\n🕐 ${horarioAtencion()}`
               const fija=respuestaDatoConfirmado(pregunta,lead.curso,[])
               if(fija && !/cursos? de ingl[eé]s/i.test(pregunta)) return fija.respuesta
               const rag = await fetch(new URL('/api/rag/query', request.url), {
@@ -2557,11 +2567,13 @@ export async function POST(request: Request) {
               if(!rag.ok) throw new Error(`RAG HTTP ${rag.status}`)
               const contexto = await rag.json()
               const respuesta = await askGPT({ fase: 'dudas', leadData: lead, userMessage: pregunta,
-                ragContext: String(contexto.context || '') + '\nResponde solo la duda. No pidas datos, no ofrezcas otro programa ni cambies el proceso.' })
+                history:historialRuta, ragContext: String(contexto.context || '') + `\nCalendario de servicio vigente: ${horarioAtencion()}.` + '\nResponde solo la duda. No pidas datos, no ofrezcas otro programa ni cambies el proceso.' })
               if(respuesta.necesitaRevision||quitarPromesasAsesor(respuesta.respuesta)!==respuesta.respuesta) throw new Error('RUTA_REVISION_CODIGO')
               return respuesta.respuesta
             },
           })
+          if(resultado?.silencio) return provider==='meta'?Response.json({ok:true,canalizado:true}):buildTwiml('')
+          if(resultado?.avisarAsesor) await notifyAsesor(dbRuta,leadId,'lead_pide_humano',leadSnapshot?.nombre,waNumber,leadSnapshot?.curso,originalText)
           if (!resultado) return provider === 'meta' ? Response.json({ ok: true, revisionHumana: true }) : buildTwiml('')
           if(resultado.revision) {
             // El fallback de dudas lleva la pregunta pendiente, y la petición humana avisa con código.
@@ -3082,7 +3094,7 @@ STAGES POSIBLES: primer_contacto, contactado, interesado, inscripcion_pendiente,
           .select('rol, contenido')
           .eq('conversacion_id', conversacionIdOuter)
           .order('created_at', { ascending: false })
-          .limit(6)
+          .limit(12)
         if (histMsgs) {
           convHistory = histMsgs
             .reverse()

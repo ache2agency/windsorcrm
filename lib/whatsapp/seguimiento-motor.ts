@@ -1,3 +1,4 @@
+import { hasLeadName } from './nombres'
 import { personaVencida, siguientePaso, faseParaRuta, preguntaPendiente, type Ruta, type LeadRuta } from './ruta'
 import { esDiplomado, tipoInscripcion } from './programas'
 import { esTrackA, obtenerMensajeReactivacion20h } from './reactivacion-messages'
@@ -119,21 +120,21 @@ export function clasificarCarril(curso: string | null | undefined): CarrilSeguim
 }
 
 function primerNombre(nombre: string | null | undefined): string {
-  return (nombre || '').trim().split(/\s+/)[0]?.replace(/[.,;:]+$/, '') || ''
+  return (hasLeadName(nombre,null) ? nombre! : '').trim().split(/\s+/)[0]?.replace(/[.,;:]+$/, '') || ''
 }
 
 function saludo(nombre: string | null | undefined): string {
   const n = primerNombre(nombre)
-  return n ? `¡Hola ${n}! 😊` : '¡Hola! 😊'
+  return n ? `¡Hola ${n}! 👋` : '¡Hola! 👋'
 }
 
 function paramsNombreDiplomado(ctx: ContextoSeguimiento): string[] {
-  const n = primerNombre(ctx.lead.nombre) || 'Windsor'
+  const n = primerNombre(ctx.lead.nombre) || '😊'
   return [n, ctx.lead.curso || 'tu diplomado']
 }
 
 function templateNombre(ctx: ContextoSeguimiento): string[] {
-  return [primerNombre(ctx.lead.nombre) || 'Windsor']
+  return [primerNombre(ctx.lead.nombre) || '😊']
 }
 
 function mensajeFichaPrograma(ctx: ContextoSeguimiento): DecisionSeguimiento | null {
@@ -441,6 +442,7 @@ export function decidirSeguimientoAutomatico(ctx:ContextoSeguimiento):DecisionSe
   let ruta=ctx.lead.ruta
   if(!ruta) return decidirSeguimientoLegado(ctx) // compatibilidad de librería/tests; la API requiere ruta.
   if(ruta.persona && personaVencida(ruta.persona,(ctx.ahora||new Date()).toISOString())) {ruta={...ruta,persona:null};ctx={...ctx,fase:faseParaRuta(ruta),lead:{...ctx.lead,ruta}}}
+  if(typeof ruta.persona==='object' && ruta.persona) return null
   const next=siguientePaso(ruta)
   if(['pendiente','asesor','con_asesor'].includes(ctx.fase) && !ruta.salida && next!==null && !ruta.pasos[14]) return decidirSeguimientoLegado(ctx)
   if(next===null||ruta.salida==='vacante'||ruta.salida==='perdido'||ruta.persona) return null

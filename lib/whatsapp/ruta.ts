@@ -1,3 +1,4 @@
+import type { PersonaProgramada } from './canalizacion'
 import { hasLeadName } from './nombres'
 import { tipoInscripcion, modalidadesPrograma } from './programas'
 // Catálogo compartido por bot, motor, Kanban y analítica. Añadir pasos no exige columnas nuevas.
@@ -22,7 +23,7 @@ export const BLOQUES = [
 export type EstadoPaso = { estado:'cumplido'|'saltado'; fecha:string; motivo?:string; fuente:string }
 export type Ruta = {
   pasos: Record<string, EstadoPaso>; dudas:string[]; salida?:'archivado'|'perdido'|'vacante'|null;
-  persona?:string|null; quiereInscribirse?:boolean; faltantes?:string[]; infoPendiente?:boolean;
+  persona?:string|PersonaProgramada|null; quiereInscribirse?:boolean; faltantes?:string[]; infoPendiente?:boolean;
   visita?:{texto:string; fecha:string}|null;
 }
 export type LeadRuta = { id?:string; nombre?:string|null; email?:string|null; curso?:string|null; whatsapp?:string|null;
@@ -49,6 +50,7 @@ export function temasDuda(texto:string):string[] {
 export function faseParaRuta(r:Ruta):string {
   if(r.salida==='archivado') return 'archivado'
   if(r.salida==='perdido'||r.salida==='vacante') return r.salida
+  if(typeof r.persona==='object'&&r.persona) return 'con_asesor'
   const n=siguientePaso(r)
   return n===2?'saludo':n===3?'correo':n===4||n===5?'programa':n===6?'info_enviada':n&&n>=13?'inscribiendo':'accion'
 }
@@ -117,7 +119,8 @@ export const equivalenciaFase:Record<string,number|null> = {
 }
 
 // Se invoca solo sin modo humano activo; fechas históricas desconocidas no bloquean.
-export function personaVencida(persona:string, ahora:string):boolean {
+export function personaVencida(persona:string|PersonaProgramada, ahora:string):boolean {
+ if(typeof persona==='object') return false // Canalización fechada vence en CRM, no vuelve a ventas a las 20 h.
  const fecha=Date.parse(persona);return !Number.isFinite(fecha)||Date.parse(ahora)-fecha>=20*3600_000
 }
 

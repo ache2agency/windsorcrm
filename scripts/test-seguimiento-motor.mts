@@ -99,6 +99,7 @@ test('dry-run del endpoint: todas las páginas, canal interno y cooldown tras nu
       return json(msgs(id))
     }
     if (url.pathname.endsWith('/leads')) {
+      if(q.has('ruta->persona')) return json([])
       return json({ id: q.get('id')?.replace('eq.', ''), nombre: null, curso: null, whatsapp: '+525500000000', stage: 'contactado', asignado_a: q.get('id') === 'eq.lead-706' ? 'asesor-1' : null, ruta:{pasos:q.get('id')==='eq.lead-703'?{1:{estado:'cumplido',fecha:hace(4),fuente:'bot'},2:{estado:'cumplido',fecha:hace(4),fuente:'bot'}}:{1:{estado:'cumplido',fecha:hace(4),fuente:'bot'}},dudas:[]},ruta_version:0,paso:1 })
     }
     if (url.pathname.endsWith('/profiles')) return json({ whatsapp: '+527474722466', nombre: 'Canal interno' })
@@ -234,6 +235,7 @@ test('tope diario del endpoint con envíos y persistencia simulados', async (t) 
         ])
       }
       if (url.pathname.endsWith('/leads')) {
+      if(q.has('ruta->persona')) return json([])
         const id = q.get('id')!.replace('eq.', '')
         if (id === 'reciente-a') await new Promise((resolve) => setTimeout(resolve, 15))
         leadsEvaluados.add(id)

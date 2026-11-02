@@ -74,6 +74,11 @@ export async function ejecutarRevisionesPendientes(
   for (const row of rows) {
     if (!row.revision_timeout_desde_at || !row.revision_codigo || !row.modo_humano || row.tomado_por || row.revision_draft) continue
     if (row.provider === 'messenger' || row.provider === 'twilio') continue
+    if(row.lead_id) {
+      const {data:lead,error}=await db.from('leads').select('ruta').eq('id',row.lead_id).maybeSingle()
+      if(error) {resultados.push({conversacion_id:row.id,accion:'error_revision',detalle:error.message});continue}
+      if(typeof lead?.ruta?.persona==='object'&&lead.ruta.persona) continue // Una fecha acordada reemplaza el timeout genérico.
+    }
     const { data: ultimo, error: ultimoError } = await db.from('whatsapp_mensajes').select('created_at')
       .eq('conversacion_id', row.id).eq('rol', 'usuario').order('created_at', { ascending: false }).limit(1).maybeSingle()
     if (ultimoError) { resultados.push({ conversacion_id: row.id, accion: 'error_revision', detalle: ultimoError.message }); continue }
