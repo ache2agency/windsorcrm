@@ -58,7 +58,7 @@ begin
  if l.stage in ('archivado','perdido') or f in ('archivado','perdido','vacante') then
   r=r||jsonb_build_object('salida',case when l.stage in ('archivado','perdido') then l.stage else f end);
  end if;
- if f in ('asesor','pendiente','con_asesor') then r=r||'{"persona":"histórica; fecha desconocida"}'::jsonb; end if;
+ if f in ('asesor','pendiente','con_asesor') and exists(select 1 from whatsapp_conversaciones c where c.lead_id=l.id and c.modo_humano) then r=r||'{"persona":"histórica; fecha desconocida"}'::jsonb; end if;
  return r;
 end $$;
 update public.leads l set ultima_actividad_at=coalesce((select max(c.ultimo_mensaje_at) from public.whatsapp_conversaciones c where c.lead_id=l.id),l.created_at) where ultima_actividad_at is null;

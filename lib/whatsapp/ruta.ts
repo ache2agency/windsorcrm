@@ -1,5 +1,5 @@
 import { hasLeadName } from './nombres'
-import { tipoInscripcion } from './programas'
+import { tipoInscripcion, modalidadesPrograma } from './programas'
 // Catálogo compartido por bot, motor, Kanban y analítica. Añadir pasos no exige columnas nuevas.
 export const PASOS = [
   ['Nuevo','Escribió por primera vez'], ['Nombre','Sabemos cómo se llama'],
@@ -56,7 +56,7 @@ export function preguntaPendiente(r:Ruta, lead:LeadRuta):string {
   if(n===2) return '¿Me compartes tu nombre?'
   if(n===3) return '¿Me compartes tu correo electrónico?'
   if(n===4) return /ingles/.test(normalizar(lead.curso||'')) && !lead.edad ? '¿Para qué edad es el curso?' : '¿Qué programa te interesa? Bachillerato, licenciaturas, maestrías, idiomas o diplomados.'
-  if(n===5) return '¿Qué modalidad prefieres: presencial, en línea o sabatino?'
+  if(n===5) { const opciones=modalidadesPrograma(lead.curso); return opciones ? `¿Qué modalidad prefieres: ${opciones.join(' / ')}?` : '¿En qué modalidad te interesa estudiar?' }
   if(n===6) return 'Te comparto la información del programa.'
   if(n===7||n===8||n===9) return '¿Tienes alguna duda o quieres iniciar tu inscripción? Si tienes convenio o beca, dime cuál para revisarlo.'
   if(n===10||n===11||n===12) return '¿Quieres agendar examen de ubicación, clase de prueba o iniciar tu inscripción?'
@@ -71,7 +71,10 @@ export function preguntaPendiente(r:Ruta, lead:LeadRuta):string {
 export function capturarEntrada(lead:LeadRuta, texto:string, datos:Partial<LeadRuta>, ahora:string):{ruta:Ruta; datos:Partial<LeadRuta>} {
   let r:Ruta=structuredClone(lead.ruta||rutaVacia()); const t=normalizar(texto)
   const l={...lead,...datos}
-  if(r.salida==='archivado') r.salida=null
+  const opciones=modalidadesPrograma(l.curso)
+  if(opciones?.length===1) {datos={...datos,modalidad:opciones[0]};l.modalidad=opciones[0]}
+  if(r.persona && personaVencida(r.persona,ahora)) r.persona=null
+  if(r.salida==='archivado' && texto.trim()) r.salida=null
   if(r.salida==='perdido'||r.salida==='vacante') return {ruta:r,datos:{}}
   const mark=(n:number)=>{r=marcar(r,n,'cumplido',ahora,'bot')}
   const skip=(n:number,motivo:string)=>{r=marcar(r,n,'saltado',ahora,'bot',motivo)}
@@ -87,11 +90,11 @@ export function capturarEntrada(lead:LeadRuta, texto:string, datos:Partial<LeadR
     for(const n of [7,8]) if(!r.pasos[n]) skip(n,'El lead no reportó dudas ni convenio pendiente')
     mark(9)
   }
-  if(/mas adelante|despues les|por ahora no/.test(t)) r.salida='archivado'
+  const rechazo = !/[?¿]/.test(t) && !temas.length && !/no (tengo |hay )?dudas/.test(t) && /^(?:(?:ya )?no me interesa|ya no quiero|ya no,? gracias|mas adelante te escribo|quizas? mas adelante|aun lo estoy pensando|tal vez el proximo ano)(?:[, ]+gracias)?[.!\s]*$/.test(t.trim())
+  if(rechazo) r.salida='archivado'
   // Rechazo requiere revisión humana para Perdido; el bot conserva el paso y detiene seguimiento.
-  if(/no me interesa|ya no quiero|no quiero/.test(t)) {r.salida='archivado';r.persona=ahora}
-  if(/asesor|hablar con (una )?persona|humano/.test(t)) r.persona=ahora
-  if(/busco trabajo|vacante|solicito empleo/.test(t)) r.salida='vacante'
+  if(/(?:quiero|quisiera|necesito|puedo|podria) hablar con (?:un |una |el |la )?(?:asesor|persona|humano)|(?:me puede|puede|podria|que me) llamar (?:alguien|un asesor|una persona)|no quiero hablar con (?:un |el )?bot/.test(t)) r.persona=ahora
+  if(/busco trabajo|solicito empleo|vacantes? (?:de|para) (?:maestr[oa]|docente)|(?:estan|estais) contratando/.test(t)) r.salida='vacante'
   if(r.quiereInscribirse && r.pasos[6]?.estado==='cumplido') {
     for(const n of [7,8,9,10,11,12]) if(!r.pasos[n]) skip(n,n>=10?'Agenda opcional: eligió inscripción directa':'Eligió inscribirse sin esta interacción')
   }
@@ -105,4 +108,9 @@ export const equivalenciaFase:Record<string,number|null> = {
   saludo:1,programa:2,verano_disambig:4,datos:2,info_programa:4,correo:2,info_enviada:6,dudas:7,
   convenios:8,accion:9,examen:9,clase_prueba:9,inscripcion_programa:4,inscripcion:13,inscripcion_pendiente:13,
   inscribiendo:13,asesor:null,pendiente:null,con_asesor:null,archivado:null,vacante:null,seguimiento:null,cerrado:null,perdido:null,
+}
+
+// Se invoca solo sin modo humano activo; fechas históricas desconocidas no bloquean.
+export function personaVencida(persona:string, ahora:string):boolean {
+ const fecha=Date.parse(persona);return !Number.isFinite(fecha)||Date.parse(ahora)-fecha>=20*3600_000
 }

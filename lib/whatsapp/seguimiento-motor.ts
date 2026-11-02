@@ -1,4 +1,4 @@
-import { siguientePaso, faseParaRuta, preguntaPendiente, type Ruta, type LeadRuta } from './ruta'
+import { personaVencida, siguientePaso, faseParaRuta, preguntaPendiente, type Ruta, type LeadRuta } from './ruta'
 import { esDiplomado, tipoInscripcion } from './programas'
 import { esTrackA, obtenerMensajeReactivacion20h } from './reactivacion-messages'
 import { buildMensajeDudasDiplomado20h, buildMensajeReactivacionDiplomado20h } from './reactivacion-diplomados'
@@ -438,8 +438,9 @@ export function recordatorioDatoReciente(
 
 // Mantiene umbrales, plantillas aprobadas, horario y cupos existentes; solo cambia la selección por ruta.
 export function decidirSeguimientoAutomatico(ctx:ContextoSeguimiento):DecisionSeguimiento|null {
-  const ruta=ctx.lead.ruta
+  let ruta=ctx.lead.ruta
   if(!ruta) return decidirSeguimientoLegado(ctx) // compatibilidad de librería/tests; la API requiere ruta.
+  if(ruta.persona && personaVencida(ruta.persona,(ctx.ahora||new Date()).toISOString())) {ruta={...ruta,persona:null};ctx={...ctx,fase:faseParaRuta(ruta),lead:{...ctx.lead,ruta}}}
   const next=siguientePaso(ruta)
   if(['pendiente','asesor','con_asesor'].includes(ctx.fase) && !ruta.salida && next!==null && !ruta.pasos[14]) return decidirSeguimientoLegado(ctx)
   if(next===null||ruta.salida==='vacante'||ruta.salida==='perdido'||ruta.persona) return null

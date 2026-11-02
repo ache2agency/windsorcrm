@@ -305,3 +305,19 @@ export function cambioDePrograma(cursoActual: string | null | undefined, msg: st
   }
   return nuevo
 }
+
+// Modalidades respaldadas por el catálogo y reglasNegocio.ts (Psicología solo presencial).
+// null: no hay lista confirmada; preguntar sin ofrecer opciones inventadas.
+export function modalidadesPrograma(curso?: string | null): string[] | null {
+  if (esDiplomado(curso)) return ['En línea']
+  if (curso === 'Psicología') return ['Presencial']
+  if (/ online$/i.test(curso || '')) return ['En línea']
+  if (esLicenciatura(curso) || esInglesIdioma(curso)) return ['Presencial', 'En línea']
+  return null
+}
+export function esTextoPrograma(texto: string): boolean {
+  const t = normDiplomado(texto)
+  return !!detectarPrograma(texto) || matchOfertaEducativa(texto).ambiguous ||
+    [...PROGRAMAS_LICENCIATURA, ...PROGRAMAS_DIPLOMADO, ...PROGRAMAS_VERANO_CORTO,
+      'Inglés', 'Derecho', 'Bachillerato', 'Maestrías', 'Idiomas'].some(p => normDiplomado(p) === t)
+}

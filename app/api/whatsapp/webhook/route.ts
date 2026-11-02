@@ -1,4 +1,4 @@
-import { responderRuta, confirmarEntregaRuta } from '@/lib/whatsapp/ruta-bot'
+import { responderRuta, confirmarEntregaRuta, reintentarConflicto } from '@/lib/whatsapp/ruta-bot'
 import { esCanalInternoSeguimiento } from '@/lib/whatsapp/seguimiento-motor'
 import { INSCRIPCION_ONLINE_MSG, INSCRIPCION_BACHILLERATO_MSG, INSCRIPCION_DIPLOMADO_MSG, INSCRIPCION_IDIOMA_MSG, INSCRIPCION_HABILIDADES_MSG, INSCRIPCION_DESCONOCIDA_MSG, mensajeInscripcionPara, resolverTipoInscripcion } from '@/lib/whatsapp/inscripcion'
 import { ADMIN_WA_ALERTA, MENSAJE_ESPERA, quitarPromesasAsesor } from '@/lib/whatsapp/atencion'
@@ -685,6 +685,12 @@ async function parseIncomingWhatsAppMessage(
             referral,
           }
         }
+      }
+      if (message.type === 'location') return { provider: 'meta', body: '__LOCATION__', from: normalizedFrom, waNumber: normalizedFrom, profileName, rawPayload: rawPayloadObj, referral }
+      if (message.type === 'interactive') {
+        const interactive=(message as Record<string, unknown>).interactive as {button_reply?:{title?:string};list_reply?:{title?:string}}|undefined
+        const title=interactive?.button_reply?.title||interactive?.list_reply?.title
+        if(title) return {provider:'meta',body:title,from:normalizedFrom,waNumber:normalizedFrom,profileName,rawPayload:rawPayloadObj,referral}
       }
       // Mensajes multimedia (audio, imagen, video, sticker, etc.)
       const mediaTypes = ['audio', 'image', 'video', 'sticker', 'document', 'voice']
@@ -1743,6 +1749,8 @@ async function solicitarRevisionCodigo(params: {
   supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
   conversacionId: string, provider: WhatsAppProvider, waNumber: string,
   leadSnapshot: Pick<LeadSnapshot, 'nombre' | 'curso'> | null, originalText: string,
+  mensaje?: string,
+  respuestaYaEnviada?: boolean,
 }): Promise<Response> {
   const { supabase, conversacionId, provider, waNumber, leadSnapshot, originalText } = params
   // Asignar código de a-z según cuántos pendientes hay. Un código solo cuenta como
@@ -1763,8 +1771,8 @@ async function solicitarRevisionCodigo(params: {
   } catch { /* usar 'a' por defecto */ }
 
   // Mensaje al lead avisando que se escala con un asesor
-  const msgEspera = MENSAJE_ESPERA
-  await supabase.from('whatsapp_mensajes').insert([{
+  const msgEspera = params.mensaje || MENSAJE_ESPERA
+  if(!params.respuestaYaEnviada) await supabase.from('whatsapp_mensajes').insert([{
     conversacion_id: conversacionId,
     rol: 'bot',
     contenido: msgEspera,
@@ -1789,6 +1797,7 @@ async function solicitarRevisionCodigo(params: {
   } catch (notifErr) {
     console.error('[REVISION] Error notificando a Harold:', notifErr)
   }
+  if(params.respuestaYaEnviada) return provider==='meta'?Response.json({ok:true}):buildTwiml('')
   return buildProviderResponse(provider, msgEspera, waNumber)
 }
 
@@ -2516,6 +2525,10 @@ export async function POST(request: Request) {
         try {
           const resultado = await responderRuta(dbRuta, leadId, originalText, {
             detectarPrograma,
+            catalogoGeneral: CATALOGO_OFERTA,
+            vacante: VACANTE_DOCENTE_MSG,
+            acuse: incoming.mediaKind==='image' && incoming.body!=='__MEDIA__'?'Gracias por la imagen.':undefined,
+            inscripcionPresencial: lead => buildInscripcionPresencialMsg(lead.nombre,lead.email,lead.curso,lead.whatsapp),
             catalogo: (texto,lead) => mensajeCategoriaInteres(detectarCategoriaInteres(texto),lead.nombre||'')?.replace(/^¡Hola[^!]*! 😊\s*/, '')||INSCRIPCION_DESCONOCIDA_MSG,
             agenda: texto => /clase/i.test(texto)?buildClasePruebaMsg():EXAMEN_UBICACION_MSG,
             info: (curso, lead) => buildProgramInfoMessage(curso, request.url, lead),
@@ -2532,7 +2545,8 @@ export async function POST(request: Request) {
                 body: JSON.stringify({ question: `${lead.curso || 'Instituto Windsor'}: ${pregunta}`, solo_contexto: true }),
                 signal: AbortSignal.timeout(8000),
               })
-              const contexto = rag.ok ? await rag.json() : {}
+              if(!rag.ok) throw new Error(`RAG HTTP ${rag.status}`)
+              const contexto = await rag.json()
               const respuesta = await askGPT({ fase: 'dudas', leadData: lead, userMessage: pregunta,
                 ragContext: String(contexto.context || '') + '\nResponde solo la duda. No pidas datos, no ofrezcas otro programa ni cambies el proceso.' })
               if(respuesta.necesitaRevision||quitarPromesasAsesor(respuesta.respuesta)!==respuesta.respuesta) throw new Error('RUTA_REVISION_CODIGO')
@@ -2540,16 +2554,43 @@ export async function POST(request: Request) {
             },
           })
           if (!resultado) return provider === 'meta' ? Response.json({ ok: true, revisionHumana: true }) : buildTwiml('')
+          if(resultado.revision) {
+            // El fallback de dudas lleva la pregunta pendiente, y la petición humana avisa con código.
+            if(resultado.info||resultado.link||resultado.convenio) {
+              // Primero entregar; confirmar evidencia únicamente tras el envío.
+              const respuesta=await solicitarRevisionCodigo({supabase:dbRuta,conversacionId:conversacionIdOuter,provider,waNumber,leadSnapshot,originalText,mensaje:resultado.mensaje})
+              await reintentarConflicto(()=>confirmarEntregaRuta(dbRuta,leadId!,resultado))
+              return respuesta
+            }
+            return await solicitarRevisionCodigo({supabase:dbRuta,conversacionId:conversacionIdOuter,provider,waNumber,leadSnapshot,originalText,mensaje:resultado.mensaje.includes('Revisaremos')?undefined:resultado.mensaje})
+          }
           const respuesta = await buildProviderResponse(provider, resultado.mensaje, waNumber)
-          await dbRuta.from('whatsapp_mensajes').insert([{ conversacion_id: conversacionIdOuter, rol: 'bot', contenido: resultado.mensaje }])
-          await confirmarEntregaRuta(dbRuta, leadId, resultado)
-          await dbRuta.from('whatsapp_conversaciones').update({ fase: resultado.fase, estado: 'abierta' }).eq('id', conversacionIdOuter)
+          // Un fallo después de entregar no debe duplicar el mensaje al usuario.
+          try {
+            const {error:mensajeError}=await dbRuta.from('whatsapp_mensajes').insert([{ conversacion_id: conversacionIdOuter, rol: 'bot', contenido: resultado.mensaje }])
+            if(mensajeError) throw mensajeError
+            await reintentarConflicto(()=>confirmarEntregaRuta(dbRuta,leadId!,resultado))
+            const {error:faseError}=await dbRuta.from('whatsapp_conversaciones').update({ fase: resultado.fase, estado: 'abierta' }).eq('id', conversacionIdOuter)
+            if(faseError) throw faseError
+          } catch(error) {
+            try {await dbRuta.from('lead_activities').insert({lead_id:leadId,event_type:'ruta_error',title:'Error después de entregar respuesta de ruta',detail:String(error)})} catch(e) {console.error('[ruta17] Actividad fallida:',e)}
+            try {await solicitarRevisionCodigo({supabase:dbRuta,conversacionId:conversacionIdOuter,provider,waNumber,leadSnapshot,respuestaYaEnviada:true,originalText:`Error después de entregar: ${String(error)}. Entrada: ${originalText}`})} catch(e) {
+              console.error('[ruta17] Revisión posterior fallida:',e)
+              try {await sendMetaWhatsAppMessage({to:ADMIN_WA_ALERTA,body:`⚠️ Respuesta entregada pero falló su registro: ${waNumber} — ${String(e)}`})} catch(alerta) {console.error('[ruta17] Alerta fallida:',alerta)}
+            }
+          }
           return respuesta
         } catch (error) {
-          // Nunca caer al flujo legado: puede mandar ventas después de recibir un formulario.
-          if(error instanceof Error && error.message==='RUTA_REVISION_CODIGO') return solicitarRevisionCodigo({supabase:dbRuta,conversacionId:conversacionIdOuter,provider,waNumber,leadSnapshot,originalText})
           console.error('[ruta17] Respuesta pendiente de revisión:', error)
-          return provider === 'meta' ? Response.json({ ok: true, rutaPendiente: true }) : buildTwiml('')
+          try {await dbRuta.from('lead_activities').insert({lead_id:leadId,event_type:'ruta_error',title:'Error de ruta enviado a revisión',detail:String(error)})} catch(e) {console.error('[ruta17] Actividad fallida:',e)}
+          try {
+            return await solicitarRevisionCodigo({supabase:dbRuta,conversacionId:conversacionIdOuter,provider,waNumber,leadSnapshot,originalText:`${originalText} (error: ${String(error)})`})
+          } catch(revisionError) {
+            console.error('[ruta17] Falló persistencia de revisión:',revisionError)
+            // Incluso con BD caída se intenta entregar el acuse y avisar directamente.
+            try {await sendMetaWhatsAppMessage({to:ADMIN_WA_ALERTA,body:`⚠️ Ruta sin revisión persistida: ${waNumber} — ${String(revisionError)}`})} catch(e) {console.error('[ruta17] Alerta fallida:',e)}
+            return buildProviderResponse(provider,MENSAJE_ESPERA,waNumber)
+          }
         }
       }
     }

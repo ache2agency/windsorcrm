@@ -178,6 +178,86 @@ test('RLS: lectura compartida solo equipo; RPC, respaldos y mutaciones de ruta n
   assert.equal(permissions.rows[0].ok,false)
  } finally {await pg.exec('reset role');await pg.query("select set_config('test.uid','',false)")}
 })
+test('11-bis: menciones ambiguas nunca detienen y peticiones explícitas sí',()=>{
+ for(const texto of ['diplomado en Recursos Humanos','¿el asesor me puede mandar el temario?','¿hay vacantes en el grupo sabatino?','no quiero perder la promo, ¿cuándo inicia?','por ahora no tengo dudas','no me interesa eso, ¿cuál es el precio?']) {
+  const r=capturarEntrada({ruta:rutaVacia()},texto,{},fecha).ruta
+  assert.ok(!r.persona,texto);assert.ok(!r.salida,texto)
+ }
+ for(const texto of ['no me interesa','no me interesa, gracias','ya no quiero','ya no, gracias','más adelante te escribo']) assert.equal(capturarEntrada({ruta:rutaVacia()},texto,{},fecha).ruta.salida,'archivado',texto)
+ for(const texto of ['quiero hablar con un asesor','me puede llamar alguien','no quiero hablar con un bot']) assert.equal(capturarEntrada({ruta:rutaVacia()},texto,{},fecha).ruta.persona,fecha,texto)
+ for(const texto of ['busco trabajo','solicito empleo','vacante de maestro','¿están contratando?']) assert.equal(capturarEntrada({ruta:rutaVacia()},texto,{},fecha).ruta.salida,'vacante',texto)
+})
+test('11-bis: nombres del catálogo y respuestas breves no son nombres personales',()=>{
+ const l={ruta:marcar(rutaVacia(),1,'cumplido',fecha,'bot')}
+ for(const texto of ['Psicología','Enfermería','Derecho','Inglés','Info','Precio','Ok','Sí','Farmacología','Francés','No tengo dudas']) assert.equal(datosEntrada(l,texto,deps.detectarPrograma).nombre,undefined,texto)
+ assert.equal(datosEntrada(l,'Ana María',deps.detectarPrograma).nombre,'Ana María')
+})
+async function nuevoLeadRuta(curso='Inglés para adultos',conInfo=false) {
+ const id=randomUUID();await pg.query('insert into leads(id,nombre,email,whatsapp,curso) values($1,$2,$3,$4,$5)',[id,'Ana','ana@example.test','+527471234001',curso])
+ let l=await cargarRuta(db,id);let r=capturarEntrada(l,'',{modalidad:'En línea'},fecha).ruta
+ if(conInfo) r=marcar(r,6,'cumplido',fecha,'envio')
+ await guardarRuta(db,l,r,{modalidad:'En línea'});return id
+}
+test('11-bis: timeout RAG entrega pendiente y marca revisión, sin acreditar duda resuelta',async()=>{
+ const id=await nuevoLeadRuta('Inglés para adultos',true)
+ const out=await responderRuta(db,id,'¿Cuánto cuesta?',{...deps,duda:async()=>{throw new DOMException('Timeout 8 s','TimeoutError')}})
+ assert.equal(out!.revision,true);assert.match(out!.mensaje,/duda|inscripción/);assert.equal(out!.convenio,false)
+ const source=await readFile(new URL('../app/api/whatsapp/webhook/route.ts',import.meta.url),'utf8')
+ const bloque=source.slice(source.indexOf('// Ruta 17:'),source.indexOf('// Si la conversación está en modo humano'))
+ assert.match(bloque,/if\(resultado.revision\)/);assert.match(bloque,/solicitarRevisionCodigo/);assert.match(bloque,/lead_activities/);assert.doesNotMatch(bloque,/rutaPendiente: true/)
+})
+test('11-bis: dos mensajes simultáneos recargan versión y ambos obtienen respuesta',async()=>{
+ const id=await nuevoLeadRuta('Inglés para adultos',true)
+ const outs=await Promise.all(['¿Cuál es el precio?','¿Cuál es el horario?'].map(t=>responderRuta(db,id,t,deps)))
+ assert.equal(outs.length,2);for(const out of outs) assert.match(out!.mensaje,/Respuesta a la duda/)
+ assert.deepEqual((await cargarRuta(db,id)).ruta!.dudas.sort(),['horario','precio'])
+})
+test('11-bis: conflictos dos veces reintentan; RPC caído sale a revisión del webhook',async()=>{
+ const {reintentarConflicto}=await import('../lib/whatsapp/ruta-bot')
+ let n=0;assert.equal(await reintentarConflicto(async()=>{if(n++<2) throw new Error('Conflicto de ruta');return 'respuesta'}),'respuesta');assert.equal(n,3)
+ n=0;await assert.rejects(()=>reintentarConflicto(async()=>{n++;throw new Error('Conflicto de ruta')}),/Conflicto/);assert.equal(n,3)
+})
+test('11-bis: diplomado una modalidad automática, botón inscripción entrega PDF bancario y enlace prellenado',async()=>{
+ const id=await nuevoLeadRuta('Diplomado en Enfermería')
+ const out=await responderRuta(db,id,'Me quiero inscribir',deps)
+ assert.match(out!.mensaje,/Información oficial/);assert.match(out!.mensaje,/1Hj9rRk1zHMWGnG_CjF287W-hxY2AoTe9/);assert.match(out!.mensaje,/inscripcion\/diplomados\?/);assert.match(out!.mensaje,/wa=%2B527471234001/);assert.match(out!.mensaje,/nombre=Ana/)
+ assert.equal((await cargarRuta(db,id)).ruta!.pasos[5].estado,'cumplido')
+ assert.doesNotMatch(out!.mensaje,/modalidad prefieres/)
+ await confirmarEntregaRuta(db,id,out!);assert.equal((await cargarRuta(db,id)).ruta!.pasos[13].estado,'cumplido')
+})
+test('11-bis: archivo conserva rechazo al confirmar; mensaje nuevo reactiva y persona vencida retoma',async()=>{
+ const id=await nuevoLeadRuta('Inglés para adultos',true)
+ let out=await responderRuta(db,id,'no me interesa',deps);await confirmarEntregaRuta(db,id,out!)
+ assert.equal((await cargarRuta(db,id)).ruta!.salida,'archivado')
+ out=await responderRuta(db,id,'¿Cuál es el horario?',deps);assert.match(out!.mensaje,/Respuesta a la duda/);assert.equal((await cargarRuta(db,id)).ruta!.salida,null)
+ let l=await cargarRuta(db,id);await guardarRuta(db,l,{...l.ruta!,persona:'histórica; fecha desconocida'})
+ out=await responderRuta(db,id,'Hola',deps);assert.ok(!out!.revision);assert.match(out!.mensaje,/duda|inscripción/)
+ l=await cargarRuta(db,id);await guardarRuta(db,l,{...l.ruta!,persona:new Date(Date.now()-21*3600_000).toISOString()})
+ out=await responderRuta(db,id,'Hola',deps);assert.ok(!out!.revision)
+ out=await responderRuta(db,id,'quiero hablar con un asesor',deps);assert.equal(out!.revision,true)
+})
+test('11-bis: motor retoma persona vencida sin cambiar cadencia',()=>{
+ let r=rutaVacia();for(let n=1;n<=9;n++) r=marcar(r,n,'cumplido',fecha,'bot')
+ r.persona='histórica; fecha desconocida'
+ const base={fase:'pendiente',lead:{curso:'Inglés para adultos',ruta:r},horasDesdeLead:20,horasDesdeBot:20,diasDesdeLead:20/24,dentroVentana24h:true,ahora:new Date(fecha)}
+ assert.equal(decidirSeguimientoAutomatico(base)?.accion,'texto')
+ r.persona=new Date(Date.parse(fecha)-21*3600_000).toISOString();assert.equal(decidirSeguimientoAutomatico(base)?.accion,'texto')
+})
+test('11-bis: multimedia y ubicación acusan y conservan pendiente sin inventar datos',async()=>{
+ const id=await nuevoLeadRuta('Inglés para adultos',true)
+ for(const texto of ['__MEDIA__','__LOCATION__']) {
+  const out=await responderRuta(db,id,texto,deps);assert.match(out!.mensaje,/Gracias/);assert.match(out!.mensaje,/duda|inscripción/)
+ }
+})
+test('11-bis: botones de dudas, espera, información y A/B licenciatura conservan respuesta',async()=>{
+ const id=await nuevoLeadRuta('Licenciatura en Inglés',true)
+ let out=await responderRuta(db,id,'Sí, tengo dudas',deps);assert.match(out!.mensaje,/Con gusto resuelvo tus dudas/)
+ out=await responderRuta(db,id,'Necesito más tiempo',deps);assert.match(out!.mensaje,/Te damos espacio/)
+ out=await responderRuta(db,id,'Sí, envíame la info',deps);assert.match(out!.mensaje,/Información oficial/)
+ out=await responderRuta(db,id,'Quiero apartar mi lugar',deps);await confirmarEntregaRuta(db,id,out!)
+ out=await responderRuta(db,id,'A',deps);assert.match(out!.mensaje,/Información bancaria/)
+ out=await responderRuta(db,id,'B',{...deps,inscripcionPresencial:()=> 'Documentos para inscripción presencial'});assert.match(out!.mensaje,/inscripción presencial/)
+})
 test('reversa local conserva documentos, nuevos leads e historial y retira automatización nueva',async()=>{
  const antes=(await pg.query('select count(*)::int n from inscripciones')).rows[0]
  const eventos=(await pg.query('select count(*)::int n from lead_ruta_eventos')).rows[0]

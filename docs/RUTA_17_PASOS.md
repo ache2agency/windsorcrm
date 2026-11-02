@@ -78,3 +78,17 @@ Vista EMBUDO, mismos filtros de programa, origen y asesor. Todos los miembros de
 El numerador de cada paso incluye solo cumplidos, no saltados. Promedios usan pares de fechas comprobadas. Cohortes por lunes de México: se muestra inscripción dentro de 30/60 días, número de leads ya maduros y semanas incompletas. Los inscritos históricos sin fecha se identifican aparte y no se inventa una fecha de cierre; no son una tasa histórica exacta de 30/60 días.
 
 Pruebas locales: `npm test`, `npx tsc --noEmit`, `npm run build -- --webpack`. Proveedores simulados, PGlite, sin SQL remoto ni envíos reales.
+
+## Correcciones 11-bis (2-nov-2026, mismo PR #54)
+
+Las menciones de asesor, Recursos Humanos o vacantes de un grupo no pausan ventas. Solo una petición explícita de persona abre revisión con código y sus plazos existentes de 4/20 h. Los rechazos completos archivan, conservan el progreso y permiten retomar al escribir otra vez; una pregunta o «no tengo dudas» prevalece ante un rechazo ambiguo. El registro de entrega no cuenta como una nueva entrada.
+
+La construcción de respuesta recarga y reintenta hasta dos veces ante conflicto de versión, antes de enviar. Si falla RAG/GPT, se entrega la pregunta pendiente y se abre revisión con código para la duda. Los otros errores se registran en lead_activities y se intenta abrir la misma revisión; si falla la persistencia, se intenta avisar directamente a Harold y entregar el mensaje de espera. Un fallo de registro después de entregar no vuelve a enviar la respuesta al prospecto. Una caída del proveedor de WhatsApp puede impedir entregar; el código no puede garantizar recepción durante esa caída.
+
+Nombre usa el catálogo compartido. Modalidad usa opciones confirmadas en programas.ts, respaldadas por reglasNegocio.ts: diplomados en línea, Psicología presencial y variantes online en línea. Para programas sin lista confirmada se pregunta modalidad sin inventar opciones. «Sabatino» sigue siendo una respuesta válida de horario/modalidad heredada.
+
+Botones de inscripción conservan los procesos aprobados y los requisitos previos de la ruta. Diplomados usan el texto de PR #46 con PDF bancario y enlace prellenado; documentos usan mensajeDocumentosInscripcion; licenciaturas conservan A/B en línea/presencial. Las categorías, información, dudas, tiempo, reactivación y examen/clase se conectan a la ruta sin acreditar citas, documentos ni inscripción por intención. El inventario completo y conteos están en el reporte 11-bis de codex/historial de la carpeta madre.
+
+Audio transcrito e imágenes descritas conservan el procesamiento anterior y los archivos siguen guardándose en CRM. La imagen descrita lleva acuse; los archivos no interpretados y ubicación llevan acuse más pregunta pendiente. Ubicación e interacciones button_reply/list_reply ahora se reconocen al recibir Meta. No se acredita ningún documento por haber recibido una foto o un PDF.
+
+El SQL (solo archivo) evita crear persona histórica si no existe modo humano activo. No se alteran tiempos, cupo diario de 40 ni crons. `scripts/conteo-ruta-17.mts` solo hace GET y simula migración/motor en PGlite; el resultado depende del instante y cupo disponible al leer.
