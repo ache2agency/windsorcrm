@@ -216,7 +216,7 @@ begin
   end if;
  end loop;
  perform guardar_ruta_lead(l.id,l.ruta_version,r,jsonb_build_object('curso',s.datos->>'curso','modalidad',s.datos->>'modalidad',
-  'nombre',coalesce(nullif(l.nombre,''),nullif(trim(concat_ws(' ',s.datos->>'nombres',s.datos->>'apellido_paterno',s.datos->>'apellido_materno)),'')),
+  'nombre',coalesce(nullif(l.nombre,''),nullif(trim(concat_ws(' ',s.datos->>'nombres',s.datos->>'apellido_paterno',s.datos->>'apellido_materno')),'')),
   'email',coalesce(nullif(l.email,''),s.datos->>'email'),
   'edad',case when s.datos->>'edad' ~ '^[0-9]{1,3}$' and (s.datos->>'edad')::int between 1 and 110 then (s.datos->>'edad')::int else l.edad end),
   'formulario',greatest(l.paso,14),case when l.paso=17 then 'Inscrito' else 'Inscripción' end);
