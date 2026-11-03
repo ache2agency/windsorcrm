@@ -1,5 +1,5 @@
 import { fichaDiplomado } from '@/lib/whatsapp/ficha-diplomado'
-import { horarioAtencion, avisoVisitaInhabil, INICIO_INGLES_NINOS } from '@/lib/whatsapp/servicio-calendario'
+import { horarioAtencion, avisoVisitaInhabil, INICIO_INGLES_NINOS, esPreguntaHorarioPlantel, esPreguntaInicioNinos } from '@/lib/whatsapp/servicio-calendario'
 import { urlInscripcion } from '@/lib/inscripcion/enlace'
 import { responderRuta, confirmarEntregaRuta, reintentarConflicto } from '@/lib/whatsapp/ruta-bot'
 import { esCanalInternoSeguimiento } from '@/lib/whatsapp/seguimiento-motor'
@@ -2550,8 +2550,8 @@ export async function POST(request: Request) {
             agenda: texto => /clase/i.test(texto)?buildClasePruebaMsg():EXAMEN_UBICACION_MSG,
             info: (curso, lead) => buildProgramInfoMessage(curso, request.url, lead, historialRuta),
             duda: async (pregunta, lead) => {
-              if(/(?:horario|abiert|atend|puedo (?:ir|pasar)|hoy)/i.test(pregunta)&&!/clase|curso|materia/i.test(pregunta)) return `${TEXTO_PLANTELES}\n\n${horarioAtencion()}`
-              if(/ingl[eé]s para ni[ñn]os/i.test(lead.curso||'')&&/inicio|empiez|comienz|pr[oó]ximo|nuevo grupo|incorpor|inscripci/i.test(pregunta)) return INICIO_INGLES_NINOS
+              if(esPreguntaHorarioPlantel(pregunta)) return `${TEXTO_PLANTELES}\n\n${horarioAtencion()}`
+              if(/ingl[eé]s para ni[ñn]os/i.test(lead.curso||'')&&esPreguntaInicioNinos(pregunta)) return INICIO_INGLES_NINOS
               if(detectarRevalidacion(pregunta)) return REVALIDACION_MATERIAS_MSG
               if(detectarPreguntaConvenio(pregunta)) return CONVENIOS_LISTA_MSG
               const institucion=detectarInstitucionConvenio(pregunta)

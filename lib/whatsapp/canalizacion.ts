@@ -1,7 +1,7 @@
 import type { LeadRuta } from './ruta'
 export type PersonaProgramada = {
   desde: string; hasta?: string|null; a: string; motivo: string;
-  estado: 'pendiente'|'vencida'; ultimoAcuseDia?: string; aviso24At?: string;
+  origen?: 'automatica'; estado: 'pendiente'|'vencida'; ultimoAcuseDia?: string; aviso24At?: string;
 }
 export const diaMexico=(fecha:string)=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(fecha))
 export function textoCanalizacion(p:PersonaProgramada,ahora:string):string {
@@ -17,4 +17,9 @@ export function esCertificacion(texto:string):boolean {
 export function textoPersona(lead:LeadRuta,ahora=new Date().toISOString()):string {
   const p=lead.ruta?.persona
   return typeof p==='object'&&p ? textoCanalizacion(p,ahora) : p?'Atención humana pendiente':''
+}
+
+// Solo las conversiones del motor conservan el timeout original; las marcas explícitas mantienen su atención humana.
+export function esPersonaAutomatica(p: unknown): boolean {
+  return !!p && typeof p==='object' && 'origen' in p && p.origen==='automatica'
 }

@@ -1,4 +1,4 @@
-import { diaMexico, textoCanalizacion, esCertificacion } from './canalizacion'
+import { diaMexico, textoCanalizacion, esCertificacion, esPersonaAutomatica } from './canalizacion'
 import { mensajeDocumentosInscripcion } from './seguimiento-motor'
 import { inscripcionDiplomadoFormularioMsg, mensajeInscripcionPara, INSCRIPCION_ONLINE_MSG, INSCRIPCION_DESCONOCIDA_MSG } from './inscripcion'
 import { tipoInscripcion, esTextoPrograma } from './programas'
@@ -53,7 +53,7 @@ async function construirRespuestaRuta(db:SupabaseClient,id:string,texto:string,d
   if(!hasLeadProgram(lead.curso)) lead.curso=null
   if(lead.ruta?.salida==='perdido'||lead.ruta?.salida==='vacante') return null
   const now=dep.ahora||new Date().toISOString()
-  if(typeof lead.ruta?.persona==='object' && lead.ruta.persona) {
+  if(typeof lead.ruta?.persona==='object' && lead.ruta.persona && !esPersonaAutomatica(lead.ruta.persona)) {
     const p=lead.ruta.persona
     if(p.ultimoAcuseDia===diaMexico(now)) return {mensaje:'',fase:'con_asesor',silencio:true}
     const ruta={...lead.ruta,persona:{...p,ultimoAcuseDia:diaMexico(now)}}

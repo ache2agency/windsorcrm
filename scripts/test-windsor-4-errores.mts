@@ -58,7 +58,7 @@ test('templates: texto aprobado con parámetros literales y faltantes seguros', 
   assert.equal(await textoTemplateEnviado('x', [], async () => null), null)
 })
 
-for (const escenario of ['recordatorio', 'reactivar', 'sin_ventana', 'sin_claim', 'dry', 'falla_envio', 'harold_respondio']) {
+for (const escenario of ['recordatorio', 'reactivar', 'sin_ventana', 'sin_claim', 'dry', 'falla_envio', 'harold_respondio', 'automatica_sin_ventana', 'programada']) {
   test(`worker de revisión con Supabase simulado: ${escenario}`, async t => {
     const row = revision(escenario === 'recordatorio' ? 4 : 20)
     const rpc: Array<{ nombre: string; body: Record<string, unknown> }> = [], enviados: Array<{ to: string; body: string }> = []
@@ -79,8 +79,8 @@ for (const escenario of ['recordatorio', 'reactivar', 'sin_ventana', 'sin_claim'
         if (q.has('revision_timeout_desde_at')) return Response.json([row, revision(500, { id: 'legacy', revision_timeout_desde_at: null })])
         return Response.json({ ...row, ...(escenario === 'harold_respondio' ? { revision_draft: 'Respuesta', revision_timeout_desde_at: null } : {}) })
       }
-      if (url.pathname.endsWith('/whatsapp_mensajes')) return Response.json({ created_at: hace(escenario === 'sin_ventana' ? 25 : 21) })
-      if (url.pathname.endsWith('/leads')) return Response.json({ curso: 'Diplomado en Epidemiología' })
+      if (url.pathname.endsWith('/whatsapp_mensajes')) return Response.json({ created_at: hace(escenario === 'sin_ventana'||escenario==='automatica_sin_ventana' ? 25 : 21) })
+      if (url.pathname.endsWith('/leads')) return Response.json({ curso: 'Diplomado en Epidemiología', ...(['automatica_sin_ventana','programada'].includes(escenario)?{ruta:{pasos:{},dudas:[],persona:{desde:hace(25),a:'coordinación',motivo:'Prueba',estado:'pendiente',...(escenario==='programada'?{hasta:hace(-24)}:{origen:'automatica'})}}}:{}) })
       assert.fail(`consulta inesperada ${url.pathname}`)
     })
     const results = await ejecutarRevisionesPendientes(db, escenario === 'dry', ahora, async m => {
@@ -90,21 +90,32 @@ for (const escenario of ['recordatorio', 'reactivar', 'sin_ventana', 'sin_claim'
     })
     assert.ok(rpc.every(r => r.body.p_id === row.id), 'legacy nunca se reclama')
     if (escenario === 'dry') { assert.equal(rpc.length, 0); assert.equal(enviados.length, 0); assert.equal(results[0]?.accion, 'dry_revision_reactivar'); return }
+    if (escenario === 'programada') {assert.equal(rpc.length,0);assert.equal(enviados.length,0);assert.equal(results.length,0);return}
     if (escenario === 'sin_claim' || escenario === 'harold_respondio') { assert.equal(enviados.length, 0); return }
     const fin = rpc.find(r => r.nombre === 'terminar_revision_timeout')!.body
     if (escenario === 'falla_envio') { assert.equal(fin.p_exito, false); assert.equal(results[0]?.accion, 'error_revision'); return }
     assert.equal(fin.p_exito, true)
-    if (escenario === 'sin_ventana') { assert.equal(enviados.length, 0); assert.equal(fin.p_accion, 'reactivar_sin_ventana'); return }
+    if (escenario === 'sin_ventana'||escenario==='automatica_sin_ventana') { assert.equal(enviados.length, 0); assert.equal(fin.p_accion, 'reactivar_sin_ventana'); return }
     assert.equal(enviados.length, 1)
     if (escenario === 'recordatorio') { assert.equal(enviados[0]!.to, ADMIN_WA_ALERTA); assert.match(enviados[0]!.body, /\[X\]/); assert.equal(fin.p_accion, 'recordatorio') }
     else { assert.equal(enviados[0]!.to, row.whatsapp); assert.equal(fin.p_accion, 'reactivar'); assert.equal((fin.p_raw as { wamid: string }).wamid, 'wamid.reply'); sinPromesas(enviados[0]!.body) }
   })
 }
 
+const preguntas10ter:Record<string,string>={
+ ter_inscripciones:'¿siguen abiertas las inscripciones de Psicología?',
+ ter_llamada:'¿me pueden atender por llamada?',
+ ter_precio:'¿hoy cuánto cuesta?',
+ ter_precio_ninos:'¿cuánto cuesta la inscripción?',
+ ter_hora:'¿a qué hora abren?',
+ ter_abiertos:'¿están abiertos hoy?',
+ ter_visita:'¿puedo pasar hoy?',
+ ter_inicio_ninos:'¿cuándo inician los nuevos grupos?',
+}
 // Se recorre el webhook real con servicios simulados, sin datos ni envíos reales.
-for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'confirmacion', 'revision_nueva', 'revalidacion', 'ia_promesa', 'rag_timeout', 'rpc_caido', 'persona_explicita', 'ubicacion', 'audio', 'imagen', 'america_correo', 'cerrada_vuelve', 'felipe_certificacion', 'programa_precio', 'programa_licenciatura', 'programa_lista_doble_precio', 'programa_lista_doble_licenciatura']) {
+for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'confirmacion', 'revision_nueva', 'revalidacion', 'ia_promesa', 'rag_timeout', 'rpc_caido', 'persona_explicita', 'ubicacion', 'audio', 'imagen', 'america_correo', 'cerrada_vuelve', 'felipe_certificacion', 'programa_precio', 'programa_licenciatura', 'programa_lista_doble_precio', 'programa_lista_doble_licenciatura', ...Object.keys(preguntas10ter)]) {
   test(`webhook real: ${escenario}`, async t => {
-    const usaIA = ['elegir_diplomado','rag_timeout','persona_explicita','revision_nueva', 'ia_promesa', 'programa_precio','programa_lista_doble_precio'].includes(escenario)
+    const usaIA = escenario.startsWith('ter_') || ['elegir_diplomado','rag_timeout','persona_explicita','revision_nueva', 'ia_promesa', 'programa_precio','programa_lista_doble_precio'].includes(escenario)
     const esRevision = ['revision_nueva','ia_promesa','rag_timeout','rpc_caido','persona_explicita'].includes(escenario)
     const env = { ...process.env }
     Object.assign(process.env, { NEXT_PUBLIC_SUPABASE_URL: 'https://webhook-test.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'fake', WHATSAPP_PROVIDER: 'meta', META_WHATSAPP_TOKEN: 'fake', META_PHONE_NUMBER_ID: 'fake', OPENAI_API_KEY: usaIA ? 'fake' : '' })
@@ -122,12 +133,13 @@ for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'co
     if(escenario==='felipe_certificacion') {fase='programa';lead.curso=null;lead.paso=1;lead.ruta.pasos={1:lead.ruta.pasos[1]}}
     if(escenario==='america_correo') {fase='correo';lead.email=null;lead.curso='Diplomado en Farmacología';lead.ruta.pasos={1:lead.ruta.pasos[1],2:lead.ruta.pasos[2]};lead.paso=2}
     if(escenario==='cerrada_vuelve') fase='cerrado'
+    if(escenario.endsWith('_ninos')) lead.curso='Inglés para niños'
     const originalTimer = globalThis.setTimeout
     t.mock.method(globalThis, 'setTimeout', ((fn: (...args: unknown[]) => void, ms: number, ...args: unknown[]) => originalTimer(fn, ms === 8000 ? 0 : ms, ...args)) as typeof setTimeout)
     t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
       const req = new Request(input, init), url = new URL(req.url), q = url.searchParams
       if (url.hostname === 'api.openai.com' && usaIA) return Response.json({ choices: [{ message: { content: JSON.stringify({
-        respuesta: escenario === 'ia_promesa' ? 'Un asesor te contacta para resolverlo.' : ['programa_precio','programa_lista_doble_precio'].includes(escenario) ? 'Para darte el costo exacto, ¿qué programa te interesa?' : MENSAJE_ESPERA,
+        respuesta: escenario.startsWith('ter_') ? 'Respuesta específica de la duda consultada.' : escenario === 'ia_promesa' ? 'Un asesor te contacta para resolverlo.' : ['programa_precio','programa_lista_doble_precio'].includes(escenario) ? 'Para darte el costo exacto, ¿qué programa te interesa?' : MENSAJE_ESPERA,
         necesitaRevision: escenario === 'revision_nueva', siguienteFase: 'dudas',
       }) } }] })
       if (url.hostname === 'localhost' && usaIA) {if(escenario==='rag_timeout') throw new DOMException('Timeout RAG','TimeoutError');return Response.json({ context: '' })}
@@ -169,13 +181,19 @@ for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'co
       if (tabla === 'push_subscriptions') return Response.json([])
       return Response.json([])
     })
-    const text = escenario==='felipe_certificacion'?'Necesito constancia de inglés B1 para mi universidad':escenario==='america_correo'?'america@example.test':escenario==='cerrada_vuelve'?'Me quiero inscribir':escenario==='persona_explicita'?'quiero hablar con un asesor':escenario==='rag_timeout'?'¿El trámite especial está disponible?':escenario === 'revalidacion' ? '¿Puedo revalidar materias de otra institución?' : escenario === 'ia_promesa' ? '¿El trámite especial está disponible?' : escenario.startsWith('programa_') ? escenario.endsWith('licenciatura') ? 'Licenciatura' : '¿cuánto cuesta?' : escenario === 'revision_nueva' ? '¿El trámite especial está disponible?' : escenario === 'elegir_diplomado' ? 'Diplomado en Epidemiología' : escenario === 'confirmacion' ? 'Ya pagué' : 'Me quiero inscribir'
+    const text = preguntas10ter[escenario] || (escenario==='felipe_certificacion'?'Necesito constancia de inglés B1 para mi universidad':escenario==='america_correo'?'america@example.test':escenario==='cerrada_vuelve'?'Me quiero inscribir':escenario==='persona_explicita'?'quiero hablar con un asesor':escenario==='rag_timeout'?'¿El trámite especial está disponible?':escenario === 'revalidacion' ? '¿Puedo revalidar materias de otra institución?' : escenario === 'ia_promesa' ? '¿El trámite especial está disponible?' : escenario.startsWith('programa_') ? escenario.endsWith('licenciatura') ? 'Licenciatura' : '¿cuánto cuesta?' : escenario === 'revision_nueva' ? '¿El trámite especial está disponible?' : escenario === 'elegir_diplomado' ? 'Diplomado en Epidemiología' : escenario === 'confirmacion' ? 'Ya pagué' : 'Me quiero inscribir')
     const req = new Request('http://localhost/api/whatsapp/webhook', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ object: 'whatsapp_business_account', entry: [{ changes: [{ value: { messages: [{ id: `wamid.${escenario}`, from: '525500000001', type: escenario==='ubicacion'?'location':escenario==='audio'?'audio':escenario==='imagen'?'image':'text', text: { body: text } }], contacts: [{ profile: { name: 'Ana' } }] } }] }] }) })
     const response = await POST(req)
     assert.equal(response.status, 200)
     const toLead = sent.filter(m => m.to.replace(/\D/g, '') === '525500000001')
     assert.ok(toLead.length > 0, 'envía respuesta al lead')
-    if(escenario==='felipe_certificacion') {assert.match(toLead.at(-1)!.text.body,/asesor educativo/);assert.doesNotMatch(toLead.at(-1)!.text.body,/Bachillerato/);assert.equal(typeof lead.ruta.persona,'object');assert.ok(sent.some(m=>m.to===ADMIN_WA_ALERTA))}
+    if(escenario.startsWith('ter_')) {
+      const body=toLead.at(-1)!.text.body
+      if(['ter_hora','ter_abiertos','ter_visita'].includes(escenario)) assert.match(body,/Horario habitual en días hábiles/)
+      else if(escenario==='ter_inicio_ninos') assert.match(body,/abierta todo el año/)
+      else {assert.doesNotMatch(body,/Horario habitual|no hay atención en plantel|abierta todo el año/);assert.match(body,/Respuesta específica|\$|pesos/)}
+    }
+    else if(escenario==='felipe_certificacion') {assert.match(toLead.at(-1)!.text.body,/asesor educativo/);assert.doesNotMatch(toLead.at(-1)!.text.body,/Bachillerato/);assert.equal(typeof lead.ruta.persona,'object');assert.ok(sent.some(m=>m.to===ADMIN_WA_ALERTA))}
     else if(escenario==='america_correo') {assert.match(toLead.at(-1)!.text.body,/Farmacología/);assert.match(toLead.at(-1)!.text.body,/10VmTr-H8lOu2urlEkC8A1D9rX5WBEakH/);assert.equal(lead.ruta.pasos[6].estado,'cumplido')}
     else if(escenario==='cerrada_vuelve') {assert.ok(patches.some(p=>p.estado==='abierta'));assert.match(toLead.at(-1)!.text.body,/inscripcion/)}
     else if(['ubicacion','audio','imagen'].includes(escenario)) {assert.match(toLead.at(-1)!.text.body,/Gracias/);assert.match(toLead.at(-1)!.text.body,/¿Quieres agendar/)}

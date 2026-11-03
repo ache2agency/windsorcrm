@@ -298,6 +298,13 @@ test('10-bis: manual autenticado guarda fecha, destinatario y actor; no retroced
  const reversa=await readFile(new URL('../supabase/windsor_10bis_reversa.sql',import.meta.url),'utf8')
  await assert.rejects(()=>pg.exec(reversa),/canalizaciones estructuradas/)
  await pg.exec('rollback')
+ // Una marca convertida por el motor no cancela una revisión genérica pendiente.
+ let actual=await cargarRuta(db,id)
+ await guardarRuta(db,actual,{...actual.ruta!,persona:{origen:'automatica',desde:new Date(Date.now()-25*3600_000).toISOString(),a:'el asesor asignado',motivo:'Pase a asesor',estado:'pendiente'}})
+ const automatico=await pg.query<any>("select terminar_revision_timeout($1,'x',$2,'reactivar_sin_ventana','','{}',true) ok",[conv,claim])
+ assert.equal(automatico.rows[0].ok,true)
+ assert.equal((await pg.query<any>('select modo_humano from whatsapp_conversaciones where id=$1',[conv])).rows[0].modo_humano,false)
+ assert.equal((await cargarRuta(db,id)).ruta!.persona,null)
 
 })
 test('10-bis: correo solo de America entrega ficha de Farmacología y PDF sin GPT',async()=>{
@@ -329,6 +336,13 @@ test('10-bis: canalizado no usa IA, reserva un acuse diario incluso concurrente,
  const out=await responderRuta(db,id,'Quiero inscribirme',{...d,ahora:'2026-11-04T18:00:00Z'})
  assert.match(out!.mensaje,/pendiente.*coordinación/);assert.equal(out!.fase,'con_asesor');assert.equal((await cargarRuta(db,id)).paso,l.paso)
  assert.equal(decidirSeguimientoAutomatico({fase:'con_asesor',lead:await cargarRuta(db,id),horasDesdeLead:25,horasDesdeBot:25,diasDesdeLead:25/24,dentroVentana24h:false}),null)
+})
+test('10-ter: marca automática antigua no bloquea la ruta al volver a BOT',async()=>{
+ const id=await nuevoLeadRuta('Diplomado en Farmacología',true),l=await cargarRuta(db,id)
+ await guardarRuta(db,l,{...l.ruta!,persona:{origen:'automatica',desde:'2026-11-01T13:00:00Z',a:'el asesor asignado',motivo:'Pase a asesor',estado:'pendiente'}})
+ const out=await responderRuta(db,id,'¿Cuál es el precio?',{...deps,ahora:'2026-11-02T18:00:00Z'})
+ assert.ok(out!.mensaje);assert.notEqual(out!.fase,'con_asesor')
+ assert.equal((await cargarRuta(db,id)).ruta!.persona,null)
 })
 test('10-bis: canalización en licenciatura prevalece sobre botones de inscripción A/B',async()=>{
  const id=await nuevoLeadRuta('Licenciatura en Inglés',true);const l=await cargarRuta(db,id)

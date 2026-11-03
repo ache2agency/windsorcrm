@@ -1,3 +1,4 @@
+import { esPersonaAutomatica } from './canalizacion'
 import type { PersonaProgramada } from './canalizacion'
 import { hasLeadName } from './nombres'
 import { tipoInscripcion, modalidadesPrograma } from './programas'
@@ -120,8 +121,8 @@ export const equivalenciaFase:Record<string,number|null> = {
 
 // Se invoca solo sin modo humano activo; fechas históricas desconocidas no bloquean.
 export function personaVencida(persona:string|PersonaProgramada, ahora:string):boolean {
- if(typeof persona==='object') return false // Canalización fechada vence en CRM, no vuelve a ventas a las 20 h.
- const fecha=Date.parse(persona);return !Number.isFinite(fecha)||Date.parse(ahora)-fecha>=20*3600_000
+ if(typeof persona==='object'&&!esPersonaAutomatica(persona)) return false // Canalización explícita no vuelve a ventas a las 20 h.
+ const fecha=Date.parse(typeof persona==='string'?persona:persona.desde);return !Number.isFinite(fecha)||Date.parse(ahora)-fecha>=20*3600_000
 }
 
 // "Voy mañana", "sería mañana por la mañana", "pasamos el lunes": plan de ir al plantel.

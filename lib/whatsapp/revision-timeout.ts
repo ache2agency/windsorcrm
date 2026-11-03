@@ -1,3 +1,4 @@
+import { esPersonaAutomatica } from './canalizacion'
 import { preguntaPendiente } from './ruta'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ADMIN_WA_ALERTA } from './atencion'
@@ -77,7 +78,7 @@ export async function ejecutarRevisionesPendientes(
     if(row.lead_id) {
       const {data:lead,error}=await db.from('leads').select('ruta').eq('id',row.lead_id).maybeSingle()
       if(error) {resultados.push({conversacion_id:row.id,accion:'error_revision',detalle:error.message});continue}
-      if(typeof lead?.ruta?.persona==='object'&&lead.ruta.persona) continue // Una fecha acordada reemplaza el timeout genérico.
+      if(typeof lead?.ruta?.persona==='object'&&lead.ruta.persona&&!esPersonaAutomatica(lead.ruta.persona)) continue // Una fecha acordada reemplaza el timeout genérico.
     }
     const { data: ultimo, error: ultimoError } = await db.from('whatsapp_mensajes').select('created_at')
       .eq('conversacion_id', row.id).eq('rol', 'usuario').order('created_at', { ascending: false }).limit(1).maybeSingle()

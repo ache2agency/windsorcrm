@@ -26,7 +26,7 @@ export async function procesarCanalizaciones(db:SupabaseClient,dry=false,ahora=n
     try {
       let lead=original;const raw=lead.ruta?.persona
       if(!raw) continue
-      const p:PersonaProgramada=typeof raw==='string'?{desde:raw,a:'el asesor asignado',motivo:'Pase a asesor',estado:'pendiente'}:{...raw}
+      const p:PersonaProgramada=typeof raw==='string'?{origen:'automatica',desde:raw,a:'el asesor asignado',motivo:'Pase a asesor',estado:'pendiente'}:{...raw}
       if(!Number.isFinite(Date.parse(p.desde))) continue
       const {data:convs,error:ce}=await db.from('whatsapp_conversaciones').select('id').eq('lead_id',lead.id)
       if(ce) throw ce
@@ -53,9 +53,8 @@ export async function procesarCanalizaciones(db:SupabaseClient,dry=false,ahora=n
         const {data:asesor,error}=lead.asignado_a?await db.from('profiles').select('whatsapp').eq('id',lead.asignado_a).maybeSingle():{data:null,error:null}
         if(error) throw error
         const destinos=[...new Set([ADMIN_WA_ALERTA,asesor?.whatsapp].filter(Boolean).map(n=>digitos(n!)))]
-        const leadEnVentana=lead.whatsapp&&await ventana(db,lead.whatsapp,ahora)
         for(const to of destinos) {
-          if(!leadEnVentana||!await ventana(db,to,ahora)) {entregas[to]='solo_CRM_sin_ventana';continue}
+          if(!await ventana(db,to,ahora)) {entregas[to]='solo_CRM_sin_ventana';continue}
           try {await enviar({to,body:`⏰ Pase a asesor sin atender 24 h\n${lead.nombre||lead.whatsapp} · ${lead.whatsapp}\n${p.a}: ${p.motivo}`});entregas[to]='enviado'}
           catch {entregas[to]='error_envio_revisar_CRM'}
         }

@@ -91,7 +91,7 @@ BEGIN
   IF NOT FOUND THEN RETURN false; END IF;
   IF c.lead_id IS NOT NULL THEN
     PERFORM 1 FROM public.leads WHERE id=c.lead_id FOR UPDATE;
-    IF EXISTS(SELECT 1 FROM public.leads WHERE id=c.lead_id AND jsonb_typeof(ruta->'persona')='object') THEN RETURN false; END IF;
+    IF EXISTS(SELECT 1 FROM public.leads WHERE id=c.lead_id AND jsonb_typeof(ruta->'persona')='object' AND coalesce(ruta->'persona'->>'origen','')<>'automatica') THEN RETURN false; END IF;
   END IF;
   IF NOT p_exito THEN
     UPDATE public.whatsapp_conversaciones SET revision_timeout_claim_at=NULL WHERE id=p_id;
