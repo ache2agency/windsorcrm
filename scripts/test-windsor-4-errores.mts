@@ -103,6 +103,10 @@ for (const escenario of ['recordatorio', 'reactivar', 'sin_ventana', 'sin_claim'
 }
 
 const preguntas10ter:Record<string,string>={
+ ter_licenciatura_horario:'¿Cuál es el horario de la licenciatura en Psicología?',
+ ter_diplomado_horario:'¿qué horario tiene el diplomado?',
+ ter_sabatino_horario:'horarios del sabatino',
+ ter_frances_horario:'horario de Francés',
  ter_inscripciones:'¿siguen abiertas las inscripciones de Psicología?',
  ter_llamada:'¿me pueden atender por llamada?',
  ter_precio:'¿hoy cuánto cuesta?',
@@ -190,6 +194,7 @@ for (const escenario of ['epidemiologia', 'desconocido', 'elegir_diplomado', 'co
     if(escenario.startsWith('ter_')) {
       const body=toLead.at(-1)!.text.body
       if(['ter_hora','ter_abiertos','ter_visita'].includes(escenario)) assert.match(body,/Horario habitual en días hábiles/)
+      else if(escenario==='ter_licenciatura_horario') {assert.match(body,/Los horarios de licenciaturas son/);assert.doesNotMatch(body,/Horario habitual en días hábiles|no hay atención en plantel/)}
       else if(escenario==='ter_inicio_ninos') assert.match(body,/abierta todo el año/)
       else {assert.doesNotMatch(body,/Horario habitual|no hay atención en plantel|abierta todo el año/);assert.match(body,/Respuesta específica|\$|pesos/)}
     }

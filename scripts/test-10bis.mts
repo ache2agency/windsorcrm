@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto'
 import {procesarCanalizaciones} from '../lib/whatsapp/canalizacion-motor'
 import {hasLeadName} from '../lib/whatsapp/nombres'
 import {decidirSeguimientoAutomatico} from '../lib/whatsapp/seguimiento-motor'
-import {avisoVisitaInhabil,horarioAtencion,INICIO_INGLES_NINOS} from '../lib/whatsapp/servicio-calendario'
+import {avisoVisitaInhabil,horarioAtencion,INICIO_INGLES_NINOS,esPreguntaHorarioPlantel} from '../lib/whatsapp/servicio-calendario'
 import {INFO_MSGS} from '../lib/whatsapp/infoMsgs'
 import type {SupabaseClient} from '@supabase/supabase-js'
 const ahora=new Date('2026-11-04T18:00:00Z'),fecha=(h:number)=>new Date(ahora.getTime()-h*3600_000).toISOString()
@@ -102,4 +102,16 @@ test('10-ter: hoy en la mañana y mañana se distinguen en días inhábiles',()=
  assert.match(avisoVisitaInhabil('voy hoy en la mañana',new Date('2026-11-02T18:00:00Z'),{})!,/visita \(2026-11-02\)/)
  assert.match(avisoVisitaInhabil('voy hoy por la mañana',new Date('2026-11-02T18:00:00Z'),{})!,/visita \(2026-11-02\)/)
  assert.match(avisoVisitaInhabil('voy mañana',new Date('2026-11-15T18:00:00Z'),{})!,/visita \(2026-11-16\)/)
+})
+
+
+test('10-quater: horario académico no se sustituye por atención del plantel',()=>{
+ const textos=['¿Cuál es el horario de la licenciatura en Psicología?','¿qué horario tiene el diplomado?','horarios del sabatino','horario de la carrera','horario del bachillerato','horario de prepa','horario de inglés','horario de idiomas','horario matutino','horario vespertino','horario en línea','horario del programa','horarios del grupo','¿a qué hora es Francés?','horario de Farmacología','horario de Italiano','horario de Psicología'];
+ for(const texto of textos) assert.equal(esPreguntaHorarioPlantel(texto),false,texto)
+ for(const texto of ['¿a qué hora abren?','¿están abiertos hoy?','¿puedo pasar hoy?']) assert.equal(esPreguntaHorarioPlantel(texto),true,texto)
+})
+test('10-quater: confirmación posterior del 4-nov conserva el 16-nov; configuración explícita puede retirarlo',()=>{
+ const fecha=new Date('2026-11-16T18:00:00Z')
+ assert.match(horarioAtencion(fecha,{}),/no hay atención/)
+ assert.doesNotMatch(horarioAtencion(fecha,{WINDSOR_DIAS_INHABILES:'2026-11-02'}),/no hay atención/)
 })

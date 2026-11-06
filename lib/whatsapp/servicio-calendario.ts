@@ -1,5 +1,6 @@
 import { TEXTO_HORARIO_ATENCION } from './reglasNegocio'
-// Propuesta inicial de la tarea 10-bis: Harold debe confirmar estas dos fechas.
+import { detectarPrograma } from './programas'
+// Fechas confirmadas por Harold: 2-nov y 16-nov (confirmación posterior del 4-nov en PENDIENTES.md).
 export const INHABILES_PROPUESTOS_2026=['2026-11-02','2026-11-16']
 export function diasInhabiles(env:Record<string,string|undefined>=process.env):string[] {
   // Una lista vacía explícita desactiva la propuesta; nunca tomar fechas de un LLM.
@@ -26,7 +27,7 @@ export function avisoVisitaInhabil(texto:string,ahora=new Date(),env:Record<stri
 const normalizarPregunta=(texto:string)=>texto.normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase()
 export function esPreguntaHorarioPlantel(texto:string):boolean {
  const t=normalizarPregunta(texto)
- if(/inscripci|precio|cuesta|costo|llamad|telefono|clase|curso|materia/.test(t)) return false
+ if(/inscripci|precio|cuesta|costo|llamad|telefono|clase|curso|materia|licenciatura|carrera|diplomado|bachillerato|prepa|ingles|idioma|sabatino|matutino|vespertino|en linea|programa|grupo/.test(t) || detectarPrograma(texto)) return false
  return /\bhorarios?\b|(?:a que hora|cuando)\s+(?:abren|cierran|atienden)|(?:estan|esta|siguen|sigue)\s+abiert[oa]s?(?:\s+hoy)?\b|puedo\s+(?:ir|pasar)(?:\s+(?:hoy|manana|al plantel|a la escuela))?\b/.test(t)
 }
 export function esPreguntaInicioNinos(texto:string):boolean {
