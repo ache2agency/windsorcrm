@@ -1,3 +1,4 @@
+import { hasLeadName } from './nombres'
 /**
  * Mensajes de reactivación — docs/PIPELINE_TAREAS.md §2c
  * Track A: idiomas / inglés / flujo examen-clase
@@ -61,7 +62,7 @@ export function normalizarEtapaReactivacion(stage: string | null | undefined): R
 }
 
 function replaceNombre(plantilla: string, nombre: string) {
-  const n = nombre?.trim()
+  const n = hasLeadName(nombre,null) ? nombre?.trim() : ''
   // Sin nombre se saluda sin relleno ("Hola 👋"), nunca "Hola ahí"
   if (!n || n === 'ahí') return plantilla.replace(/ \[nombre\]/g, '')
   return plantilla.replace(/\[nombre\]/g, n)

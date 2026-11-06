@@ -40,6 +40,7 @@ export function hasLeadName(nombre: string | null | undefined, whatsapp: string 
   // "De costos", "Para mi hija", "Enviar nuevamente", "Sistema habierto" (ver memoria
   // windsorcrm: bug nombre corrupto). Un nombre real de pila nunca empieza con "para"
   // ni contiene estas palabras sueltas.
+  if (/^(?:de|del|la|las|los|windsor|winsor|instituto|sabatinos?|matutinos?|vespertinos?)$/i.test(quitarAcentos(value))) return false
   if (/^para\b/i.test(value)) return false
   const respuestaOtraCosa = /\b(adultos?|ni[ñn]os?|sistema|abiert[oa]|cerrad[oa]|escolarizad[oa]|semiescolarizad[oa]|presencial(es)?|virtual(es)?|modalidad(es)?|en\s*l[ií]nea|online|informes?|cursos?|costos?|precios?|mensualidad(es)?|colegiatur(a|as)|inscripci[oó]n(es)?|descuentos?|becas?|horarios?|inicia(n|r)?|empieza(n|r)?|comienza(n|r)?|fecha(s)?|env[ií]a(r|me)?|reenv[ií]a(r|me)?|manda(r|me)?|nuevamente|hij[oa]s?)\b/i
   if (respuestaOtraCosa.test(value)) return false

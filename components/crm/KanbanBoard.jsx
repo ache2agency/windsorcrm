@@ -1,5 +1,6 @@
 "use client";
 import { useState } from 'react';
+import { textoPersona } from '@/lib/whatsapp/canalizacion';
 import { BLOQUES, PASOS, bloqueDe, siguientePaso, preguntaPendiente } from '@/lib/whatsapp/ruta';
 
 const FbIcon = () => <svg width="11" height="11" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.253h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>;
@@ -34,7 +35,7 @@ export default function KanbanBoard({leads=[],formatPeso,setSelectedLead,getNomb
               <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:b.color,marginTop:8}}><span>{b.nombre} › {l.paso}. {PASOS[l.paso-1]?.nombre}</span><span>{l.paso}/17</span></div>
               <div aria-label={`${l.paso} de 17`} style={{display:'flex',gap:2,margin:'5px 0'}}>{PASOS.map(p=><i key={p.n} title={`${p.nombre}: ${l.ruta.pasos[p.n]?.estado||'pendiente'}`} style={{height:5,flex:1,background:l.ruta.pasos[p.n]?.estado==='cumplido'?b.color:l.ruta.pasos[p.n]?.estado==='saltado'?'repeating-linear-gradient(45deg,#cbd5e1,#cbd5e1 2px,#fff 2px,#fff 4px)':'#e2e8f0'}}/>)}</div>
               <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
-                {l.ruta.persona&&<span style={{...tag,background:'#fef3c7'}}>👤 lo atiende una persona · {l.ruta.persona.includes('histórica')?l.ruta.persona:fecha(l.ruta.persona)}</span>}
+                {l.ruta.persona&&<span style={{...tag,background:'#fef3c7'}}>👤 lo atiende una persona · {typeof l.ruta.persona==='object'?textoPersona(l):l.ruta.persona.includes('histórica')?l.ruta.persona:fecha(l.ruta.persona)}</span>}
                 {atorado&&<span style={{...tag,color:'#A8263C',background:'#fee2e8'}}>🔴 atorado {dias} días</span>}
                 {l.edad&&<span style={tag}>{l.edad} años</span>}
                 {l.ruta.dudas?.length>0&&<span style={tag}>Dudas: {l.ruta.dudas.join(', ')}</span>}

@@ -12,5 +12,10 @@
       "path": "/api/seguimientos",
       "schedule": "0 9 * * *"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "codex/windsorcrm-10bis-2nov": false
+    }
+  }
 }

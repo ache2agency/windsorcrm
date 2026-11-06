@@ -258,6 +258,103 @@ test('11-bis: botones de dudas, espera, información y A/B licenciatura conserva
  out=await responderRuta(db,id,'A',deps);assert.match(out!.mensaje,/Información bancaria/)
  out=await responderRuta(db,id,'B',{...deps,inscripcionPresencial:()=> 'Documentos para inscripción presencial'});assert.match(out!.mensaje,/inscripción presencial/)
 })
+test('10-bis: manual autenticado guarda fecha, destinatario y actor; no retrocede ni autoriza ajenos',async()=>{
+ await pg.exec(await readFile(new URL('../supabase/windsor_10bis.sql',import.meta.url),'utf8'))
+ const id=await nuevoLeadRuta('Diplomado en Farmacología',true)
+ const antes=await cargarRuta(db,id)
+ await pg.query("select set_config('test.uid',$1,false)",[asesor])
+ const sql="select editar_ruta_manual($1,$2,$3,$4,$5,$6,$7) r"
+ const p=[id,antes.ruta_version,'canalizar','Felipe: contacto acordado',null,'coordinación',new Date(Date.now()+86400000).toISOString()]
+ const {rows}=await pg.query<any>(sql,p)
+ assert.equal(rows[0].r.paso,antes.paso);assert.equal(rows[0].r.ruta.persona.a,'coordinación')
+ assert.ok(rows[0].r.ruta.persona.hasta)
+ const auditoria=(await pg.query<any>('select * from lead_ruta_eventos where lead_id=$1 order by version desc limit 1',[id])).rows[0]
+ assert.equal(auditoria.actor_id,asesor);assert.match(auditoria.fuente,/Felipe/)
+ assert.equal((await pg.query<any>(sql,p)).rows[0].r,null,'versión obsoleta no pisa cambios')
+ let l=await cargarRuta(db,id)
+ await assert.rejects(()=>pg.query(sql,[id,l.ruta_version,'paso','Retroceso prohibido',1,null,null]),/retrocesos/)
+ await assert.rejects(()=>pg.query(sql,[id,l.ruta_version,'paso','No confirmar inscripción',17,null,null]),/Paso manual/)
+ await pg.query(sql,[id,l.ruta_version,'paso','Documentos verificados por asesor',15,null,null])
+ l=await cargarRuta(db,id);assert.equal(l.paso,15);assert.equal(l.ruta!.pasos[14].estado,'saltado');assert.match(l.ruta!.pasos[14].motivo!,/verificados/)
+ await assert.rejects(()=>pg.query('update leads set paso=16 where id=$1',[id]),/lectura/)
+ const otro=randomUUID();await pg.query('insert into profiles(id,rol) values($1,$2)',[otro,'vendedor'])
+ await pg.query("select set_config('test.uid',$1,false)",[otro])
+ await assert.rejects(()=>pg.query(sql,[id,l.ruta_version,'retomar','No soy responsable',null,null,null]),/Sin permiso/)
+ await pg.query("select set_config('test.uid','',false)")
+ await assert.rejects(()=>pg.query(sql,[id,l.ruta_version,'retomar','Sin autenticación',null,null,null]),/No autenticado/)
+ await pg.exec(await readFile(new URL('../supabase/windsor_10bis.sql',import.meta.url),'utf8'))
+ assert.equal((await cargarRuta(db,id)).paso,15,'migración reejecutable conserva progreso')
+ const permisos=await pg.query<any>("select has_function_privilege('anon','editar_ruta_manual(uuid,integer,text,text,integer,text,timestamptz)','execute') ok")
+ assert.equal(permisos.rows[0].ok,false)
+ // Simular una revisión antigua que ya estaba reclamada al programar la canalización.
+ await pg.exec(`alter table whatsapp_conversaciones add column if not exists revision_codigo text,add column if not exists revision_codigo_asignado_at timestamptz,add column if not exists revision_draft text,add column if not exists tomado_por uuid;
+ alter table whatsapp_mensajes add column if not exists raw_payload jsonb;`)
+ await pg.exec(await readFile(new URL('../supabase/revision_timeout_2026_10_24.sql',import.meta.url),'utf8'))
+ await pg.exec(await readFile(new URL('../supabase/windsor_10bis.sql',import.meta.url),'utf8'))
+ const conv=randomUUID(),claim=new Date().toISOString()
+ await pg.query("insert into whatsapp_conversaciones(id,lead_id,modo_humano,revision_codigo,revision_timeout_desde_at,revision_timeout_claim_at) values($1,$2,true,'x',now()-interval '21 hours',$3)",[conv,id,claim])
+ const fin=await pg.query<any>("select terminar_revision_timeout($1,'x',$2,'reactivar_sin_ventana','','{}',true) ok",[conv,claim])
+ assert.equal(fin.rows[0].ok,false);assert.equal(typeof (await cargarRuta(db,id)).ruta!.persona,'object')
+ const reversa=await readFile(new URL('../supabase/windsor_10bis_reversa.sql',import.meta.url),'utf8')
+ await assert.rejects(()=>pg.exec(reversa),/canalizaciones estructuradas/)
+ await pg.exec('rollback')
+ // Una marca convertida por el motor no cancela una revisión genérica pendiente.
+ let actual=await cargarRuta(db,id)
+ await guardarRuta(db,actual,{...actual.ruta!,persona:{origen:'automatica',desde:new Date(Date.now()-25*3600_000).toISOString(),a:'el asesor asignado',motivo:'Pase a asesor',estado:'pendiente'}})
+ const automatico=await pg.query<any>("select terminar_revision_timeout($1,'x',$2,'reactivar_sin_ventana','','{}',true) ok",[conv,claim])
+ assert.equal(automatico.rows[0].ok,true)
+ assert.equal((await pg.query<any>('select modo_humano from whatsapp_conversaciones where id=$1',[conv])).rows[0].modo_humano,false)
+ assert.equal((await cargarRuta(db,id)).ruta!.persona,null)
+
+})
+test('10-bis: correo solo de America entrega ficha de Farmacología y PDF sin GPT',async()=>{
+ const {fichaDiplomado}=await import('../lib/whatsapp/ficha-diplomado')
+ const id=randomUUID();await pg.query('insert into leads(id,nombre,whatsapp,curso) values($1,$2,$3,$4)',[id,'America','+527441211046','Diplomado en Farmacología'])
+ const out=await responderRuta(db,id,'america@example.test',{...deps,info:async(c)=>fichaDiplomado(c,new Date('2026-11-02T14:44:00Z'))!})
+ assert.match(out!.mensaje,/Farmacología/);assert.match(out!.mensaje,/10VmTr-H8lOu2urlEkC8A1D9rX5WBEakH/)
+ assert.equal(out!.info,true);assert.equal((await cargarRuta(db,id)).ruta!.pasos[6],undefined)
+ await confirmarEntregaRuta(db,id,out!);assert.equal((await cargarRuta(db,id)).ruta!.pasos[6].estado,'cumplido')
+})
+test('10-bis: Felipe certificación deriva fijo sin menú y Recursos Humanos sigue en ventas',async()=>{
+ const {detectarPrograma}=await import('../lib/whatsapp/programas')
+ for(const texto of ['Necesito constancia de inglés B1 para mi universidad','TOEFL','IELTS','comprensión lectora','certificación de inglés']) {
+  const id=randomUUID();await pg.query('insert into leads(id,nombre,whatsapp) values($1,$2,$3)',[id,'Felipe','+527411093497'])
+  const out=await responderRuta(db,id,texto,{...deps,duda:async()=>{throw Error('No usar IA para certificar')}})
+  assert.equal(out!.avisarAsesor,true);assert.match(out!.mensaje,/asesor educativo/);assert.doesNotMatch(out!.mensaje,/Bachillerato/)
+ }
+ const id=randomUUID();await pg.query('insert into leads(id,nombre,email,whatsapp) values($1,$2,$3,$4)',[id,'Irai','irai@example.test','+525545614894'])
+ const out=await responderRuta(db,id,'quiero más información del Diplomado en administración en recursos humanos',{...deps,detectarPrograma})
+ assert.ok(!out!.avisarAsesor);assert.equal((await cargarRuta(db,id)).ruta!.salida,undefined)
+})
+test('10-bis: canalizado no usa IA, reserva un acuse diario incluso concurrente, vencido no vuelve a ventas',async()=>{
+ const id=await nuevoLeadRuta('Diplomado en Farmacología',true);let l=await cargarRuta(db,id)
+ await guardarRuta(db,l,{...l.ruta!,persona:{desde:'2026-11-02T13:00:00Z',hasta:'2026-11-03T16:00:00Z',a:'coordinación',motivo:'Felipe B1',estado:'pendiente'}})
+ const d={...deps,ahora:'2026-11-02T18:00:00Z',duda:async()=>{throw Error('Sin IA')}}
+ const outs=await Promise.all([responderRuta(db,id,'Hola',d),responderRuta(db,id,'Mi correo es otro@example.test',d)])
+ assert.equal(outs.filter(x=>x!.silencio).length,1);assert.match(outs.find(x=>!x!.silencio)!.mensaje,/coordinación.*martes/)
+ assert.equal((await cargarRuta(db,id)).email,'ana@example.test','no captura ni vende durante canalización')
+ const out=await responderRuta(db,id,'Quiero inscribirme',{...d,ahora:'2026-11-04T18:00:00Z'})
+ assert.match(out!.mensaje,/pendiente.*coordinación/);assert.equal(out!.fase,'con_asesor');assert.equal((await cargarRuta(db,id)).paso,l.paso)
+ assert.equal(decidirSeguimientoAutomatico({fase:'con_asesor',lead:await cargarRuta(db,id),horasDesdeLead:25,horasDesdeBot:25,diasDesdeLead:25/24,dentroVentana24h:false}),null)
+})
+test('10-ter: marca automática antigua no bloquea la ruta al volver a BOT',async()=>{
+ const id=await nuevoLeadRuta('Diplomado en Farmacología',true),l=await cargarRuta(db,id)
+ await guardarRuta(db,l,{...l.ruta!,persona:{origen:'automatica',desde:'2026-11-01T13:00:00Z',a:'el asesor asignado',motivo:'Pase a asesor',estado:'pendiente'}})
+ const out=await responderRuta(db,id,'¿Cuál es el precio?',{...deps,ahora:'2026-11-02T18:00:00Z'})
+ assert.ok(out!.mensaje);assert.notEqual(out!.fase,'con_asesor')
+ assert.equal((await cargarRuta(db,id)).ruta!.persona,null)
+})
+test('10-bis: canalización en licenciatura prevalece sobre botones de inscripción A/B',async()=>{
+ const id=await nuevoLeadRuta('Licenciatura en Inglés',true);const l=await cargarRuta(db,id)
+ await guardarRuta(db,l,{...marcar(l.ruta!,13,'cumplido',fecha,'envio'),persona:{desde:'2026-11-02T13:00:00Z',hasta:'2026-11-03T16:00:00Z',a:'coordinación',motivo:'Contacto acordado',estado:'pendiente'}})
+ const out=await responderRuta(db,id,'A',{...deps,ahora:'2026-11-02T18:00:00Z'})
+ assert.match(out!.mensaje,/coordinación/);assert.doesNotMatch(out!.mensaje,/Información bancaria/)
+})
+test('10-bis: el menú no se repite consecutivamente si el lead no eligió programa',async()=>{
+ const id=randomUUID();await pg.query('insert into leads(id,nombre,email,whatsapp) values($1,$2,$3,$4)',[id,'Ana','ana@example.test','+525500000001'])
+ const out=await responderRuta(db,id,'No sé cuál elegir',{...deps,catalogo:()=> 'Menú de programas',ultimoBot:'Menú de programas'})
+ assert.equal(out!.avisarAsesor,true);assert.match(out!.mensaje,/asesor educativo/);assert.doesNotMatch(out!.mensaje,/Menú/)
+})
 test('reversa local conserva documentos, nuevos leads e historial y retira automatización nueva',async()=>{
  const antes=(await pg.query('select count(*)::int n from inscripciones')).rows[0]
  const eventos=(await pg.query('select count(*)::int n from lead_ruta_eventos')).rows[0]

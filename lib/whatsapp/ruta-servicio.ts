@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { type LeadRuta, type Ruta, pasoActual, bloqueDe } from './ruta'
 export async function cargarRuta(db:SupabaseClient,id:string):Promise<LeadRuta> {
-  const {data,error}=await db.from('leads').select('id,nombre,email,whatsapp,curso,stage,modalidad,edad,paso,ruta,ruta_version').eq('id',id).single()
+  const {data,error}=await db.from('leads').select('id,nombre,email,whatsapp,curso,stage,asignado_a,modalidad,edad,paso,ruta,ruta_version').eq('id',id).single()
   if(error||!data?.ruta) throw new Error('Ruta no disponible; aplicar SQL antes del código')
   return data as LeadRuta
 }

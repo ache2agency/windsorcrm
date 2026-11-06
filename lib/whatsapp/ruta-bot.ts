@@ -1,3 +1,4 @@
+import { diaMexico, textoCanalizacion, esCertificacion, esPersonaAutomatica } from './canalizacion'
 import { mensajeDocumentosInscripcion } from './seguimiento-motor'
 import { inscripcionDiplomadoFormularioMsg, mensajeInscripcionPara, INSCRIPCION_ONLINE_MSG, INSCRIPCION_DESCONOCIDA_MSG } from './inscripcion'
 import { tipoInscripcion, esTextoPrograma } from './programas'
@@ -10,6 +11,8 @@ const hasLeadProgram = (c?:string|null) => !!c && !/instituto windsor|sin defini
 
 export type DependenciasRuta={
   acuse?:string;
+  ultimoBot?:string;
+  ahora?:string;
   catalogoGeneral?:string;
   vacante?:string;
   detectarPrograma:(t:string)=>string|null;
@@ -49,10 +52,22 @@ async function construirRespuestaRuta(db:SupabaseClient,id:string,texto:string,d
   if(esTextoPrograma(lead.nombre||'')||!hasLeadName(lead.nombre,lead.whatsapp||'')) lead.nombre=null
   if(!hasLeadProgram(lead.curso)) lead.curso=null
   if(lead.ruta?.salida==='perdido'||lead.ruta?.salida==='vacante') return null
+  const now=dep.ahora||new Date().toISOString()
+  if(typeof lead.ruta?.persona==='object' && lead.ruta.persona && !esPersonaAutomatica(lead.ruta.persona)) {
+    const p=lead.ruta.persona
+    if(p.ultimoAcuseDia===diaMexico(now)) return {mensaje:'',fase:'con_asesor',silencio:true}
+    const ruta={...lead.ruta,persona:{...p,ultimoAcuseDia:diaMexico(now)}}
+    await guardarRuta(db,lead,ruta)
+    return {mensaje:textoCanalizacion(p,now),fase:'con_asesor'}
+  }
   if(lead.ruta?.pasos[13] && tipoInscripcion(lead.curso)==='licenciatura' && /^[ab][).]?$/i.test(texto.trim())) {
     return {mensaje:/^a/i.test(texto)?`${INSCRIPCION_ONLINE_MSG}\n\n${urlInscripcion(lead.curso,lead.whatsapp,lead.nombre)}`:dep.inscripcionPresencial?.(lead)||preguntaPendiente(lead.ruta,lead),fase:faseParaRuta(lead.ruta)}
   }
-  const now=new Date().toISOString()
+  if((siguientePaso(lead.ruta!)||18)<=5 && esCertificacion(texto)) {
+    const ruta={...lead.ruta!,persona:{desde:now,a:'un asesor educativo',motivo:'Certificación de inglés',estado:'pendiente' as const,ultimoAcuseDia:diaMexico(now)}}
+    await guardarRuta(db,lead,ruta)
+    return {mensaje:'Te canalizo con un asesor educativo para revisar tu certificación de inglés. 😊',fase:'con_asesor',avisarAsesor:true}
+  }
   const textoRuta=lead.ruta?.pasos[6] && /^b[).]?$/i.test(texto.trim())?'quiero inscribirme':/^(?:quiero apartar mi lugar|no tengo dudas|ya tengo mis documentos)$/i.test(texto.trim())?'quiero inscribirme':texto
   const inscripcion=()=>{
     const tipo=tipoInscripcion(lead.curso)
@@ -102,11 +117,16 @@ async function construirRespuestaRuta(db:SupabaseClient,id:string,texto:string,d
     link=true
     mensaje+=`${mensaje?'\n\n':''}${inscripcion()}`
   } else {
+    const pendiente=siguientePaso(ruta)===4 && !/curso de ingles/i.test(normalizar(lead.curso||'')) ? dep.catalogo?.(texto,lead)||preguntaPendiente(ruta,lead) : preguntaPendiente(ruta,lead)
+    if(siguientePaso(ruta)===4 && !Object.keys(datos).length && dep.ultimoBot?.includes(pendiente)) {
+      const p={desde:now,a:'un asesor educativo',motivo:'Programa sin identificar después del menú',estado:'pendiente' as const,ultimoAcuseDia:diaMexico(now)}
+      await guardarRuta(db,lead,{...ruta,persona:p})
+      return {mensaje:'Te canalizo con un asesor educativo para ayudarte a elegir el programa. 😊',fase:'con_asesor',avisarAsesor:true}
+    }
     // Texto libre que no movió la ruta ni trajo datos: contestarlo en contexto en vez de repetir la pregunta.
     if(!mensaje && !revision && entrada.trim().split(/\s+/).length>=3 && Object.keys(datos).length===0 && siguientePaso(ruta)===pasoAntes) {
       try {mensaje=await dep.duda(entrada,lead);if(!mensaje.trim()) throw new Error('Respuesta vacía')} catch {revision=true;mensaje=''}
     }
-    const pendiente=siguientePaso(ruta)===4 && !/curso de ingles/i.test(normalizar(lead.curso||'')) ? dep.catalogo?.(texto,lead)||preguntaPendiente(ruta,lead) : preguntaPendiente(ruta,lead)
     if(mensaje!==pendiente) mensaje+=`${mensaje?'\n\n':''}${pendiente}`
     if(siguientePaso(ruta)===14||siguientePaso(ruta)===15) mensaje+=`\n${urlInscripcion(lead.curso,lead.whatsapp,lead.nombre)}`
   }

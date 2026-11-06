@@ -1,4 +1,5 @@
 "use client";
+import RutaManual from './RutaManual';
 import { useState, useRef, useEffect, useMemo, Fragment, memo } from "react";
 import { isConvUnread } from "@/lib/whatsapp/conversation-filters.mjs";
 import { PASOS } from "@/lib/whatsapp/ruta";
@@ -1420,6 +1421,7 @@ function ConversationsPanel({
                   <div style={{ color: "#667781", fontSize: 11, marginTop: 2 }}>{selectedConvLead?.email || "Sin email"}</div>
                 </div>
                 <div className="wa-info-card">
+                  <RutaManual key={selectedConv.id} leadId={selectedConv.lead_id} />
                   <div className="wa-info-card-title">Responsable</div>
                   <div style={{ color: "#667781", fontSize: 11 }}>Modo: {selectedConv.modo_humano ? (selectedConvOwner?.nombre || selectedConvOwner?.email || "Humano") : "Bot"}</div>
                   <div style={{ color: "#667781", fontSize: 11, marginTop: 2 }}>Asignado: {selectedLeadAssigned?.nombre || selectedLeadAssigned?.email || "—"}</div>

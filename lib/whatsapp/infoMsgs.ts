@@ -1,3 +1,4 @@
+import { INICIO_INGLES_NINOS } from './servicio-calendario'
 // Fichas de información por programa + CTA — movido desde app/api/whatsapp/webhook/route.ts
 // (2026-09-23) para compartirlo con el cron de reactivación dentro de la ventana de 24h.
 import { esInglesIdioma } from '@/lib/whatsapp/programas'
@@ -42,7 +43,7 @@ Duración: 5 meses (10 meses en sabatino)
 
 🎓 Obtienes diploma con validez oficial.
 
-El ciclo actual inició el *7 de septiembre*, pero *todavía puedes incorporarte*: los profesores te ayudan a ponerte al corriente con los temas vistos 😊`,
+${INICIO_INGLES_NINOS}`,
 
   'Psicología': `¡Excelente elección! 😊 Te comparto la información de nuestra Licenciatura en Psicología:
 

@@ -2,6 +2,7 @@
 import { useState, useRef } from "react";
 import { PROGRAMAS_DIPLOMADO } from "@/lib/whatsapp/programas";
 import InscripcionesLead from './InscripcionesLead';
+import RutaManual from './RutaManual';
 
 const META_TEMPLATES = (nombre) => {
   const n = (nombre || "").trim() || "[nombre]";
@@ -164,6 +165,7 @@ export default function LeadDetailModal({
         <div style={{ padding: "24px 24px 0" }}>
 
           <InscripcionesLead key={lead.id} leadId={lead.id} />
+          <RutaManual key={`ruta-${lead.id}`} leadId={lead.id} />
           {/* HEADER */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
             <div style={{ flex: 1, marginRight: 12 }}>

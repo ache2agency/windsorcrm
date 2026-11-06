@@ -1,3 +1,4 @@
+import { procesarCanalizaciones } from '@/lib/whatsapp/canalizacion-motor'
 import { procesarInscripciones } from '@/lib/inscripcion/trabajos'
 import { cargarRuta, guardarRuta } from '@/lib/whatsapp/ruta-servicio'
 import { marcar, siguientePaso, type Ruta } from '@/lib/whatsapp/ruta'
@@ -288,6 +289,7 @@ async function run(request: Request) {
     if (!data || data.length < pageSize) break
   }
 
+  const canalizaciones = await procesarCanalizaciones(supabase,dryRun,ahora).catch(error=>[{accion:'error_canalizaciones',detalle:String(error)}])
   const inscripciones = await procesarInscripciones(supabase,dryRun)
   const inicioDiaMx = inicioDiaMexicoIso(ahora)
   const resultados: Array<Record<string, unknown>> = []
@@ -444,6 +446,7 @@ async function run(request: Request) {
     dryRun,
     horaMexico: hora,
     inscripciones,
+    canalizaciones,
     revisiones,
     templates: { limiteDia, enviadosHoy, cupoDisponible, propuestos: templates.length,
       seleccionados: seleccionados.length, diferidos: templates.length - seleccionados.length },
